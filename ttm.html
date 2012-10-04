@@ -1,0 +1,144 @@
+<html>
+<body>
+<h2>TTM</h2>
+<h2>NAME</h2>
+ttm - macro processor
+<h2>SYNOPSIS</h2>
+ttm
+[-B <i>integer</i>]
+[-d <i>string</i>]
+[-D <i>name=string</i>]
+[-e <i>string</i>]
+[-i]
+[-I <i>directory</i>]
+[-o <i>file</i>]
+[-V]
+[--]
+[<i>file</i>]
+[<i>arg...</i>]
+
+<h2>DESCRIPTION</h2
+The <b>ttm</b> macro processor
+scans the input file and executes any macro invocations encountered.
+If no file is specified or if file is '-', standard input is read.
+Note that in this latter case, all of standard input will be read
+up to EOF and then processing will commence.
+<p>
+Any arguments after the file name are provided to ttm using the
+<i>#&lt;argv;i&gt;</i> function.
+
+<h2>OPTIONS</h2>
+Except where indicated, all flags may be repeated multiple times.
+<dl>
+<dt><b>-B <i>integer</i></b><br>
+<dd>
+Set the internal buffer size. The default is 10 megabytes (2^21 bytes);
+The suffix m is allowed to indicate multiplying by 2^20.
+<p>
+<dt><b>-d <i>string</i></b><br>
+<dd>
+Set a variety of debug options as encoded in the string.
+<p><dt><b>-D <i>name=string</i></i></b><br>
+<dd>
+Predefine the name as a function whose body is the string.
+Exactly equivalent to -e #&lt;ds;name;string&gt;.
+<p><dt><b>-e <i>string</i></b><br>
+<dd>
+Scan the string and execute any macro invocations. Any output
+left after execution is discarded.
+<p><dt><b>-i</i></b><br>
+<dd>
+After executing any -D and -e options and executing any input file,
+enter the read-eval loop to execute commands interactively.
+<p><dt><b>-I <i>directory</i></b><br>
+<dd>
+Append the directory to the include path.
+<p><dt><b>-o <i>file</i></b><br>
+<dd>
+Send all output to the specified file. If not specified, then
+output is sent to standard output.
+<p><dt><b>-V</i></b><br>
+<dd>
+Output the version number of ttm and then exit.
+<p><dt><b>--</i></b><br>
+<dd>
+Signal the end of options and disable further option
+processing. Any arguments after the -- are treated as a file
+name followed by arguments.
+<p><dt><b><i>file</i></b><br>
+<dd>
+Specify the main file to execute. Any -D and -e arguments will be
+executed before the main file is executed.
+<p><dt><b><i>arg...</i></b><br>
+<dd>
+Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
+</dl>
+
+<h2>MODIFICATIONS</h2>
+This ttm processor adheres closely to the specification in the
+document entitled .
+However, the following modifications and extensions have been implemented.
+<ol>
+<li>
+The original ttm did not provide any mechanism
+for handling unpaired instances of '<' or '>'. A special escape
+mechanism is provided for this using backslash style escapes.
+So any character can be preceded by '\\' and it will be passed as-is.
+The preceding '\\' will not be removed except at the point where
+the output is sent to its final destination -- to standard output or
+to a file specified using -o.
+</ul>
+<p>
+<li>
+It is possible to change the set of meta-characters using the
+#&lt;ttm&gt; function. The default set of meta-characters are
+as defined in the ttm specification, with the addition of '\\'
+as the default escape character.
+<p>
+<li>
+This version of ttm supports (more or less) utf-8. The meta characters
+are restricted to be a subset of the US-ASCII 7-bit subset of utf-8.
+Otherwise, strings may contain any 8-bit value except 0xff.
+This allows for inclusion of utf-8 codepoints, but no validation
+is performed to see if the string is actually valid utf-8.
+</ol>
+
+<h2>ADDITIONAL PRIMITIVE FUNCTIONS</h2>
+<dl>
+<dt><b>#&lt;ttm;option;arg1;arg2;...&gt;</b><br>
+<dd>This function provides a general mechanism for altering
+the behavior of the macro processor.
+The currently defined options are as follows.
+<dl>
+<p><dt>meta<br>
+<dd>Change the set of meta-characters, except the escape
+character.  It takes one argument that specifies the set of
+meta characters. Setting the default behavior would use
+this invocation: #&lt;ttm;meta;\#\&lt;\;\&gt;&gt;.
+</dl>
+</dl>
+
+<h2>BUGS</h2>
+
+Probably many; but currently none known.
+
+<h2>LICENSE</h2>
+
+This software and documents is released under the terms of the Apache License version 2.
+For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
+
+<h2>ACKNOWLEDGEMENTS</h2>
+
+The original ttm was designed and implemented
+by Caine, Farber, and Gordon, Inc.
+(http://www.cfg.com/).
+
+<h2>REFERENCES</h2>
+<ol>
+<li>"TTM: An Experimental Interpretive Language",
+Caine, Farber, and Gordon (July, 1968).
+<li>"TTM: A Macro Language for Batch Processing",
+Caine, Farber, and Gordon (May, 1969).
+</ol>
+</body>
+</html>

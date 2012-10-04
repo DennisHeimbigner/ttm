@@ -1,0 +1,3 @@
+alias qc="gcc -g -O0 -o ttm ttm.c"
+alias qq="gdb --args ttm -Dxx=yy -e '##<xx>'"
+
