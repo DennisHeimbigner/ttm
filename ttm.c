@@ -17,7 +17,7 @@ This is in lieu of the typical config.h.
 #define HAVE_MEMMOVE 
 
 static void
-makespace(char* dst, char* src, unsigned int len)
+makespace(char* dst, char* src, unsigned long len)
 {
 #ifdef HAVE_MEMMOVE
     memmove((void*)dst,(void*)src,len);
@@ -108,7 +108,7 @@ typedef struct Buffer Buffer;
 
 static void scan(TTM* ttm);
 static void scanR(TTM* ttm, Buffer* bb, int nested);
-static unsigned int scanopenclose(TTM* ttm, Buffer* bb);
+static unsigned long scanopenclose(TTM* ttm, Buffer* bb);
 static void exec(TTM* ttm, Buffer* bb);
 static void parseinvocation(TTM* ttm, Buffer* bb, Frame* frame);
 static char* call(TTM* ttm, Frame* frame, char* body);
@@ -142,8 +142,8 @@ we can use pointers into the buffer space in e.g. struct String.
  */
 
 struct Buffer {
-    unsigned int alloc;  /* including trailing NUL */
-    unsigned int length;  /* including trailing NUL; defines what of
+    unsigned long alloc;  /* including trailing NUL */
+    unsigned long length;  /* including trailing NUL; defines what of
                              the allocated space is actual content. */
     char* pos; /* into content */
     char* end; /* into content */
@@ -155,7 +155,7 @@ struct Buffer {
 #define Bensure(bb,len) {if(Bavail(bb) < len) ebuffersize();}
 
 static Buffer*
-newBuffer(unsigned int buffersize)
+newBuffer(unsigned long buffersize)
 {
     Buffer* bb;
     bb = (Buffer*)calloc(1,sizeof(Buffer));
@@ -179,8 +179,8 @@ freeBuffer(Buffer* bb)
 }
 
 /* Make room for a string of length n at current position. */
-static char*
-expandBuffer(Buffer* bb, unsigned int len)
+static void
+expandBuffer(Buffer* bb, unsigned long len)
 {
     assert(bb != NULL);
     Bensure(bb,len); /* ensure enough space */
@@ -195,7 +195,7 @@ expandBuffer(Buffer* bb, unsigned int len)
 
 /* Remove len characters at current position */
 static void
-compressBuffer(Buffer* bb, unsigned int len)
+compressBuffer(Buffer* bb, unsigned long len)
 {
     assert(bb != NULL);
     if(len > 0 && bb->pos < bb->end) {
@@ -224,9 +224,8 @@ getBufferContent(Buffer* bb)
     return bb->content;
 }
 
-/* set content */
 static void
-setBufferLength(Buffer* bb, unsigned int len)
+setBufferLength(Buffer* bb, unsigned long len)
 {
     assert(bb != NULL);
     if(len >= bb->alloc) ebuffersize();
@@ -247,10 +246,10 @@ struct Frame {
 };
 
 static void
-initFrame(Frame* frame, int active)
+initFrame(Frame* frame)
 {
     frame->argc = 0;
-    frame->active = active;
+    frame->active = 0;
 }
 
 static void
@@ -305,7 +304,7 @@ indexed by the first char of the name
 of the function.
 */
 
-static Function*
+static void
 hashInsert(Function** table, Function* fcn)
 {
     Function* next;
@@ -337,8 +336,9 @@ static Function*
 hashLookup(Function** table, char* name)
 {
     Function* f;
+    int c0;
     assert(name != NULL);
-    int c0 = name[0];
+    c0 = name[0];
     f = table[c0];
     while(f != NULL) {/* search chain for fcn */
 	if(strcmp(name,f->name)==0)
@@ -353,8 +353,9 @@ hashRemove(Function** table, char* name)
 {
     Function* next;
     Function* prev;
+    int c0;
     assert(name != NULL);
-    int c0 = name[0];
+    c0 = name[0];
     next = table[c0];
     prev = NULL;
     while(next != NULL) {/* search chain for fcn */
@@ -374,8 +375,8 @@ TTM state object
 */
 
 struct TTM {
-    unsigned int buffersize;
-    unsigned int flags;
+    unsigned long buffersize;
+    unsigned long flags;
     int sharpc; /* sharp-like char */
     int openc; /* <-like char */
     int closec; /* >-like char */
@@ -384,13 +385,13 @@ struct TTM {
     Buffer* buffer; /* contains the string being processed */
     Function* functions[256]; /* indexed by fcn->name[0] */
     Frame* stack;    
-    unsigned int stackalloc;
+    unsigned long stackalloc;
     int stacknext; /* |stack| == (stacknext) */
     FILE* output;    
 };
 
 static TTM*
-newTTM(unsigned int buffersize)
+newTTM(unsigned long buffersize)
 {
     TTM* ttm = (TTM*)calloc(1,sizeof(TTM));
     if(ttm == NULL) ememory("TTM");
@@ -427,6 +428,7 @@ pushFrame(TTM* ttm)
 	if(ttm->stack == NULL) ememory("Stack");
     }
     frame = &ttm->stack[ttm->stacknext];
+    initFrame(frame);
     ttm->stacknext++;
     return frame;
 }
@@ -473,9 +475,7 @@ scanR(TTM* ttm, Buffer* bb, int nested)
 	    /* let next level up deal with the closing char */
 	    break;
 	} else if(c == ttm->sharpc) {
-	    int active = 0;
 	    char* begincall;
-	    char* endcall;
 	    begincall = bb->pos;
 	    /* check for invocation */
 	    if(bb->pos[1] == ttm->openc
@@ -499,13 +499,12 @@ scanR(TTM* ttm, Buffer* bb, int nested)
 Capture beginning and end of balanced <...>
 Return length starting from bb->pos.
 */
-static unsigned int
+static unsigned long
 scanopenclose(TTM* ttm, Buffer* bb)
 {
     /* Scan for matching close; take into account nesting and escape */
     int c;
     int depth = 0;
-    unsigned int len = 1; /* include the initial open */
     char* start = bb->pos;
 
     c = *(bb->pos++);
@@ -554,7 +553,7 @@ exec(TTM* ttm, Buffer* bb)
 	result = call(ttm,frame,fcn->body);
     if(result != NULL && result[0] != NUL) {
 	/* insert the result */
-	unsigned int len = strlen(result);
+	unsigned long len = strlen(result);
 	expandBuffer(bb,len);
 	memcpy(bb->pos,result,len);
 	if(!frame->active)
@@ -578,7 +577,7 @@ parseinvocation(TTM* ttm, Buffer* bb, Frame* frame)
     frame->argc = 0;
     frame->active = active;
     for(;;) {
-        unsigned int len;
+        unsigned long len;
         char* arg;
         char* start = bb->pos;
         int lastc;
@@ -612,7 +611,7 @@ call(TTM* ttm, Frame* frame, char* body)
 {
     char* p;
     int c;
-    unsigned int len;
+    unsigned long len;
     char* result;
     char* dst;
 
@@ -635,7 +634,7 @@ call(TTM* ttm, Frame* frame, char* body)
 	    int segindex = (int)(*p++);
 	    if(segindex < frame->argc) {
 		char* arg = frame->argv[segindex];
-		unsigned int argsize = strlen(arg);
+		unsigned long argsize = strlen(arg);
 	        memcpy((void*)dst,(void*)arg,argsize);
 		dst += argsize;
 	    }
@@ -660,7 +659,7 @@ includesLookup(char* filename)
     if(file != NULL)
 	return file;
     /* if this is absolute, then fail */
-    if(filename[0] = '/')
+    if(filename[0] == '/')
 	return NULL;
     /* try prefixing includes in order */
     for(i=0;i<MAXINCLUDES;i++) {
@@ -708,10 +707,9 @@ static char*
 ttm_argv(TTM* ttm, Frame* frame)
 {
     int index = atoi(frame->argv[1]);
-    int i;
     
     if(index < 0 || index >= getOptionStringLength(argoptions))
-	fail1("##<argv>: illegal index: %s",frame->argv[1]);
+	fail1("#<argv>: illegal index: %s",frame->argv[1]);
     return strdup(argoptions[index]);
 }
 
@@ -724,9 +722,9 @@ ttm_ss(TTM* ttm, Frame* frame)
     int i;
 
     if(function == NULL)
-	fail1("##<ss>: Undefined function: %s",frame->argv[1]);
+	fail1("#<ss>: Undefined function: %s",frame->argv[1]);
     if(function->builtin)
-	fail1("##<ss>: Function is builtin: %s",frame->argv[1]);
+	fail1("#<ss>: Function is builtin: %s",frame->argv[1]);
     /* The number of expected args is the same as the #segment marks
        given to this function, even if some of the marks do not
        occur in the body of the function
@@ -737,9 +735,9 @@ ttm_ss(TTM* ttm, Frame* frame)
     for(i=2;i<frame->argc;i++) {
 	int alen = strlen(frame->argv[i]);
 	if(alen == 0)
-	    fail1("##<ss>: Zero-length segment string: %s",frame->argv[i]);	
+	    fail1("#<ss>: Zero-length segment string: %s",frame->argv[i]);	
 	if(alen > bodylen)
-	    fail2("##<ss>: Segment string longer than function(%s) body: %s",frame->argv[1],frame->argv[i]);	
+	    fail2("#<ss>: Segment string longer than function(%s) body: %s",frame->argv[1],frame->argv[i]);	
     }
     for(i=2;i<frame->argc;i++) {
 	char* arg = frame->argv[i];
@@ -763,19 +761,57 @@ ttm_ss(TTM* ttm, Frame* frame)
             endpos = (bodylen - arglen);
 	}
     }
+    return NULL;
 }
 
-static char* ttm_if(TTM* ttm, Frame* frame) {return NULL;}
+static char*
+ttm_include(TTM* ttm, Frame* frame)
+{
+    char** path;
+    FILE* finclude;
+    char* suffix;
+    char filename[8192];
+    unsigned long startpos;
+
+    suffix = frame->argv[1]);
+    if(strlen(suffix) == 0)
+	fail1("#<include>: empty include file name: %s",suffix);
+    /* try to open file as is */
+    finclude = fopen(filename,"r");
+    if(finclude == NULL && suffix[0] == '/')
+	fail1("#<include>: Cannot read include file: %s",suffix);	
+    /* Since it is a relative path, try to use -I list */
+    for(path=includes;*path;) {
+	strcpy(filename,*path);
+	strcat(filename,"/");
+	strcat(filename,suffix);
+	finclude = fopen(filename,"r");
+        if(finclude != NULL) break;
+    }
+    if(finclude == NULL)
+	fail1("#<include>: Cannot find include file: %s",suffix);	
+    startpos = bb->pos;
+    if(!readfile(finclude,bb))
+	fail1("#<include>: Cannot read include file: %s",filename);
+    if(frame->active)
+	bb->pos = startpos;
+    return NULL;
+}
+
+static char* ttm_if(TTM* ttm, Frame* frame)
+{
+}
 
 static struct Builtin {
 char* name;
 int minargs;
 TTMFCN fcn;
 } builtins[] = {
-{"ds",2,ttm_ds},
-{"ss",2,ttm_ss},
-{"if",3,ttm_if},
 {"argv",2,ttm_argv},
+{"ds",2,ttm_ds},
+{"include",2,ttm_include},
+{"if",3,ttm_if},
+{"ss",2,ttm_ss},
 {NULL,0,NULL} /* terminator */
 };
 
@@ -816,7 +852,7 @@ utf8count(int c)
 static void
 passEscape(Buffer* bb)
 {
-    int c, skip;
+    int c;
 
     bb->pos++; /* move past the escape char */
     c = *(bb->pos);
@@ -856,7 +892,6 @@ tracestack(TTM* ttm, Frame* frame, int depth, int entering, int dumping)
 {
     char tag[4];
     int i;
-    Buffer* bb = ttm->buffer;
 
     i = 0;
     tag[i++] = (char)ttm->sharpc;
@@ -1008,11 +1043,11 @@ fromdecimal(int c)
     return (c = '0');
 }
 
-static unsigned int
+static unsigned long
 getsize(char* arg)
 {
     int alen = strlen(arg);
-    unsigned int base;
+    unsigned long base;
 
     if(alen == 0 || !isdec(*arg)) ebadbuffersize();
     base = atoi(arg);
@@ -1044,13 +1079,13 @@ convertDtoE(char* def)
 }
 
 static void
-readfile(const char* filename,Buffer* bb)
+readinput(const char* filename,Buffer* bb)
 {
     char* content = NULL;
     FILE* f = NULL;
     int isstdin = 0;
     int i;
-    unsigned int buffersize = bb->alloc;
+    unsigned long buffersize = bb->alloc;
 
     if(strcmp(filename,"-") == 0) {
 	/* Read from stdinput */
@@ -1064,7 +1099,7 @@ readfile(const char* filename,Buffer* bb)
 	}
     }
     
-    /* setup buffer 
+    /* setup buffer */
     resetBuffer(bb);
     content = getBufferContent(bb);
 
@@ -1086,14 +1121,14 @@ readbalanced(TTM* ttm)
     char* content;
     int i, depth, iseof;
 
-    unsigned int buffersize;
+    unsigned long buffersize;
 
     bb = ttm->buffer;
     resetBuffer(bb);
 
     buffersize = bb->alloc;
 
-    /* setup buffer 
+    /* setup buffer */
     resetBuffer(bb);
     content = getBufferContent(bb);
 
@@ -1142,6 +1177,22 @@ printbuffer(TTM* ttm)
     }
 }
 
+static int
+readfile(FILE* file, Buffer* bb)
+{
+    long filesize;
+
+    fseek(f,0,SEEK_SET); /* end of the file */
+    filesize = ftell(f); /* get file length */
+    rewind(f);
+ 
+    expandBuffer(bb,(unsigned long)filesize); /* make room for the file input */
+    fread(getBufferContent(bb),filesize,1,file);
+    if(ferror(file)) return 0;
+    bb->pos += (unsigned long)filesize;
+    return 1;
+}
+
 /**************************************************/
 /* Main() */
 
@@ -1151,7 +1202,7 @@ int
 main(int argc, char** argv)
 {
     int i;
-    unsigned int buffersize = MINBUFFERSIZE;
+    unsigned long buffersize = MINBUFFERSIZE;
     char* debugargs = strdup("");
     int interactive = 0;
     char* outputfilename = NULL;
@@ -1185,6 +1236,8 @@ main(int argc, char** argv)
 	    interactive = 1;
 	    break;
 	case 'I':
+	    if(optarg[strlen(optarg)-1] == '/')
+	        optarg[strlen(optarg)-1] = NUL;
 	    pushOptionString(optarg,MAXINCLUDES,includes);
 	    break;
 	case 'o':
@@ -1255,7 +1308,7 @@ main(int argc, char** argv)
 
     /* Now execute the inputfile, if any */
     if(inputfilename != NULL) {
-        readfile(inputfilename,ttm->buffer);
+        readinput(inputfilename,ttm->buffer);
         scan(ttm);
     }    
 
