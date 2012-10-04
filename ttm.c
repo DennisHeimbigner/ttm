@@ -115,6 +115,7 @@ static char* call(TTM* ttm, Frame* frame, char* body);
 static void passEscape(Buffer* bb);
 static int getOptionStringLength(char** list);
 static int pushOptionString(char* option, int max, char** list);
+static int readfile(FILE* file, Buffer* bb);
 
 /**************************************************/
 /* Common typedefs */
@@ -771,9 +772,10 @@ ttm_include(TTM* ttm, Frame* frame)
     FILE* finclude;
     char* suffix;
     char filename[8192];
-    unsigned long startpos;
+    char* startpos;
+    Buffer* bb = ttm->buffer;
 
-    suffix = frame->argv[1]);
+    suffix = frame->argv[1];
     if(strlen(suffix) == 0)
 	fail1("#<include>: empty include file name: %s",suffix);
     /* try to open file as is */
@@ -800,39 +802,86 @@ ttm_include(TTM* ttm, Frame* frame)
 
 static char* ttm_if(TTM* ttm, Frame* frame)
 {
+    return NULL;
 }
 
 static struct Builtin {
 char* name;
 int minargs;
 TTMFCN fcn;
-} builtins[] = {
-{"argv",2,ttm_argv},
+};
+
+/* Define a subset of the original TTM functions */
+static struct Builtin builtin_orig[] = {
+/* Dictionary Operations */
+{"ap",2,ttm_ap},
+{"cf",2,ttm_cf},
+{"cr",2,ttm_cr},
 {"ds",2,ttm_ds},
-{"include",2,ttm_include},
-{"if",3,ttm_if},
+{"es",2,ttm_es},
+{"sc",2,ttm_sc},
 {"ss",2,ttm_ss},
+/* String Selection */
+cc
+cn
+cp
+cs
+isc
+rrp
+scn
+/* String Scanning Operations */
+gn
+zlc
+zlcp
+/* Character Class Operations */
+ccl
+dcl
+dncl
+ecl
+scl
+tcl
+/* Arithmetic Operations */
+abs
+ad
+dv
+dvr
+mu
+su
+
 {NULL,0,NULL} /* terminator */
 };
+
+/* Functions new to this implementation */
+static struct Builtin builtin_new[] = {
+{"argv",2,ttm_argv},
+{"include",2,ttm_include},
+{NULL,0,NULL} /* terminator */
+};
+
+static void
+defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
+{
+    /* Make sure we did not define builtin twice */
+    Function* function = hashLookup(ttm->functions,bin->name);
+    assert(function == NULL);
+    /* create a new function object */
+    function = newFunction();
+    function->builtin = 1;
+    function->name = strdup(bin->name);
+    function->minargs = bin->minargs;
+    function->fcn = bin->fcn;
+    hashInsert(ttm->functions,function);
+}
 
 static void
 defineBuiltinFunctions(TTM* ttm)
 {
     struct Builtin* bin;
-    for(bin=builtins;bin->name != NULL;bin++) {
-	/* Make sure we did not define builtin twice */
-        Function* function = hashLookup(ttm->functions,bin->name);
-        assert(function == NULL);
-	/* create a new function object */
-	function = newFunction();
-	function->builtin = 1;
-	function->name = strdup(bin->name);
-	function->minargs = bin->minargs;
-	function->fcn = bin->fcn;
-	hashInsert(ttm->functions,function);
-    }
+    for(bin=builtin_orig;bin->name != NULL;bin++)
+	defineBuildinFunction1(ttm,bin);
+    for(bin=builtin_new;bin->name != NULL;bin++)
+	defineBuildinFunction1(ttm,bin);
 }
-
 
 /**************************************************/
 /* Utility functions */
