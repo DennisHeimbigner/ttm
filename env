@@ -1,3 +1,4 @@
 alias qc="gcc -Wall -Wdeclaration-after-statement -g -O0 -o ttm ttm.c"
+alias qe="gcc -E -Wall -Wdeclaration-after-statement ttm.c"
 alias qq="gdb --args ttm -Dxx=yy -e '##<xx>'"
 
