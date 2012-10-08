@@ -20,7 +20,7 @@ Erase Strings (ES)	14
 Copy a Function (CF)	14
 Segment a String (SS)	14
 Segment and Count (SC)	15
-Hark for Creation (CR)	15
+Mark for Creation (CR)	15
 String Selection	16
 Call One Character (CC)	16
 Call N Characters (CN)	16

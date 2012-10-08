@@ -88,10 +88,10 @@ Constants
 #define NESTED 1
 #define NOTTM NULL
 
-/* Debug Flags */
-
+/* TTM Flags */
 #define FLAG_EXIT 1
 #define FLAG_TRACE 2
+
 
 /**************************************************/
 /* Error Numbers */
@@ -120,6 +120,7 @@ EIO, /* An I/O Error Occurred */
 ETTM, /* A TTM Processing Error Occurred */
 ESTORAGE, /* Error In Storage Format */
 #endif
+EPOSITIVE,
 /* Error messages new to this implementation */
 ESTACKOVERFLOW,
 ESTACKUNDERFLOW,
@@ -158,6 +159,8 @@ static char* errmsgs[] = {
 "A TTM Processing Error Occurred",
 "Error In Storage Format",
 #endif
+"Only Unsigned Decimal Integers",
+
 /* Error messages new to this implementation */
 "Stack Overflow",
 "Stack Underflow",
@@ -272,6 +275,8 @@ struct String {
     char* name;
     int builtin;
     int minargs;
+    int maxargs;
+    int novalue; /* must always return no value */
     int residual; /* residual "pointer" (offset really) */
     TTMFCN fcn; /* builtin == 1 */
     char* body; /* builtin == 0 */
@@ -317,57 +322,60 @@ static void exec(TTM* ttm, Buffer* bb);
 static void parsecall(TTM* ttm, Frame* frame);
 static char* call(TTM* ttm, Frame* frame, char* body);
 static void printstring(TTM* ttm, FILE* output, char* s);
-static void ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */;
-static void ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */;
-static void ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */;
+static void ttm_ap(TTM* ttm, Frame* frame); /* Append to a string */
+static void ttm_cf(TTM* ttm, Frame* frame); /* Copy a function */
+static void ttm_cr(TTM* ttm, Frame* frame); /* Mark for creation */
 static void ttm_ds(TTM* ttm, Frame* frame);
-static void ttm_es(TTM* ttm, Frame* frame) /* Erase string */;
+static void ttm_es(TTM* ttm, Frame* frame); /* Erase string */
 static int ttm_ss0(TTM* ttm, Frame* frame);
-static void ttm_sc(TTM* ttm, Frame* frame) /* Segment and count */;
-static void ttm_ss(TTM* ttm, Frame* frame) /* Segment and count */;
-static void ttm_cc(TTM* ttm, Frame* frame) /* Call one character */;
-static void ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */;
-static void ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */;
-static void ttm_cs(TTM* ttm, Frame* frame) /* Call segment */;
-static void ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan */;
-static void ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */;
-static void ttm_scn(TTM* ttm, Frame* frame) /* Character scan */;
-static void ttm_gn(TTM* ttm, Frame* frame) /* Give n characters */;
-static void ttm_zlc(TTM* ttm, Frame* frame) /* Zero-level commas */;
-static void ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses */;
-static void ttm_ccl(TTM* ttm, Frame* frame) /* Call class */;
+static void ttm_sc(TTM* ttm, Frame* frame); /* Segment and count */
+static void ttm_ss(TTM* ttm, Frame* frame); /* Segment and count */
+static void ttm_cc(TTM* ttm, Frame* frame); /* Call one character */
+static void ttm_cn(TTM* ttm, Frame* frame); /* Call n characters */
+static void ttm_cp(TTM* ttm, Frame* frame); /* Call parameter */
+static void ttm_cs(TTM* ttm, Frame* frame); /* Call segment */
+static void ttm_isc(TTM* ttm, Frame* frame); /* Initial character scan */
+static void ttm_rrp(TTM* ttm, Frame* frame); /* Reset residual pointer */
+static void ttm_scn(TTM* ttm, Frame* frame); /* Character scan */
+static void ttm_sn(TTM* ttm, Frame* frame); /* Skip n characters */
+static void ttm_eos(TTM* ttm, Frame* frame); /* Test for end of string */
+static void ttm_gn(TTM* ttm, Frame* frame); /* Give n characters */
+static void ttm_zlc(TTM* ttm, Frame* frame); /* Zero-level commas */
+static void ttm_zlcp(TTM* ttm, Frame* frame); /* Zero-level commas and parentheses */
+static void ttm_flip(TTM* ttm, Frame* frame); /* Flip (reverse); a string */
+static void ttm_ccl(TTM* ttm, Frame* frame); /* Call class */
 static void ttm_dcl0(TTM* ttm, Frame* frame, int negative);
-static void ttm_dcl(TTM* ttm, Frame* frame) /* Define a negative class */;
-static void ttm_dncl(TTM* ttm, Frame* frame) /* Define a negative class */;
-static void ttm_ecl(TTM* ttm, Frame* frame) /* Erase a class */;
-static void ttm_scl(TTM* ttm, Frame* frame) /* Skip class */;
-static void ttm_tcl(TTM* ttm, Frame* frame) /* Test class */;
-static void ttm_abs(TTM* ttm, Frame* frame) /* Obtain absolute value */;
-static void ttm_ad(TTM* ttm, Frame* frame) /* Add */;
-static void ttm_dv(TTM* ttm, Frame* frame) /* Divide and give quotient */;
-static void ttm_dvr(TTM* ttm, Frame* frame) /* Divide and give remainder */;
-static void ttm_mu(TTM* ttm, Frame* frame) /* Multiply */;
-static void ttm_su(TTM* ttm, Frame* frame) /* Substract */;
-static void ttm_eq(TTM* ttm, Frame* frame) /* Compare numeric equal */;
-static void ttm_gt(TTM* ttm, Frame* frame) /* Compare numeric greater-than */;
-static void ttm_lt(TTM* ttm, Frame* frame) /* Compare numeric less-than */;
-static void ttm_eql(TTM* ttm, Frame* frame) /* ? Compare logical equal */;
-static void ttm_gtl(TTM* ttm, Frame* frame) /* ? Compare logical greater-than */;
-static void ttm_ltl(TTM* ttm, Frame* frame) /* ? Compare logical less-than */;
-static void ttm_ps(TTM* ttm, Frame* frame) /* Print a String */;
-static void ttm_psr(TTM* ttm, Frame* frame) /* Print String and Read */;
-static void ttm_rs(TTM* ttm, Frame* frame) /* Read a String */;
-static void ttm_pserr(TTM* ttm, Frame* frame) /* Print a String to stderr */;
-static void ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */;
-static void ttm_names(TTM* ttm, Frame* frame) /* Obtain String Names */;
-static void ttm_exit(TTM* ttm, Frame* frame) /* Return from TTM */;
-static void ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a Name is Defined */;
-static void ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a String */;
-static void ttm_time(TTM* ttm, Frame* frame) /* Obtain Execution Time */;
-static void ttm_tf(TTM* ttm, Frame* frame) /* Turn Trace Off */;
-static void ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */;
-static void ttm_argv(TTM* ttm, Frame* frame) /* Get ith command line argument */;
-static void ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */;
+static void ttm_dcl(TTM* ttm, Frame* frame); /* Define a negative class */
+static void ttm_dncl(TTM* ttm, Frame* frame); /* Define a negative class */
+static void ttm_ecl(TTM* ttm, Frame* frame); /* Erase a class */
+static void ttm_scl(TTM* ttm, Frame* frame); /* Skip class */
+static void ttm_tcl(TTM* ttm, Frame* frame); /* Test class */
+static void ttm_abs(TTM* ttm, Frame* frame); /* Obtain absolute value */
+static void ttm_ad(TTM* ttm, Frame* frame); /* Add */
+static void ttm_dv(TTM* ttm, Frame* frame); /* Divide and give quotient */
+static void ttm_dvr(TTM* ttm, Frame* frame); /* Divide and give remainder */
+static void ttm_mu(TTM* ttm, Frame* frame); /* Multiply */
+static void ttm_su(TTM* ttm, Frame* frame); /* Substract */
+static void ttm_eq(TTM* ttm, Frame* frame); /* Compare numeric equal */
+static void ttm_gt(TTM* ttm, Frame* frame); /* Compare numeric greater-than */
+static void ttm_lt(TTM* ttm, Frame* frame); /* Compare numeric less-than */
+static void ttm_eql(TTM* ttm, Frame* frame); /* ? Compare logical equal */
+static void ttm_gtl(TTM* ttm, Frame* frame); /* ? Compare logical greater-than */
+static void ttm_ltl(TTM* ttm, Frame* frame); /* ? Compare logical less-than */
+static void ttm_ps(TTM* ttm, Frame* frame); /* Print a String */
+static void ttm_psr(TTM* ttm, Frame* frame); /* Print String and Read */
+static void ttm_rs(TTM* ttm, Frame* frame); /* Read a String */
+static void ttm_pserr(TTM* ttm, Frame* frame); /* Print a String to stderr */
+static void ttm_cm(TTM* ttm, Frame* frame); /* Change meta character */
+static void ttm_names(TTM* ttm, Frame* frame); /* Obtain String Names */
+static void ttm_exit(TTM* ttm, Frame* frame); /* Return from TTM */
+static void ttm_ndf(TTM* ttm, Frame* frame); /* Determine if a Name is Defined */
+static void ttm_norm(TTM* ttm, Frame* frame); /* Obtain the Norm of a String */
+static void ttm_time(TTM* ttm, Frame* frame); /* Obtain Execution Time */
+static void ttm_tf(TTM* ttm, Frame* frame); /* Turn Trace Off */
+static void ttm_tn(TTM* ttm, Frame* frame); /* Turn Trace On */
+static void ttm_argv(TTM* ttm, Frame* frame); /* Get ith command line argument */
+static void ttm_include(TTM* ttm, Frame* frame);  /* Include text of a file */
 static void fail(TTM* ttm, ERR eno);
 static void fatal(TTM* ttm, const char* msg);
 static ERR toInt64(char* s, long long* lp);
@@ -1435,6 +1443,39 @@ fail:
     }
 }
 
+static void
+ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
+{
+    ERR err;
+    long long num;
+    String* str = dictionaryLookup(ttm,frame->argv[2]);
+    if(str == NULL)
+	fail(ttm,ENONAME);
+    if(str->builtin)
+        fail(ttm,ENOPRIM);
+    err = toInt64(frame->argv[1],&num);
+    if(err != ENOERR) fail(ttm,err);
+    if(err < 0) fail(ttm,EPOSITIVE);   
+    str->residual += num;
+    if(str->residual > strlen(str->body))
+	str->residual = strlen(str->body);
+}
+
+static void ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
+{
+    String* str = dictionaryLookup(ttm,frame->argv[1]);
+    char* result;
+    if(str == NULL)
+	fail(ttm,ENONAME);
+    if(str->builtin)
+        fail(ttm,ENOPRIM);
+    if(str->residual >= strlen(str->body))
+    result = (str->residual >= strlen(str->body) ? frame->argv[2] : frame->argv[3]);
+    setBufferLength(ttm,ttm->result,strlen(result));
+    strcpy(ttm->result->content,result);
+}
+
+
 /* String Scanning Operations */
 
 static void
@@ -1549,6 +1590,20 @@ ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses */
     }
     *q = NUL; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(q-ttm->result->content));
+}
+
+static void
+ttm_flip(TTM* ttm, Frame* frame) /* Flip a string */
+{
+    char* s;
+    char* q;
+    int slen,i;
+
+    s = frame->argv[1];
+    slen = strlen(s);
+    setBufferLength(ttm,ttm->result,slen);
+    q=ttm->result->content;
+    for(i=slen-1;i>=0;i--) *q++ = s[i];
 }
 
 static void
@@ -2156,98 +2211,131 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 struct Builtin {
     char* name;
     int minargs;
+    int maxargs;
+    char* sv;
     TTMFCN fcn;
 };
 
 /* TODO: fix the minargs values */
 
 /* Define a subset of the original TTM functions */
+
+/* Define some temporary macros */
+#define ARB -1
+
 static struct Builtin builtin_orig[] = {
     /* Dictionary Operations */
-    {"ap",2,ttm_ap}, /* Append to a string */
-    {"cf",2,ttm_cf}, /* Copy a function */
-    {"cr",2,ttm_cr}, /* Mark for creation */
-    {"ds",2,ttm_ds}, /* Define string */
-    {"es",2,ttm_es}, /* Erase string */
-    {"sc",2,ttm_sc}, /* Segment and count */
-    {"ss",2,ttm_ss}, /* Segment a string */
+    {"ap",2,2,"S",ttm_ap}, /* Append to a string */
+    {"cf",2,2,"S",ttm_cf}, /* Copy a function */
+    {"cr",2,2,"S",ttm_cr}, /* Mark for creation */
+    {"ds",2,2,"S",ttm_ds}, /* Define string */
+    {"es",1,ARB,"S",ttm_es}, /* Erase string */
+    {"sc",2,63,"SV",ttm_sc}, /* Segment and count */
+    {"ss",2,2,"S",ttm_ss}, /* Segment a string */
     /* String Selection */
-    {"cc",2,ttm_cc}, /* Call one character */
-    {"cn",2,ttm_cn}, /* Call n characters */
-    {"cp",2,ttm_cp}, /* Call parameter */
-    {"cs",2,ttm_cs}, /* Call segment */
-    {"isc",2,ttm_isc}, /* Initial character scan */
-    {"rrp",2,ttm_rrp}, /* Reset residual pointer */
-    {"scn",2,ttm_scn}, /* Character scan */
+    {"cc",1,1,"SV",ttm_cc}, /* Call one character */
+    {"cn",2,2,"SV",ttm_cn}, /* Call n characters */
+    {"sn",2,2,"S",ttm_sn}, /* Skip n characters */ /*Batch*/
+    {"cp",1,1,"SV",ttm_cp}, /* Call parameter */
+    {"cs",1,1,"SV",ttm_cs}, /* Call segment */
+    {"isc",4,4,"SV",ttm_isc}, /* Initial character scan */
+    {"rrp",1,1,"S",ttm_rrp}, /* Reset residual pointer */
+    {"scn",3,3,"SV",ttm_scn}, /* Character scan */
     /* String Scanning Operations */
-    {"gn",2,ttm_gn}, /* Give n characters */
-    {"zlc",2,ttm_zlc}, /* Zero-level commas */
-    {"zlcp",2,ttm_zlcp}, /* Zero-level commas and parentheses */
+    {"gn",2,2,"S",ttm_gn}, /* Give n characters */
+    {"zlc",1,1,"V",ttm_zlc}, /* Zero-level commas */
+    {"zlcp",1,1,"V",ttm_zlcp}, /* Zero-level commas and parentheses */
+    {"flip",2,2,"S",ttm_flip}, /* Flip a string */ /*Batch*/
     /* Character Class Operations */
-    {"ccl",2,ttm_ccl}, /* Call class */
-    {"dcl",2,ttm_dcl}, /* Define a class */
-    {"dncl",2,ttm_dncl}, /* Define a negative class */
-    {"ecl",2,ttm_ecl}, /* Erase a class */
-    {"scl",2,ttm_scl}, /* Skip class */
-    {"tcl",2,ttm_tcl}, /* Test class */
+    {"ccl",2,2,"SV",ttm_ccl}, /* Call class */
+    {"dcl",2,2,"S",ttm_dcl}, /* Define a class */
+    {"dncl",2,2,"S",ttm_dncl}, /* Define a negative class */
+    {"ecl",1,ARB,"S",ttm_ecl}, /* Erase a class */
+    {"scl",2,2,"S",ttm_scl}, /* Skip class */
+    {"tcl",4,4,"V",ttm_tcl}, /* Test class */
     /* Arithmetic Operations */
-    {"abs",2,ttm_abs}, /* Obtain absolute value */
-    {"ad",2,ttm_ad}, /* Add */
-    {"dv",2,ttm_dv}, /* Divide and give quotient */
-    {"dvr",2,ttm_dvr}, /* Divide and give remainder */
-    {"mu",2,ttm_mu}, /* Multiply */
-    {"su",2,ttm_su}, /* Substract */
+    {"abs",1,1,"V",ttm_abs}, /* Obtain absolute value */
+    {"ad",2,2,"V",ttm_ad}, /* Add */
+    {"dv",2,2,"V",ttm_dv}, /* Divide and give quotient */
+    {"dvr",2,2,"V",ttm_dvr}, /* Divide and give remainder */
+    {"mu",2,2,"V",ttm_mu}, /* Multiply */
+    {"su",2,2,"V",ttm_su}, /* Substract */
     /* Numeric Comparisons */
-    {"eq",2,ttm_eq}, /* Compare numeric equal */
-    {"gt",2,ttm_gt}, /* Compare numeric greater-than */
-    {"lt",2,ttm_lt}, /* Compare numeric less-than */
+    {"eq",4,4,"V",ttm_eq}, /* Compare numeric equal */
+    {"gt",4,4,"V",ttm_gt}, /* Compare numeric greater-than */
+    {"lt",4,4,"V",ttm_lt}, /* Compare numeric less-than */
     /* Logical Comparisons */
-    {"eq?",2,ttm_eql}, /* ? Compare logical equal */
-    {"gt?",2,ttm_gtl}, /* ? Compare logical greater-than */
-    {"lt?",2,ttm_ltl}, /* ? Compare logical less-than */
+    {"eq?",4,4,"V",ttm_eql}, /* ? Compare logical equal */
+    {"gt?",4,4,"V",ttm_gtl}, /* ? Compare logical greater-than */
+    {"lt?",4,4,"V",ttm_ltl}, /* ? Compare logical less-than */
     /* Peripheral Input/Output Operations */
-    {"cm",2,ttm_cm}, /*Change Meta Character*/
-    {"ps",2,ttm_ps}, /* Print a String */
-    {"pserr",2,ttm_pserr}, /* Print a String to stderr*/
-    {"psr",2,ttm_psr}, /* Print String and Read */
+    {"cm",1,1,"S",ttm_cm}, /*Change Meta Character*/
+    {"ps",1,1,"S",ttm_ps}, /* Print a String */
+    {"pserr",1,1,"S",ttm_pserr}, /* Print a String to stderr*/
+    {"psr",1,1,"SV",ttm_psr}, /* Print String and Read */
 #ifdef IMPLEMENTED
-    {"rcd",2,ttm_rcd}, /* Set to Read Prom Cards */
+    {"rcd",2,2,"S",ttm_rcd}, /* Set to Read Prom Cards */
 #endif
-    {"rs",2,ttm_rs}, /* Read a String */
+    {"rs",0,0,"V",ttm_rs}, /* Read a String */
     /*Formated Output Operations*/
 #ifdef IMPLEMENTED
-    {"fm",2,ttm_fm}, /* Format a Line or Card */
-    {"tabs",2,ttm_tabs}, /* Declare Tab Positions */
-    {"scc",2,ttm_scc}, /* Set Continuation Convention */
-    {"icc",2,ttm_icc}, /* Insert a Control Character */
-    {"outb",2,ttm_outb}, /* Output the Buffer */
+    {"fm",1,ARB,"S",ttm_fm}, /* Format a Line or Card */
+    {"tabs",1,8,"S",ttm_tabs}, /* Declare Tab Positions */
+    {"scc",2,2,"S",ttm_scc}, /* Set Continuation Convention */
+    {"icc",1,1,"S",ttm_icc}, /* Insert a Control Character */
+    {"outb",0,3,"S",ttm_outb}, /* Output the Buffer */
 #endif
     /* Library Operations */
 #ifdef IMPLEMENTED
-    {"store",2,ttm_store}, /* Store a Program */
-    {"delete",2,ttm_delete}, /* Delete a Program */
-    {"copf",2,ttm_copf}, /* Copy a Program */
-    {"show",2,ttm_show}, /* Show Program Names */
+    {"store",2,2,"S",ttm_store}, /* Store a Program */
+    {"delete",1,1,"S",ttm_delete}, /* Delete a Program */
+    {"copy",1,1,"S",ttm_copy}, /* Copy a Program */
+    {"show",0,1,"S",ttm_show}, /* Show Program Names */
+    {"libs",2,2,"S",ttm_libs}, /* Declare standard qualifiers */ /*Batch*/
 #endif
-    {"names",2,ttm_names}, /* Obtain String Names */
+    {"names",0,1,"S",ttm_names}, /* Obtain String Names */
     /* Utility Operations */
 #ifdef IMPLEMENTED
-    {"break",2,ttm_break}, /* Program Break */
+    {"break",0,1,"S",ttm_break}, /* Program Break */
 #endif
-    {"exit",2,ttm_exit}, /* Return from TTM */
-    {"ndf",2,ttm_ndf}, /* Determine if a Name is Defined */
-    {"norm",2,ttm_norm}, /* Obtain the Norm of a String */
-    {"time",2,ttm_time}, /* Obtain Execution Time */
-    {"tf",2,ttm_tf}, /* Turn Trace Off */
-    {"tn",2,ttm_tn}, /* Turn Trace On */
-    {NULL,0,NULL} /* terminator */
+    {"exit",0,0,"S",ttm_exit}, /* Return from TTM */
+    {"ndf",3,3,"S",ttm_ndf}, /* Determine if a Name is Defined */
+    {"norm",1,1,"S",ttm_norm}, /* Obtain the Norm of a String */
+    {"time",0,0,"V",ttm_time}, /* Obtain Execution Time */
+    {"tf",0,0,"S",ttm_tf}, /* Turn Trace Off */
+    {"tn",0,0,"S",ttm_tn}, /* Turn Trace On */
+    {"eos",2,2,"S",ttm_eos}, /* Test for end of string */ /*Batch*/
+
+#ifdef IMPLEMENTED
+/* Batch Functions */
+    {"insw",2,2,"S",ttm_insw}, /* Control output of input monitor */ /*Batch*/
+    {"ttmsw",2,2,"S",ttm_ttmsw}, /* Control handling of ttm programs */ /*Batch*/
+    {"cd",0,0,"V",ttm_cd}, /* Input one card */ /*Batch*/
+    {"cdsw",2,2,"S",ttm_cdsw}, /* Control cd input */ /*Batch*/
+    {"for",0,0,"V",ttm_for}, /* Input next complete fortran statement */ /*Batch*/
+    {"forsw",2,2,"S",ttm_forsw}, /* Control for input */ /*Batch*/
+    {"pk",0,0,"V",ttm_pk}, /* Look ahead one card */ /*Batch*/
+    {"pksw",2,2,"S",ttm_pksw}, /* Control pk input */ /*Batch*/
+    {"ps",1,1,"S",ttm_ps}, /* Print a string */ /*Batch*/ /*Modified*/
+    {"page",1,1,"S",ttm_page}, /* Specify page length */ /*Batch*/
+    {"sp",1,1,"S",ttm_sp}, /* Space before printing */ /*Batch*/
+    {"fm",0,ARB,"S",ttm_fm}, /* Format a line or card */ /*Batch*/
+    {"tabs",1,10,"S",ttm_tabs}, /* Declare tab positions */ /*Batch*/ /*Modified*/
+    {"scc",3,3,"S",ttm_scc}, /* Set continuation convention */ /*Batch*/
+    {"fmsw",2,2,"S",ttm_fmsw}, /* Control fm output */ /*Batch*/
+    {"time",0,0,"V",ttm_time}, /* Obtain time of day */ /*Batch*/ /*Modified*/
+    {"xtime",0,0,"V",ttm_xtime}, /* Obtain execution time */ /*Batch*/
+    {"des",1,1,"S",ttm_des}, /* Define error string */ /*Batch*/
+#endif
+
+    {NULL,2,2,NULL} /* terminator */
     };
     
     /* Functions new to this implementation */
     static struct Builtin builtin_new[] = {
-    {"argv",2,ttm_argv}, /* Get ith command line argument */
-    {"include",2,ttm_include}, /* Include text of a file */
-    {NULL,0,NULL} /* terminator */
+    {"argv",2,2,"V",ttm_argv}, /* Get ith command line argument */
+    {"include",2,2,"S",ttm_include}, /* Include text of a file */
+    {NULL,2,2,NULL} /* terminator */
 };
 
 static void
@@ -2261,6 +2349,9 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     function->builtin = 1;
     function->name = strdup(bin->name);
     function->minargs = bin->minargs;
+    function->maxargs = bin->maxargs;
+    if(strcmp(bin->sv,"S")==0)
+	function->novalue = 1;
     function->fcn = bin->fcn;
     dictionaryInsert(ttm,function);
 }
