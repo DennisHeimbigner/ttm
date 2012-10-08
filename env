@@ -1,7 +1,7 @@
-T1='-Dxx=yy -e "#<xx>"'
-T1='-e "#<ad;1;2>"'
+T1='test.ttm a b c'
 alias qc="gcc -Wall -Wdeclaration-after-statement -g -O0 -o ttm ttm.c"
 alias qe="gcc -E -Wall -Wdeclaration-after-statement ttm.c"
+alias q0="ttm ${T1}"
 alias qq="gdb --args ttm ${T1}"
 
 

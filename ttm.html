@@ -76,32 +76,24 @@ Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
 
 <h2>MODIFICATIONS</h2>
 This ttm processor adheres closely to the specification in the
-document entitled .
-However, the following modifications and extensions have been implemented.
+ttm specification documents [1,2].
+However, a number of new functions have been implemented
+and the semantics of a couple of others have been changed.
+<p>
+In addition, the following general changes to TTM
+should be noted.
 <ol>
-<li>
-The original ttm did not provide any mechanism
-for handling unpaired instances of '<' or '>'. A special escape
-mechanism is provided for this using backslash style escapes.
-So any character can be preceded by '\\' and it will be passed as-is.
-The preceding '\\' will not be removed except at the point where
-the output is sent to its final destination -- to standard output or
-to a file specified using -o.
-</ul>
-<p>
-<li>
-It is possible to change the set of meta-characters using the
-#&lt;ttm&gt; function. The default set of meta-characters are
-as defined in the ttm specification, with the addition of '\\'
-as the default escape character.
-<p>
 <li>
 This version of ttm supports (more or less) utf-8. The meta characters
 are restricted to be a subset of the US-ASCII 7-bit subset of utf-8.
-Otherwise, strings may contain any 8-bit value except 0xff.
-This allows for inclusion of utf-8 codepoints, but no validation
-is performed to see if the string is actually valid utf-8.
+Otherwise, strings may contain any legal utf-8 multi-byte character.
+This allows for inclusion of utf-8 codepoints, but only limited validation
+is performed to see if the string is truly utf-8.
 </ol>
+
+<h3>New Functions</h3>
+
+<h3>Modifications to Function Semantics</h3>
 
 <h2>ADDITIONAL PRIMITIVE FUNCTIONS</h2>
 <dl>
@@ -135,10 +127,15 @@ by Caine, Farber, and Gordon, Inc.
 
 <h2>REFERENCES</h2>
 <ol>
-<li>"TTM: An Experimental Interpretive Language",
-Caine, Farber, and Gordon (July, 1968).
-<li>"TTM: A Macro Language for Batch Processing",
-Caine, Farber, and Gordon (May, 1969).
+
+<li> Caine, S.H. and Gordon, E.K., TTM: An Experimental
+Interpretive Language. California Institute of Technology,
+Willis H. Booth Computing Center, Programming Report No. 7, 1968.
+
+<li>Caine, S.H. and Gordon, E.K., TTM: A Macro Language for
+Batch Processing. California Institute of Technology, Willis
+H. Booth Computing Center, Programming Report No. 8 May, 1969.
+
 </ol>
 </body>
 </html>
