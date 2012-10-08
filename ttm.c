@@ -2,6 +2,9 @@
 This software is released under the terms of the Apache License version 2.
 For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 */
+/**************************************************/
+
+#define DEBUG 1
 
 /**************************************************/
 /**
@@ -95,11 +98,14 @@ Constants
 #define MINBUFFERSIZE 1024
 #define MINSTACKSIZE 1024
 
+#define CONTEXTLEN 20
+
 #define CREATELEN 4 /* # of characters for a create mark */
 
 /*Mnemonics*/
 #define NESTED 1
 #define NOTTM NULL
+#define TRACING 1
 
 /* TTM Flags */
 #define FLAG_EXIT 1
@@ -109,82 +115,43 @@ Constants
 /**************************************************/
 /* Error Numbers */
 typedef enum ERR {
-ENOERR,   /* No error; for completeness */
-ENONAME, /* String or Character Class Name Not Found */
-ENOPRIM, /* Primitives Not Allowed */
-EFEWPARMS, /* Too Few Parameters Given */
-EFORMAT, /* Incorrect Format */
-EQUOTIENT, /* Quotient Is Too Large */
-EDECIMAL, /* Decimal Integer Required */
-EMANYDIGITS, /* Too Many Digits */
-EMANYSEGMARKS, /* Too Many Segment Marks */
-EMEMORY, /* Dynamic Storage Overflow */
-EPARMROLL, /* Parm Roll Overflow */
-EINPUTROLL, /* Input Roll Overflow */
+ENOERR		=  0, /* No error; for completeness */
+ENONAME		=  1, /* String or Character Class Name Not Found */
+ENOPRIM		=  2, /* Primitives Not Allowed */
+EFEWPARMS	=  3, /* Too Few Parameters Given */
+EFORMAT		=  4, /* Incorrect Format */
+EQUOTIENT	=  5, /* Quotient Is Too Large */
+EDECIMAL	=  6, /* Decimal Integer Required */
+EMANYDIGITS	=  7, /* Too Many Digits */
+EMANYSEGMARKS	=  8, /* Too Many Segment Marks */
+EMEMORY		=  9, /* Dynamic Storage Overflow */
+EPARMROLL	= 10, /* Parm Roll Overflow */
+EINPUTROLL	= 11, /* Input Roll Overflow */
 #ifdef IMPLEMENTED
-EDUPLIBNAME, /* Name Already On Library */
-ELIBNAME, /* Name Not On Library */
-ELIBSPACE, /* No Space On Library */
-EINITIALS, /* Initials Not Allowed */
-EATTACH, /* Could Not Attach */
+EDUPLIBNAME	= 12, /* Name Already On Library */
+ELIBNAME	= 13, /* Name Not On Library */
+ELIBSPACE	= 14, /* No Space On Library */
+EINITIALS	= 15, /* Initials Not Allowed */
+EATTACH		= 16, /* Could Not Attach */
 #endif
-EIO, /* An I/O Error Occurred */
+EIO		= 17, /* An I/O Error Occurred */
 #ifdef IMPLEMENTED
-ETTM, /* A TTM Processing Error Occurred */
-ESTORAGE, /* Error In Storage Format */
+ETTM		= 18, /* A TTM Processing Error Occurred */
+ESTORAGE	= 19, /* Error In Storage Format */
 #endif
-EPOSITIVE,
+EPOSITIVE	= 20, 
 /* Error messages new to this implementation */
-ESTACKOVERFLOW,
-ESTACKUNDERFLOW,
-EBUFFERSIZE, /* Buffer overflow */
-EMANYINCLUDES, /* Too many includes */
-EINCLUDE, /* Cannot read Include file */
-ERANGE, /* index out of legal range */
-EMANYPARMS, /* # parameters > MAXARGS */
-EEOS, /* Unexpected end of string */
+ESTACKOVERFLOW	= 30, /* Leave room */
+ESTACKUNDERFLOW	= 31, 
+EBUFFERSIZE	= 32, /* Buffer overflow */
+EMANYINCLUDES	= 33, /* Too many includes */
+EINCLUDE	= 34, /* Cannot read Include file */
+ERANGE		= 35, /* index out of legal range */
+EMANYPARMS	= 36, /* # parameters > MAXARGS */
+EEOS		= 37, /* Unexpected end of string */
 /* Default case */
-EOTHER
+EOTHER		= 99
 } ERR;
-
-static char* errmsgs[] = {
-"No error",
-"String or Character Class Name Not Found"
-"Primitives Not Allowed",
-"Too Few Parameters Given",
-"Incorrect Format",
-"Quotient Is Too Large",
-"Decimal Integer Required",
-"Too Many Digits",
-"Too Many Segment Marks",
-"Dynamic Storage Overflow",
-"Parm Roll Overflow",
-"Input Roll Overflow",
-#ifdef IMPLEMENTED
-"Name Already On Library",
-"Name Not On Library",
-"No Space On Library",
-"Initials Not Allowed",
-"Could Not Attach",
-#endif
-"An I/O Error Occurred",
-#ifdef IMPLEMENTED
-"A TTM Processing Error Occurred",
-"Error In Storage Format",
-#endif
-"Only Unsigned Decimal Integers",
-
-/* Error messages new to this implementation */
-"Stack Overflow",
-"Stack Underflow",
-"Buffer overflow",
-"Too many includes",
-"Cannot read include file",
-"Index out of legal range",
-"Too many parameters",
-"Unexpected end of string",
-"Unknown Error"
-};
 
 /**************************************************/
 /* "inline" functions */
@@ -391,11 +358,12 @@ static void ttm_argv(TTM* ttm, Frame* frame); /* Get ith command line argument *
 static void ttm_include(TTM* ttm, Frame* frame);  /* Include text of a file */
 static void fail(TTM* ttm, ERR eno);
 static void fatal(TTM* ttm, const char* msg);
+static const char* errstring(ERR err);
 static ERR toInt64(char* s, long long* lp);
 static int utf8count(int c);
 static int convertEscapeChar(int c);
-static void trace(TTM* ttm, int entering, int dumping);
-static void trace1(TTM* ttm, int depth, int entering, int dumping);
+static void trace(TTM* ttm, int entering, int tracing);
+static void trace1(TTM* ttm, int depth, int entering, int tracing);
 static void dumpstack(TTM* ttm);
 static int getOptionStringLength(char** list);
 static int pushOptionString(char* option, int max, char** list);
@@ -406,6 +374,7 @@ static void readinput(TTM* ttm, const char* filename,Buffer* bb);
 static int readbalanced(TTM* ttm);
 static void printbuffer(TTM* ttm);
 static int readfile(TTM* ttm, FILE* file, Buffer* bb);
+static void dumpstack(TTM* ttm);
 
 /**************************************************/
 /* Global variables */
@@ -433,6 +402,11 @@ newTTM(unsigned long buffersize, unsigned long stacksize)
     ttm->stacknext = 0;
     ttm->stack = (Frame*)malloc(sizeof(Frame)*stacksize);
     if(ttm->stack == NULL) fail(ttm,EMEMORY);
+    memset((void*)ttm->dictionary,0,sizeof(ttm->dictionary));
+    memset((void*)ttm->charclasses,0,sizeof(ttm->charclasses));
+#ifdef DEBUG
+    ttm->flags |= FLAG_TRACE;
+#endif
     return ttm;
 }
 
@@ -459,6 +433,7 @@ newBuffer(TTM* ttm, unsigned long buffersize)
     bb->alloc = buffersize;
     bb->length = 0;
     bb->active = bb->content;
+    bb->passive = bb->content;
     bb->end = bb->active;
     return bb;
 }
@@ -810,10 +785,10 @@ scan(TTM* ttm)
 		    bb->active++;
 		    if(--depth == 0) break; /* we are done */
 	        } else
-		    bb->active++; /* keep moving */
+		    *bb->passive++ = *bb->active++; /* keep moving */
 	    }/*<...> for*/
 	} else /* non-signficant character */
-	    bb->active++; /* keep moving */
+	    *bb->passive++ = *bb->active++; /* keep moving */
     } /*scan for*/
 
     /* When we get here, we are finished, so clean up */
@@ -859,16 +834,16 @@ exec(TTM* ttm, Buffer* bb)
     /* Reset the result buffer */
     resetBuffer(ttm,ttm->result);
     if(ttm->flags & FLAG_TRACE)
-	trace(ttm,1,0);
+	trace(ttm,1,TRACING);
     if(fcn->builtin)
 	fcn->fcn(ttm,frame);
     else /* invoke the pseudo function "call" */
 	call(ttm,frame,fcn->body);
     if(ttm->flags & FLAG_TRACE)
-	trace(ttm,0,0);
+	trace(ttm,0,TRACING);
 
     /* Now, put the result into the buffer */
-    if(ttm->result->length > 0) {
+    if(!fcn->novalue && ttm->result->length > 0) {
 	char* insertpos;
 	unsigned long resultlen = ttm->result->length;
 	/*Compute the space avail between bb->passive and bb->active */
@@ -880,9 +855,10 @@ exec(TTM* ttm, Buffer* bb)
 	   frame->passive => insert at bb->passive (and move bb->passive)
 	   frame->active => insert at bb->active - (ttm->result->length)
 	*/
-	if(frame->active)
+	if(frame->active) {
 	    insertpos = (bb->active - resultlen);
-	else { /*frame->passive*/
+	    bb->active = insertpos;	    
+	} else { /*frame->passive*/
 	    insertpos = bb->passive;
 	    bb->passive += resultlen;
 	}
@@ -901,62 +877,66 @@ parsecall(TTM* ttm, Frame* frame)
     int c,done,depth,i,count;
     Buffer* bb = ttm->buffer;
 
-    for(done=0;done;) {
+    done = 0;
+    do {
 	frame->argv[frame->argc] = bb->passive; /* start of ith argument */
-	c = *bb->active; /* Note that we do not bump here */
-	if(c == NUL) fail(ttm,EEOS); /* Unexpected end of buffer */
-        if(isescape(c)) {
-	    bb->active++;
-	    c = *bb->active;
-	    if(ismultibyte(c)) {
-	        for(i=0;i<utf8count(c);i++)
-		    {*bb->passive++ = *bb->active++;}
-	    } else if((c = convertEscapeChar(c)) != NUL)
-		{*bb->passive++=(char)c;}
-	} else if(c == ttm->semic || c == ttm->closec) {
-	    /* End of an argument */
-	    *bb->passive++ = NUL; /* null terminate the argument */
-	    /* move to next arg */
-	    frame->argc++;
-	    if(c == ttm->closec) done=1;
-	    else if(frame->argc >= MAXARGS) fail(ttm,EMANYPARMS);
-	    else frame->argv[frame->argc] = bb->passive;
-	} else if(c == ttm->sharpc) {
-	    /* check for call within call */
-	    if(bb->active[1] == ttm->openc
-	       || (bb->active[1] == ttm->sharpc
-                    && bb->active[2] == ttm->openc)) {
-		/* Recurse to compute inner call */
-		exec(ttm,bb);
-	    }
-	    *bb->passive++ = *bb->active++; /* just pass it */
-	} else if(c == ttm->openc) {/* <...> nested brackets */
-	    bb->active++; /* skip leading lbracket */
-	    for(;;) {
-	        c = *(bb->active);
-		if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
-	        if(isescape(c)) {
-		    *bb->passive++ = (char)c;
-		    bb->active++;
-		    c = *bb->active;
-		    count = (ismultibyte(c)?utf8count(c):1);
-		    for(i=0;i<utf8count(c);i++) {*bb->passive++=*bb->active++;}
-	        } else if(c == ttm->openc) {
-		    *bb->passive++ = (char)c;
-		    bb->active++;
-	            depth++;
-		} else if(c == ttm->closec) {
-		    bb->active++;
-		    if(--depth == 0) break; /* we are done */
-	        } else
-		    bb->active++; /* keep moving */
-	    }/*<...> for*/
-	    break;	    
-	} else {
-	    /* keep moving */
-	    bb->active++;
-	}
-    }/*outer for */
+	while(!done) {
+            c = *bb->active; /* Note that we do not bump here */
+            if(c == NUL) fail(ttm,EEOS); /* Unexpected end of buffer */
+            if(isescape(c)) {
+                bb->active++;
+                c = *bb->active;
+                if(ismultibyte(c)) {
+                    for(i=0;i<utf8count(c);i++)
+                        {*bb->passive++ = *bb->active++;}
+                } else if((c = convertEscapeChar(c)) != NUL)
+                    {*bb->passive++=(char)c;}
+            } else if(c == ttm->semic || c == ttm->closec) {
+                /* End of an argument */
+                *bb->passive++ = NUL; /* null terminate the argument */
+		bb->active++; /* skip the semi or close */
+                /* move to next arg */
+                frame->argc++;
+                if(c == ttm->closec) done=1;
+                else if(frame->argc >= MAXARGS) fail(ttm,EMANYPARMS);
+                else frame->argv[frame->argc] = bb->passive;
+            } else if(c == ttm->sharpc) {
+                /* check for call within call */
+                if(bb->active[1] == ttm->openc
+                   || (bb->active[1] == ttm->sharpc
+                        && bb->active[2] == ttm->openc)) {
+                    /* Recurse to compute inner call */
+                    exec(ttm,bb);
+                }
+                *bb->passive++ = *bb->active++; /* just pass it */
+            } else if(c == ttm->openc) {/* <...> nested brackets */
+                bb->active++; /* skip leading lbracket */
+                for(;;) {
+                    c = *(bb->active);
+                    if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
+                    if(isescape(c)) {
+                        *bb->passive++ = (char)c;
+                        bb->active++;
+                        c = *bb->active;
+                        count = (ismultibyte(c)?utf8count(c):1);
+                        for(i=0;i<utf8count(c);i++) {*bb->passive++=*bb->active++;}
+                    } else if(c == ttm->openc) {
+                        *bb->passive++ = (char)c;
+                        bb->active++;
+                        depth++;
+                    } else if(c == ttm->closec) {
+                        bb->active++;
+                        if(--depth == 0) break; /* we are done */
+                    } else
+                        *bb->passive++ = *bb->active++; /* keep moving */
+                }/*<...> for*/
+                break;          
+            } else {
+                /* keep moving */
+                *bb->passive++ = *bb->active++;
+            }
+	} /* collect argument for */
+    } while(!done);
 }
 
 /**************************************************/
@@ -1059,7 +1039,7 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     body = str->body;
     apstring = frame->argv[2];
     str->residual = strlen(body)+strlen(apstring);
-    realloc(body,str->residual+1);
+    body = realloc(body,str->residual+1);
     if(body == NULL) fail(ttm,EMEMORY);
     strcat(body,apstring);
 }
@@ -1077,8 +1057,7 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
     if(newstr == NULL) {
 	/* create a new string object */
 	newstr = newString(ttm);
-	newstr->name = newname;
-	frame->argv[1] = NULL;
+	newstr->name = strdup(newname);
 	dictionaryInsert(ttm,newstr);
     }
     /* Propagate old to new */
@@ -1169,15 +1148,13 @@ ttm_ds(TTM* ttm, Frame* frame)
     if(str == NULL) {
 	/* create a new string object */
 	str = newString(ttm);
-	str->name = frame->argv[1];
-	frame->argv[1] = NULL;
+	str->name = strdup(frame->argv[1]);
 	dictionaryInsert(ttm,str);
     }
     str->builtin = 0;
     if(str->body != NULL)
 	free(str->body);
-    str->body = frame->argv[2];
-    frame->argv[2] = NULL;
+    str->body = strdup(frame->argv[2]);
 }
 
 static void
@@ -1658,14 +1635,12 @@ ttm_dcl0(TTM* ttm, Frame* frame, int negative)
     if(cl == NULL) {
 	/* create a new charclass object */
 	cl = newCharclass(ttm);
-	cl->name = frame->argv[1];
-	frame->argv[1] = NULL;
+	cl->name = strdup(frame->argv[1]);
 	charclassInsert(ttm,cl);
     }
     if(cl->characters != NULL)
 	free(cl->characters);
-    cl->characters = frame->argv[2];
-    frame->argv[2] = NULL;
+    cl->characters = strdup(frame->argv[2]);
     cl->negative = negative;
 }
 
@@ -2134,7 +2109,7 @@ ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a String */
     char result[32];
 
     s = frame->argv[1];
-    snprintf(result,sizeof(result),"%d",strlen(s));
+    snprintf(result,sizeof(result),"%u",(unsigned int)strlen(s));
     setBufferLength(ttm,ttm->result,strlen(result));
     strcpy(ttm->result->content,result);
 }
@@ -2387,9 +2362,7 @@ static void
 fail(TTM* ttm, ERR eno)
 {
     char msg[4096];
-    if(eno >= 0 && eno < sizeof(errmsgs)/sizeof(char*))
-	eno = EOTHER;
-    snprintf(msg,sizeof(msg),"(%d) %s",eno,errmsgs[eno]);
+    snprintf(msg,sizeof(msg),"(%d) %s",eno,errstring(eno));
     fatal(ttm,msg);
 }
 
@@ -2398,9 +2371,74 @@ fatal(TTM* ttm, const char* msg)
 {
     fprintf(stderr,"Fatal error: %s\n",msg);
     if(ttm != NULL) {
+	int i;
+	Buffer* bb = ttm->buffer;
+	unsigned long leftlen, rightlen;
+	char* cxt0;
+	char* cxt1;
 	/* Dump the frame stack */
+	dumpstack(ttm);
+        /* Dump some context */
+        cxt0 = bb->passive;
+	if(cxt0 == NULL) cxt0 = bb->content;
+	if((bb->content + CONTEXTLEN) > cxt0)
+	    cxt0 = bb->content;
+        cxt1 = bb->active;
+	if((bb->content + (bb->length - CONTEXTLEN)) < cxt1)
+	    cxt1 = (bb->content+bb->length);
+	leftlen = (bb->passive - cxt0);
+	rightlen = (cxt1 - bb->active);
+	fprintf(stderr,"context: |");
+	for(i=0;i<leftlen;i++) fputc(cxt0[i],stderr);
+	fprintf(stderr,"| ... |");
+	for(i=0;i<rightlen;i++) fputc(cxt1[i],stderr);
+	fprintf(stderr,"|\n");
     }
     exit(1);
+}
+
+static const char*
+errstring(ERR err)
+{
+    const char* msg = NULL;
+    switch(err) {
+    case ENOERR: msg="No error"; break;
+    case ENONAME: msg="String or Character Class Name Not Found"; break;
+    case ENOPRIM: msg="Primitives Not Allowed"; break;
+    case EFEWPARMS: msg="Too Few Parameters Given"; break;
+    case EFORMAT: msg="Incorrect Format"; break;
+    case EQUOTIENT: msg="Quotient Is Too Large"; break;
+    case EDECIMAL: msg="Decimal Integer Required"; break;
+    case EMANYDIGITS: msg="Too Many Digits"; break;
+    case EMANYSEGMARKS: msg="Too Many Segment Marks"; break;
+    case EMEMORY: msg="Dynamic Storage Overflow"; break;
+    case EPARMROLL: msg="Parm Roll Overflow"; break;
+    case EINPUTROLL: msg="Input Roll Overflow"; break;
+#ifdef IMPLEMENTED
+    case EDUPLIBNAME: msg="Name Already On Library"; break;
+    case ELIBNAME: msg="Name Not On Library"; break;
+    case ELIBSPACE: msg="No Space On Library"; break;
+    case EINITIALS: msg="Initials Not Allowed"; break;
+    case EATTACH: msg="Could Not Attach"; break;
+#endif
+    case EIO: msg="An I/O Error Occurred"; break;
+#ifdef IMPLEMENTED
+    case ETTM: msg="A TTM Processing Error Occurred"; break;
+    case ESTORAGE: msg="Error In Storage Format"; break;
+#endif
+    case EPOSITIVE: msg="Only unsigned decimal integers"; break;
+    /* messages new to this implementation */
+    case ESTACKOVERFLOW: msg="Stack overflow"; break;
+    case ESTACKUNDERFLOW: msg="Stack Underflow"; break;
+    case EBUFFERSIZE: msg="Buffer overflow"; break;
+    case EMANYINCLUDES: msg="Too many includes"; break;
+    case EINCLUDE: msg="Cannot read Include file"; break;
+    case ERANGE: msg="index out of legal range"; break;
+    case EMANYPARMS: msg="Number of parameters greater than MAXARGS"; break;
+    case EEOS: msg="Unexpected end of string"; break;
+    case EOTHER: msg="Unknown Error"; break;
+    }
+    return msg;
 }
 
 /**************************************************/
@@ -2516,20 +2554,20 @@ convertEscapeChar(int c)
 Trace a top frame in the frame stack.
 */
 static void
-trace(TTM* ttm, int entering, int dumping)
+trace(TTM* ttm, int entering, int tracing)
 {
-    trace1(ttm, ttm->stacknext-1, entering, dumping);
+    trace1(ttm, ttm->stacknext-1, entering, tracing);
 }
 
 
 static void
-trace1(TTM* ttm, int depth, int entering, int dumping)
+trace1(TTM* ttm, int depth, int entering, int tracing)
 {
     char tag[4];
     int i;
     Frame* frame;
 
-    if(ttm->stacknext == 0) {
+    if(tracing && ttm->stacknext == 0) {
 	fprintf(stderr,"trace: no frame to trace\n");
 	return;
     }	
@@ -2538,19 +2576,25 @@ trace1(TTM* ttm, int depth, int entering, int dumping)
 
     i = 0;
     tag[i++] = (char)ttm->sharpc;
-    if(frame->active)
+    if(!frame->active)
 	tag[i++] = (char)ttm->sharpc;
     tag[i++] = (char)ttm->openc;
     tag[i] = NUL;
-    fprintf(stderr,"[%02d] ",ttm->stacknext-1);
-    if(dumping)
+    fprintf(stderr,"[%02d] ",depth);
+    if(tracing)
         fprintf(stderr,"%s: ",(entering?"begin":"end"));
-    fprintf(stderr,"%s",tag);
-    for(i=0;i<frame->argc;i++) {
-	if(i > 0) fprintf(stderr,"%c",ttm->semic);
-        fprintf(stderr,"%s",frame->argv[i]);
-    }
-    fprintf(stderr,"%c\n",ttm->closec);
+    fprintf(stderr,"%s%s",tag,frame->argv[0]);
+    if(entering) {
+	for(i=1;i<frame->argc;i++) {
+	    fprintf(stderr,"%c%s",ttm->semic,frame->argv[i]);
+	}
+	if(tracing || depth == ttm->stacknext-1)
+	    fprintf(stderr,"%c\n",ttm->closec);
+	else
+	    fprintf(stderr," ...\n");
+    } else
+	fprintf(stderr,"%c\n",ttm->closec);
+    fflush(stderr);
 }
 
 /**
@@ -2563,8 +2607,9 @@ dumpstack(TTM* ttm)
     for(i=ttm->stacknext-1;i>=0;i--) {
 	Frame* frame;
 	frame = &ttm->stack[i];
-        trace(ttm,0,1);
+        trace(ttm,0,!TRACING);
     }
+    fflush(stderr);
 }
 
 /**************************************************/
@@ -2609,6 +2654,7 @@ usage(void)
     exit(0);
 }
 
+/* Convert option -Dx=y to option -e '#<ds;x;y>' */
 static void
 convertDtoE(const char* def)
 {
@@ -2618,7 +2664,7 @@ convertDtoE(const char* def)
     if(macro == NULL) fail(NOTTM,EMEMORY);
     strcpy(macro,"##<ds;");
     strcat(macro,def);
-    sep = strchr(def,'=');
+    sep = strchr(macro,'=');
     if(sep != NULL)
 	*sep++ = ';';
     else
