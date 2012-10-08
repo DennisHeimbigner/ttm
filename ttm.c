@@ -11,39 +11,52 @@ This is in lieu of the typical config.h.
 
 #define HAVE_MEMMOVE 
 
-/**************************************************/
+/* It is not clear what the correct Windows CPP Tag should be.
+   Assume _WIN32, but this may not work with cygwin.
+   In any case, create our own.
+*/
 
+#if  defined _WIN32 || defined _MSC_VER
+#define MSWINDOWS 1
+#endif
+
+#ifdef MSWINDOWS
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif
+
+/**************************************************/
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
+#ifdef MSWINDOWS
+#include <windows.h>  /* To get GetProcessTimes() */
+#else /*!MSWINDOWS*/
+#include <unistd.h> /* This defines getopt */
+#include <sys/times.h> /* to get times() */
+#endif /*!MSWINDOWS*/
+
 /**************************************************/
 /* Unix/Linux versus Windows Definitions */
 
 /* snprintf */
-#ifdef _MSC_VER
+#ifdef MSWINDOWS
 #define snprintf _snprintf /* Microsoft has different name for snprintf */
-#endif /*!_MSC_VER*/
+#define strdup _strdup
+#endif /*!MSWINDOWS*/
 
 /* Getopt */
-#ifdef _MSC_VER
-static char* optarg;		// global argument pointer
-static int   optind = 0; 	// global argv index
-static int getopt(int argc, char *argv[], char *optstring)
-#else /*!_MSC_VER*/
+#ifdef MSWINDOWS
+static char* optarg;		/* global argument pointer */
+static int   optind = 0; 	/* global argv index */
+static int getopt(int argc, char **argv, char *optstring);
+#else /*!MSWINDOWS*/
 #include <unistd.h> /* This defines getopt */
-#endif /*!_MSC_VER*/
+#endif /*!MSWINDOWS*/
 
 /* Wrap both unix and windows timing in this function */
 static unsigned long long getRunTime(void);
-
-#ifdef _MSC_VER
-#include <windows.h>  /* To get GetProcessTimes() */
-#else /*!_MSC_VER*/
-#include <unistd.h> /* This defines getopt */
-#include <sys/times.h> /* to get times() */
-#endif /*!_MSC_VER*/
 
 /**************************************************/
 
@@ -234,7 +247,7 @@ struct TTM {
     Buffer* result; /* contains result strings from functions */
     String* dictionary[256]; /* indexed by str->name[0] */
     Charclass* charclasses[256]; /* indexed by cl->name[0] */
-    int stacknext; /* |stack| == (stacknext) */
+    unsigned int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
 };
@@ -277,7 +290,7 @@ struct String {
     int minargs;
     int maxargs;
     int novalue; /* must always return no value */
-    int residual; /* residual "pointer" (offset really) */
+    unsigned int residual; /* residual "pointer" (offset really) */
     TTMFCN fcn; /* builtin == 1 */
     char* body; /* builtin == 0 */
     String* next; /* "hash" chain */
@@ -1135,7 +1148,7 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 	int endpos = (bodylen - crlen); /* max point for which search makes sense */
 	int pos;
 	for(pos=0;pos<endpos;) {
-	    if(memcmp((void*)body+pos,(void*)crstring,crlen) != 0)
+	    if(memcmp((void*)(body+pos),(void*)crstring,crlen) != 0)
 		continue;
 	    /* we have a match, replace match by a create marker */
 	    makespace(body+pos+1,body+pos,1);
@@ -1209,7 +1222,7 @@ ttm_ss0(TTM* ttm, Frame* frame)
 	if(arglen == 0 || arglen > bodylen) continue; /* No substitution possible */
 	/* Search for occurrences of arg */
 	for(pos=0;pos<endpos;) {
-	    if(memcmp((void*)body+pos,(void*)arg,arglen) != 0)
+	    if(memcmp((void*)(body+pos),(void*)arg,arglen) != 0)
 		continue;
 	    /* we have a match, replace match by a segment marker (beginning at 1)*/
 	    /* make sure we have 2 characters of space */
@@ -1284,8 +1297,8 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     if(avail < 0) avail = 0;
     if(avail < n) n = avail;
     if(n > 0) {
-	setBufferLength(ttm,ttm->result,n);
-	memcpy(ttm->result->content,str->body+str->residual,n);
+	setBufferLength(ttm,ttm->result,(long)n);
+	memcpy((void*)ttm->result->content,(void*)(str->body+str->residual),(unsigned long)n);
 	ttm->result->content[n] = NUL;
     }
 }
@@ -1456,7 +1469,7 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
     err = toInt64(frame->argv[1],&num);
     if(err != ENOERR) fail(ttm,err);
     if(err < 0) fail(ttm,EPOSITIVE);   
-    str->residual += num;
+    str->residual += (unsigned int)num;
     if(str->residual > strlen(str->body))
 	str->residual = strlen(str->body);
 }
@@ -1483,7 +1496,7 @@ ttm_gn(TTM* ttm, Frame* frame) /* Give n characters */
 {
     char* snum = frame->argv[1];
     char* s = frame->argv[2];
-    int slen = strlen(s);
+    unsigned int slen = strlen(s);
     ERR err;
     long long num;
 
@@ -1491,17 +1504,18 @@ ttm_gn(TTM* ttm, Frame* frame) /* Give n characters */
     if(err != ENOERR) fail(ttm,err);
     if(num > 0) {
 	if(slen < num) num = slen;
-	setBufferLength(ttm,ttm->result,num);
-	memcpy(ttm->result->content,s,num);
+	setBufferLength(ttm,ttm->result,(unsigned long)num);
+	memcpy((void*)ttm->result->content,(void*)s,(unsigned long)num);
 	ttm->result->content[num] = NUL;
     } else if(num < 0) {
-	int rem;
+	unsigned int rem, unum;
 	num = -num;
-	if(slen < num) num = slen;
-	rem = (slen - num);
+	unum = (unsigned long)num;
+	if(slen < unum) unum = slen;
+	rem = (slen - unum);
 	setBufferLength(ttm,ttm->result,rem);
-	memcpy((void*)ttm->result->content,s+rem,num);
-	ttm->result->content[num] = NUL;
+	memcpy((void*)ttm->result->content,s+rem,unum);
+	ttm->result->content[unum] = NUL;
     }
 }
 
@@ -2620,7 +2634,7 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     char* content = NULL;
     FILE* f = NULL;
     int isstdin = 0;
-    int i;
+    unsigned int i;
     unsigned long buffersize = bb->alloc;
 
     if(strcmp(filename,"-") == 0) {
@@ -2654,7 +2668,7 @@ readbalanced(TTM* ttm)
 {
     Buffer* bb;
     char* content;
-    int i, depth, iseof;
+    unsigned int i, depth, iseof;
 
     unsigned long buffersize;
 
@@ -2819,7 +2833,7 @@ main(int argc, char** argv)
     }
 
     /* Create the ttm state */
-    ttm = newTTM(buffersize,stacksize);
+    ttm = newTTM((unsigned long)buffersize,(unsigned long)stacksize);
     ttm->output = outputfile;
 
     defineBuiltinFunctions(ttm);
@@ -2876,7 +2890,7 @@ differences.
 
 /**************************************************/
 
-#ifdef _MSC_VER
+#ifdef MSWINDOWS
 
 static unsigned long long
 getRunTime(void)
@@ -2887,14 +2901,16 @@ getRunTime(void)
     GetProcessTimes(GetCurrentProcess(),
 		    &ftCreation, &ftExit, &ftKernel, &ftUser);
 
-    runtime = (ftUser.dwHighDateTime << 32 | ftUser.dwLowDateTime);
+    runtime = ftUser.dwHighDateTime;
+	runtime = runtime << 32;
+	runtime = runtime | ftUser.dwLowDateTime;
     /* Divide by 10000 to get milliseconds from 100 nanosecond ticks */
     runtime /= 10000;
     return runtime;
 }
 
 
-#else /*!_MSC_VER */
+#else /*!MSWINDOWS */
 
 static long frequency = 0;
 
@@ -2913,13 +2929,13 @@ getRunTime(void)
     return runtime;
 }
 
-#endif /*!_MSC_VER */
+#endif /*!MSWINDOWS */
 
 
 /**************************************************/
 /* Getopt */
 
-#ifdef _MSC_VER
+#ifdef MSWINDOWS
 /**
  XGetopt.h  Version 1.2
 
@@ -2935,7 +2951,7 @@ getRunTime(void)
 */
 
 static int
-getopt(int argc, char *argv[], char *optstring)
+getopt(int argc, char **argv, char *optstring)
 {
     static char *next = NULL;
     char c;
@@ -2984,4 +3000,4 @@ getopt(int argc, char *argv[], char *optstring)
     }
     return c;
 }
-#endif /*_MSC_VER*/
+#endif /*MSWINDOWS*/
