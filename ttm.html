@@ -5,13 +5,14 @@
 ttm - macro processor
 <h2>SYNOPSIS</h2>
 ttm
-[-B <i>integer</i>]
+[-B <i>positive-integer</i>]
 [-d <i>string</i>]
 [-D <i>name=string</i>]
 [-e <i>string</i>]
 [-i]
 [-I <i>directory</i>]
 [-o <i>file</i>]
+[-S <i>positive-integer</i>]
 [-V]
 [--]
 [<i>file</i>]
@@ -25,7 +26,7 @@ Note that in this latter case, all of standard input will be read
 up to EOF and then processing will commence.
 <p>
 Any arguments after the file name are provided to ttm using the
-<i>#&lt;argv;i&gt;</i> function.
+<i>#{argv;i}</i> function.
 
 <h2>OPTIONS</h2>
 Except where indicated, all flags may be repeated multiple times.
@@ -41,7 +42,7 @@ Set a variety of debug options as encoded in the string.
 <p><dt><b>-D <i>name=string</i></i></b><br>
 <dd>
 Predefine the name as a function whose body is the string.
-Exactly equivalent to -e #&lt;ds;name;string&gt;.
+Exactly equivalent to -e #{ds;name;string}.
 <p><dt><b>-e <i>string</i></b><br>
 <dd>
 Scan the string and execute any macro invocations. Any output
@@ -57,6 +58,11 @@ Append the directory to the include path.
 <dd>
 Send all output to the specified file. If not specified, then
 output is sent to standard output.
+<p><dt><b>-S <i>integer</i></b><br>
+<dd>
+Set the internal stack size. The default provides for a maximum
+depth of 64. It is a good idea to keep this number small
+so that runaway recursion can be detected quickly.
 <p><dt><b>-V</i></b><br>
 <dd>
 Output the version number of ttm and then exit.
@@ -71,58 +77,178 @@ Specify the main file to execute. Any -D and -e arguments will be
 executed before the main file is executed.
 <p><dt><b><i>arg...</i></b><br>
 <dd>
-Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
+Specify arguments that are accessible using the <i>#{argv}</i> function.
 </dl>
 
 <h2>MODIFICATIONS</h2>
 This ttm processor adheres closely to the specification in the
 ttm specification documents [1,2].
-However, a number of new functions have been implemented
-and the semantics of a couple of others have been changed.
 <p>
-In addition, the following general changes to TTM
-should be noted.
+However, the following general changes to TTM should be noted.
 <ol>
+<p>
+<li> The escape character is changed from @ to \.
+<p>
+<li> The meta character (end of input) is changed from ' to \n (i.e. linefeed).
+<p>
+<li>
+Escape handling is slightly different and adheres more closely
+to the Unix rules. Specifically, the following escape sequences,
+when occurring outside of {...}, are translated as follows.
+<table>
+<tr><th>Escape Sequence<th>Translation
+<tr><td>\r<td>carriage return
+<tr><td>\n<td>line feed
+<tr><td>\t<td>tab
+<tr><td>\b<td>backspace
+<tr><td>\f<td>form feed
+</table>
+Additionally, if an escape occurs at the end of a line,
+then that end of line is ignored. This allows one to
+provide some formatting for function invocations without
+necessarily having to clutter up the result with new lines.
+<li>
+<p>
+<li> Only lower case built-in function names are supported.
+<p>
 <li>
 This version of ttm supports (more or less) utf-8. The meta characters
 are restricted to be a subset of the US-ASCII 7-bit subset of utf-8.
 Otherwise, strings may contain any legal utf-8 multi-byte character.
 This allows for inclusion of utf-8 codepoints, but only limited validation
 is performed to see if the string is truly utf-8.
+<p>
 </ol>
 
+<h3>A Note on Segment Marks</h3> 
+In this implementation, segment (and creation) marks
+are represented as a two-byte sequence. The first is a unique
+character not legal in any legitimate utf-8 multi-byte sequence.
+The second character is the segment number.
+<p>
+As a consequence of this representation plus the support for utf-8
+multi-byte character sequences, walking a string using pointer
+arithmetic is usually not feasible. Rather, each character in turn
+must be examined to see if it is multi-byte. This almost certainly
+causes performance issues.
+<p>
+One more point about segment marks. It is possible using #{gn}, for
+example, to output a string with segment marks in it. The original
+documentation is silent on how such segment marks are to be treated.
+In this implementation, they are suppressed and will never appear
+outside of the body of a named string.
+
 <h3>New Functions</h3>
-
-<h3>Modifications to Function Semantics</h3>
-
-<h2>ADDITIONAL PRIMITIVE FUNCTIONS</h2>
-<dl>
-<dt><b>#&lt;ttm;option;arg1;arg2;...&gt;</b><br>
-<dd>This function provides a general mechanism for altering
+A number of new functions have been implemented and are describe below
+using a notation similar to that in [1].
+<p>
+<b><u>ttm</u></b><br>
+<b>Specification: </b>ttm,1,*,S<br>
+<b>Invocation: </b>#{ttm;option;arg1;arg2;...}<br>
+This function provides a general mechanism for altering
 the behavior of the macro processor.
 The currently defined options are as follows.
-<dl>
-<p><dt>meta<br>
-<dd>Change the set of meta-characters, except the escape
+<table>
+<tr valign=top><td>meta<td>
+Change the set of meta-characters, except the escape
 character.  It takes one argument that specifies the set of
 meta characters. Setting the default behavior would use
-this invocation: #&lt;ttm;meta;\#\&lt;\;\&gt;&gt;.
-</dl>
-</dl>
+this invocation: #{ttm;meta;\#\{\;\}}.
+Note that this is separate from the CM function.
+</table>
+<p>
+<b><u>argv</u></b><br>
+<b>Specification: </b>argv,1,1,V<br>
+<b>Invocation: </b><td>#{argv;i}<br>
+Return the i'th command line argument
+starting at 0 (like java, not like C).
+The parameter i should be a a non-negative
+integer.
+
+<p>
+<b><u>include</u></b><br>
+<b>Specification: </b><td>include,1,1,S<br>
+<b>Invocation: </b>#{include;filename}<br>
+Read the contents of the specified file into the buffer and
+continue processing.  For security reasons, the constraint
+is imposed that the file name must only be accessible
+through one of the include paths (i.e. using -I on the
+command line).  This has the possibly undesirable
+consequence that if the user used #{include}, then the user
+must also specify a -I on the command line.  This constraint
+also implies that the parameter filename must be a
+relative path. If the result from reading the file is unwanted,
+then one should use "-e #{include;filename}" on the command line.
+
+<h3>Modifications to Function Semantics</h3>
+The semantics of the following functions others have been changed.
+<p>
+<b><u>ps</u></b><br>
+<b>Specification: </b>ps,1,2,S<br>
+<b>Invocation: </b>#{ps;string;stderr}<br>
+This function normally prints the string on
+stdout. If the second argument is the string
+"stderr", however, then it prints to stderr.
+
+<p>
+<b><u>psr</u></b><br>
+<b>Specification: </b>psr,1,1,S<br>
+<b>Invocation: </b>#{psr;string}<br>
+This function prints its argument to stdout
+and then reads from stdin up to the meta-character
+(see the cm function).
+
+<p>
+<b><u>cm</u></b><br>
+<b>Specification: </b>cm,1,1,S<br>
+<b>Invocation: </b>#{cm;string}<br>
+This function specifies the character
+that is used to terminate input when using,
+for example #{rs}.
+The default meta-character has been changed
+from "'" to "\n". This means that as a rule,
+reading will read only a single line of input.
+One can, however use the escape character
+at the end of the line to read multiple lines
+with the escaped '\n' being elided.
+
+<p>
+<b><u>cf</u></b><br>
+<b>Specification: </b>cf,2,2,S<br>
+<b>Invocation: </b>#{cf;new-name;old-name}<br>
+The original definition said that the body of
+old-name, including segment marks and beginning
+at the old-name's residual pointer was copied
+to the body of new-name.
+However, trying to figure out how to handle
+a set of segment marks with gaps is problematic.
+So, the definition has been modified to
+copy the whole body of the old-name
+as the body of the new name, ignoring (but duplicating)
+the residual pointer.
+
+<p>
+A number of functions (#{gn}, ${cn}, etc.)
+are supposed to return some fixed number of characters.
+The original documentation is silent about what should
+happen if there are not enough characters available to return.
+In this implementation, whatever characters are available are returned,
+even if less than the number requested.
 
 <h2>BUGS</h2>
 
-Probably many; but currently none known.
+Unknown.
 
 <h2>LICENSE</h2>
 
-This software and documents is released under the terms of the Apache License version 2.
-For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
+This software and documents is released under the terms of
+the Apache License version 2.  For details of the license,
+see http://www.apache.org/licenses/LICENSE-2.0.
 
 <h2>ACKNOWLEDGEMENTS</h2>
 
 The original ttm was designed and implemented
-by Caine, Farber, and Gordon, Inc.
+by Steven Caine and Kent Gordon.
 (http://www.cfg.com/).
 
 <h2>REFERENCES</h2>
@@ -137,5 +263,45 @@ Batch Processing. California Institute of Technology, Willis
 H. Booth Computing Center, Programming Report No. 8 May, 1969.
 
 </ol>
+
+<h2>IMPLEMENTED FUNCTIONS</h2>
+The following functions from the original ttm
+are implemented.
+
+<table>
+<tr><td>abs,1,1,V<td>ad,2,2,V<td>ap,2,2,S<td>cc,1,1,SV
+<tr><td>ccl,2,2,SV<td>cf,2,2,S<td>cm,1,1,S<td>cn,2,2,SV
+<tr><td>cp,1,1,SV<td>cr,2,2,S<td>cs,1,1,SV<td>dcl,2,2,S
+<tr><td>dncl,2,2,S<td>ds,2,2,S<td>dv,2,2,V<td>dvr,2,2,V
+<tr><td>ecl,1,*,S<td>eos,2,2,S<td>eq,4,4,V<td>eq?,4,4,V
+<tr><td>es,1,*,S<td>exit,0,0,S<td>flip,2,2,S<td>gn,2,2,S
+<tr><td>gt,4,4,V<td>gt?,4,4,V<td>isc,4,4,SV<td>lt,4,4,V
+<tr><td>lt?,4,4,V<td>mu,2,2,V<td>names,0,1,S<td>ndf,3,3,S
+<tr><td>norm,1,1,S<td>ps,1,2,S<td>psr,1,1,SV
+<tr><td>rrp,1,1,S<td>rs,0,0,V<td>sc,2,63,SV<td>scl,2,2,S
+<tr><td>scn,3,3,SV<td>sn,2,2,S<td>ss,2,2,S<td>su,2,2,V
+<tr><td>tcl,4,4,V<td>tf,0,0,S<td>time,0,0,V<td>tn,0,0,S
+<tr><td>zlc,1,1,V<td>zlcp,1,1,V
+</table>
+
+<h2>UNIMPLEMENTED FUNCTIONS</h2>
+The following functions from the original ttm
+are not implemented.
+<table>
+<td>rcd,2,2,S<td>fm,1,*,S<td>tabs,1,8,S<td>scc,2,2,S
+<td>icc,1,1,S<td>outb,0,3,S<td>store,2,2,S<td>delete,1,1,S
+<td>copy,1,1,S<td>show,0,1,S<td>libs,2,2,S<td>break,0,1,S
+</table>
+<p>
+The following functions from the batch ttm
+are not implemented.
+<p>
+<table>
+<td>insw,2,2,S<td>ttmsw,2,2,S<td>cd,0,0,V<td>cdsw,2,2,S
+<td>for,0,0,V<td>forsw,2,2,S<td>pk,0,0,V<td>pksw,2,2,S
+<td>ps,1,1,S<td>page,1,1,S<td>sp,1,1,S<td>fm,0,*,S
+<td>tabs,1,10,S<td>scc,3,3,S<td>fmsw,2,2,S<td>time,0,0,V
+<td>xtime,0,0,V<td>des,1,1,S
+</table>
 </body>
 </html>

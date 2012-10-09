@@ -96,7 +96,7 @@ Constants
 #define COMMA ','
 
 #define MINBUFFERSIZE 1024
-#define MINSTACKSIZE 1024
+#define MINSTACKSIZE 64
 
 #define CONTEXTLEN 20
 
@@ -116,7 +116,7 @@ Constants
 /* Error Numbers */
 typedef enum ERR {
 ENOERR		=  0, /* No error; for completeness */
-ENONAME		=  1, /* String or Character Class Name Not Found */
+ENONAME		=  1, /* Dictionary Name or Character Class Name Not Found */
 ENOPRIM		=  2, /* Primitives Not Allowed */
 EFEWPARMS	=  3, /* Too Few Parameters Given */
 EFORMAT		=  4, /* Incorrect Format */
@@ -185,7 +185,7 @@ Structure Type declarations
 */
 
 typedef struct TTM TTM;
-typedef struct String String;
+typedef struct Name Name;
 typedef struct Charclass Charclass;
 typedef struct Frame Frame;
 typedef struct Buffer Buffer;
@@ -212,7 +212,7 @@ struct TTM {
     int metac; /* read eof char */
     Buffer* buffer; /* contains the string being processed */
     Buffer* result; /* contains result strings from functions */
-    String* dictionary[256]; /* indexed by str->name[0] */
+    Name* dictionary[256]; /* indexed by str->name[0] */
     Charclass* charclasses[256]; /* indexed by cl->name[0] */
     unsigned int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
@@ -224,7 +224,7 @@ Define a fixed size byte buffer
 for holding the current state of the expansion.
 Buffer always has an extra terminating NUL ('\0').
 Note that by using a buffer that is allocated once,
-we can use pointers into the buffer space in e.g. struct String.
+we can use pointers into the buffer space in e.g. struct Name.
  */
 
 struct Buffer {
@@ -248,10 +248,10 @@ struct Frame {
 };
 
 /**
-String Storage and the Dictionary
+Name Storage and the Dictionary
 */
 
-struct String {
+struct Name {
     char* name;
     int builtin;
     int minargs;
@@ -260,7 +260,7 @@ struct String {
     unsigned int residual; /* residual "pointer" (offset really) */
     TTMFCN fcn; /* builtin == 1 */
     char* body; /* builtin == 0 */
-    String* next; /* "hash" chain */
+    Name* next; /* "hash" chain */
 };
 
 /**
@@ -286,11 +286,11 @@ static void resetBuffer(TTM* ttm, Buffer* bb);
 static void setBufferLength(TTM* ttm, Buffer* bb, unsigned long len);
 static Frame* pushFrame(TTM* ttm);
 static Frame* popFrame(TTM* ttm);
-static String* newString(TTM* ttm);
-static void freeString(TTM* ttm, String* f);
-static void dictionaryInsert(TTM* ttm, String* str);
-static String* dictionaryLookup(TTM* ttm, char* name);
-static String* dictionaryRemove(TTM* ttm, char* name);
+static Name* newName(TTM* ttm);
+static void freeName(TTM* ttm, Name* f);
+static void dictionaryInsert(TTM* ttm, Name* str);
+static Name* dictionaryLookup(TTM* ttm, char* name);
+static Name* dictionaryRemove(TTM* ttm, char* name);
 static Charclass* newCharclass(TTM* ttm);
 static void freeCharclass(TTM* ttm, Charclass* cl);
 static void charclassInsert(TTM* ttm, Charclass* cl);
@@ -342,15 +342,14 @@ static void ttm_lt(TTM* ttm, Frame* frame); /* Compare numeric less-than */
 static void ttm_eql(TTM* ttm, Frame* frame); /* ? Compare logical equal */
 static void ttm_gtl(TTM* ttm, Frame* frame); /* ? Compare logical greater-than */
 static void ttm_ltl(TTM* ttm, Frame* frame); /* ? Compare logical less-than */
-static void ttm_ps(TTM* ttm, Frame* frame); /* Print a String */
-static void ttm_psr(TTM* ttm, Frame* frame); /* Print String and Read */
-static void ttm_rs(TTM* ttm, Frame* frame); /* Read a String */
-static void ttm_pserr(TTM* ttm, Frame* frame); /* Print a String to stderr */
+static void ttm_ps(TTM* ttm, Frame* frame); /* Print a Name */
+static void ttm_psr(TTM* ttm, Frame* frame); /* Print Name and Read */
+static void ttm_rs(TTM* ttm, Frame* frame); /* Read a Name */
 static void ttm_cm(TTM* ttm, Frame* frame); /* Change meta character */
-static void ttm_names(TTM* ttm, Frame* frame); /* Obtain String Names */
+static void ttm_names(TTM* ttm, Frame* frame); /* Obtain Name Names */
 static void ttm_exit(TTM* ttm, Frame* frame); /* Return from TTM */
 static void ttm_ndf(TTM* ttm, Frame* frame); /* Determine if a Name is Defined */
-static void ttm_norm(TTM* ttm, Frame* frame); /* Obtain the Norm of a String */
+static void ttm_norm(TTM* ttm, Frame* frame); /* Obtain the Norm of a Name */
 static void ttm_time(TTM* ttm, Frame* frame); /* Obtain Execution Time */
 static void ttm_tf(TTM* ttm, Frame* frame); /* Turn Trace Off */
 static void ttm_tn(TTM* ttm, Frame* frame); /* Turn Trace On */
@@ -361,12 +360,13 @@ static void fatal(TTM* ttm, const char* msg);
 static const char* errstring(ERR err);
 static ERR toInt64(char* s, long long* lp);
 static int utf8count(int c);
+static int copychar(TTM*, char** dstp, char** srcp, int nested);
 static int convertEscapeChar(int c);
 static void trace(TTM* ttm, int entering, int tracing);
 static void trace1(TTM* ttm, int depth, int entering, int tracing);
 static void dumpstack(TTM* ttm);
-static int getOptionStringLength(char** list);
-static int pushOptionString(char* option, int max, char** list);
+static int getOptionNameLength(char** list);
+static int pushOptionName(char* option, int max, char** list);
 static void initglobals();
 static void usage(void);
 static void convertDtoE(const char* def);
@@ -395,8 +395,8 @@ newTTM(unsigned long buffersize, unsigned long stacksize)
     ttm->openc = '<';
     ttm->closec = '>';
     ttm->semic = ';';
-    ttm->escapec = '@';
-    ttm->metac = EOF;
+    ttm->escapec = '\\';
+    ttm->metac = '\n';
     ttm->buffer = newBuffer(ttm,buffersize);
     ttm->result = newBuffer(ttm,buffersize);
     ttm->stacknext = 0;
@@ -531,16 +531,16 @@ popFrame(TTM* ttm)
 }
 
 /**************************************************/
-static String*
-newString(TTM* ttm)
+static Name*
+newName(TTM* ttm)
 {
-    String* str = (String*)calloc(1,sizeof(String));
+    Name* str = (Name*)calloc(1,sizeof(Name));
     if(str == NULL) fail(ttm,EMEMORY);
     return str;    
 }
 
 static void
-freeString(TTM* ttm, String* f)
+freeName(TTM* ttm, Name* f)
 {
     assert(f != NULL);
     if(f->name != NULL) free(f->name);
@@ -555,17 +555,17 @@ first char of the name of the string.
 */
 
 static void
-dictionaryInsert(TTM* ttm, String* str)
+dictionaryInsert(TTM* ttm, Name* str)
 {
-    String** table = ttm->dictionary;
-    String* next;
+    Name** table = ttm->dictionary;
+    Name* next;
     int c0 = str->name[0];
 
     next = table[c0];
     if(next == NULL) {
 	table[c0] = str;
     } else {
-	String* prev = NULL;
+	Name* prev = NULL;
 	/* search chain for str */
         while(next != NULL) {
 	    if(strcmp(str->name,next->name)==0)
@@ -576,19 +576,19 @@ dictionaryInsert(TTM* ttm, String* str)
 	if(next == NULL) {/* str not previously defined */
 	    prev->next = str;
 	} else {/* replace existing definition */
-	    String* chain = next->next; /* save */
-	    freeString(ttm,next);
+	    Name* chain = next->next; /* save */
+	    freeName(ttm,next);
 	    prev->next = str;
 	    str->next = chain;
 	}
     }
 }
 
-static String*
+static Name*
 dictionaryLookup(TTM* ttm, char* name)
 {
-    String** table = ttm->dictionary;
-    String* f;
+    Name** table = ttm->dictionary;
+    Name* f;
     int c0;
     assert(name != NULL);
     c0 = name[0];
@@ -601,12 +601,12 @@ dictionaryLookup(TTM* ttm, char* name)
     return f;
 }
 
-static String*
+static Name*
 dictionaryRemove(TTM* ttm, char* name)
 {
-    String** table = ttm->dictionary;
-    String* next;
-    String* prev;
+    Name** table = ttm->dictionary;
+    Name* next;
+    Name* prev;
     int c0;
     assert(name != NULL);
     c0 = name[0];
@@ -749,13 +749,8 @@ scan(TTM* ttm)
 	if(c == NUL) { /* End of buffer */
 	    break;
 	} else if(isescape(c)) {
-	    bb->active++;
-	    c = *bb->active; /* do not bump */
-	    if(ismultibyte(c)) {
-		int i; for(i=0;i<utf8count(c);i++)
-		    {*bb->passive++ = *bb->active++;}
-	    } else if((c = convertEscapeChar(c)) != NUL)
-		{*bb->passive++=(char)c;}
+	    if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+		fail(ttm,EEOS);
 	} else if(c == ttm->sharpc) {/* Start of call? */
 	    if(bb->active[1] == ttm->openc
 	       || (bb->active[1] == ttm->sharpc
@@ -771,12 +766,8 @@ scan(TTM* ttm)
 	        c = *(bb->active);
 		if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
 	        if(isescape(c)) {
-		    int i, count;
-		    *bb->passive++ = (char)c;
-		    bb->active++;
-		    c = *bb->active;
-		    count = (ismultibyte(c)?utf8count(c):1);
-		    for(i=0;i<utf8count(c);i++) {*bb->passive++=*bb->active++;}
+		    if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+			fail(ttm,EEOS);
 	        } else if(c == ttm->openc) {
 		    *bb->passive++ = (char)c;
 		    bb->active++;
@@ -784,8 +775,10 @@ scan(TTM* ttm)
 		} else if(c == ttm->closec) {
 		    bb->active++;
 		    if(--depth == 0) break; /* we are done */
-	        } else
-		    *bb->passive++ = *bb->active++; /* keep moving */
+	        } else { /* keep moving */
+		    if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+			fail(ttm,EEOS);
+		}
 	    }/*<...> for*/
 	} else /* non-signficant character */
 	    *bb->passive++ = *bb->active++; /* keep moving */
@@ -806,7 +799,7 @@ static void
 exec(TTM* ttm, Buffer* bb)
 {
     Frame* frame;
-    String* fcn;
+    Name* fcn;
     char* savepassive;
 
     frame = pushFrame(ttm);
@@ -874,7 +867,7 @@ past the call.
 static void
 parsecall(TTM* ttm, Frame* frame)
 {
-    int c,done,depth,i,count;
+    int c,done,depth;
     Buffer* bb = ttm->buffer;
 
     done = 0;
@@ -884,13 +877,8 @@ parsecall(TTM* ttm, Frame* frame)
             c = *bb->active; /* Note that we do not bump here */
             if(c == NUL) fail(ttm,EEOS); /* Unexpected end of buffer */
             if(isescape(c)) {
-                bb->active++;
-                c = *bb->active;
-                if(ismultibyte(c)) {
-                    for(i=0;i<utf8count(c);i++)
-                        {*bb->passive++ = *bb->active++;}
-                } else if((c = convertEscapeChar(c)) != NUL)
-                    {*bb->passive++=(char)c;}
+	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+		    fail(ttm,EEOS);
             } else if(c == ttm->semic || c == ttm->closec) {
                 /* End of an argument */
                 *bb->passive++ = NUL; /* null terminate the argument */
@@ -908,18 +896,16 @@ parsecall(TTM* ttm, Frame* frame)
                     /* Recurse to compute inner call */
                     exec(ttm,bb);
                 }
-                *bb->passive++ = *bb->active++; /* just pass it */
+	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+		    fail(ttm,EEOS);
             } else if(c == ttm->openc) {/* <...> nested brackets */
                 bb->active++; /* skip leading lbracket */
                 for(;;) {
                     c = *(bb->active);
                     if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
                     if(isescape(c)) {
-                        *bb->passive++ = (char)c;
-                        bb->active++;
-                        c = *bb->active;
-                        count = (ismultibyte(c)?utf8count(c):1);
-                        for(i=0;i<utf8count(c);i++) {*bb->passive++=*bb->active++;}
+		        if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+			    fail(ttm,EEOS);
                     } else if(c == ttm->openc) {
                         *bb->passive++ = (char)c;
                         bb->active++;
@@ -927,13 +913,16 @@ parsecall(TTM* ttm, Frame* frame)
                     } else if(c == ttm->closec) {
                         bb->active++;
                         if(--depth == 0) break; /* we are done */
-                    } else
-                        *bb->passive++ = *bb->active++; /* keep moving */
+                    } else {
+		        if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+			    fail(ttm,EEOS);
+		    }
                 }/*<...> for*/
                 break;          
             } else {
                 /* keep moving */
-                *bb->passive++ = *bb->active++;
+	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+		    fail(ttm,EEOS);
             }
 	} /* collect argument for */
     } while(!done);
@@ -1030,7 +1019,7 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
 {
     char* body;
     char* apstring;
-    String* str = dictionaryLookup(ttm,frame->argv[1]);
+    Name* str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL) {/* Define the string */
 	ttm_ds(ttm,frame);
 	return;
@@ -1044,70 +1033,44 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     strcat(body,apstring);
 }
 
+/**
+The semantics of #<cf>
+have been changed. See ttm.html
+*/
+
 static void
 ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
 {
     char* newname = frame->argv[1];
     char* oldname = frame->argv[2];
-    String* newstr = dictionaryLookup(ttm,newname);
-    String* oldstr = dictionaryLookup(ttm,oldname);
+    Name* newstr = dictionaryLookup(ttm,newname);
+    Name* oldstr = dictionaryLookup(ttm,oldname);
+    char* savename;
+    Name* savenext;
 
     if(oldstr == NULL)
 	fail(ttm,ENONAME);
     if(newstr == NULL) {
 	/* create a new string object */
-	newstr = newString(ttm);
+	newstr = newName(ttm);
 	newstr->name = strdup(newname);
 	dictionaryInsert(ttm,newstr);
     }
-    /* Propagate old to new */
-    if(oldstr->builtin) {
-	newstr->builtin = 1;
-	newstr->fcn = oldstr->fcn;
-	newstr->minargs = oldstr->minargs;
-	newstr->residual = 0;
-	if(newstr->body != NULL) free(newstr->body);
-	newstr->body = NULL;
-    } else {
-	char* p;
-	char newmarks[MAXMARKS+1]; /* so we can start at one */
-	int newindex,i;
-
-	newstr->builtin = 0;
-	newstr->fcn = NULL;
-	newstr->minargs = oldstr->minargs;
-	newstr->residual = 0;
-	if(newstr->body != NULL) free(newstr->body);
-	newstr->body = strdup(oldstr->body+oldstr->residual);
-	/* Note: figuring out the numbering for segment marks
-           in the new body is hopelessly undefined because
-           there may be gaps in the segment numbers.
-	   So, the best I can think of is to collect the different
-	   segment marks and renumber them.
-	*/
-	memset(newmarks,0,sizeof(newmarks)); /* clear the mark set */
-	/* Collect the segment number in the new string */
-	for(p=newstr->body;*p;p++) {
-	    if(*p == SEGMENT) {p++;newmarks[(int)*p]++;}
-	}
-	/* Walk the newmarks and assign a new mark number */
-	for(newindex=1,i=1;i<=MAXMARKS;i++) {
-	    if(newmarks[i] > 0) newmarks[i] = newindex++;
-	}
-        /* Renumber the marks and count */
-        for(p=newstr->body;*p;p++) {
-	    if(*p == SEGMENT) {
-		p++;
-		*p = (char)newmarks[(int)*p];
-	    }
-	}
+    savenext = newstr->next;
+    savename = newstr->name;
+    *newstr = *oldstr;
+    /* Do fixup */
+    if(newstr->body != NULL) {
+	newstr->next = savenext;
+	newstr->name = savename;
+	newstr->body = strdup(newstr->body);
     }
 }
 
 static void
 ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 {
-    String* str;
+    Name* str;
     int bodylen,crlen;
     char* body;
     char* crstring;
@@ -1144,10 +1107,10 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 static void
 ttm_ds(TTM* ttm, Frame* frame)
 {
-    String* str = dictionaryLookup(ttm,frame->argv[1]);
+    Name* str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL) {
 	/* create a new string object */
-	str = newString(ttm);
+	str = newName(ttm);
 	str->name = strdup(frame->argv[1]);
 	dictionaryInsert(ttm,str);
     }
@@ -1163,9 +1126,9 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
     int i;
     for(i=1;i<frame->argc;i++) {
 	char* strname = frame->argv[i];
-	String* prev = dictionaryRemove(ttm,strname);
+	Name* prev = dictionaryRemove(ttm,strname);
 	if(prev != NULL) {
-	    freeString(ttm,prev); /* reclaim the string */
+	    freeName(ttm,prev); /* reclaim the string */
 	}
     }
 }
@@ -1174,7 +1137,7 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 static int
 ttm_ss0(TTM* ttm, Frame* frame)
 {
-    String* str;
+    Name* str;
     int bodylen;
     char* body;
     int i;
@@ -1234,12 +1197,12 @@ ttm_ss(TTM* ttm, Frame* frame) /* Segment and count */
     (void)ttm_ss0(ttm,frame);
 }
 
-/* String Selection */
+/* Name Selection */
 
 static void
 ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 {
-    String* str;
+    Name* str;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1256,7 +1219,7 @@ ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 static void
 ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
 {
-    String* str;
+    Name* str;
     long long n;
     int avail;
     ERR err;
@@ -1283,7 +1246,7 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
 static void
 ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 {
-    String* str;
+    Name* str;
     char* rp;
     char* p;
     int c;
@@ -1329,7 +1292,7 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 static void
 ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 {
-    String* str;
+    Name* str;
     char* p;
     unsigned long offset;
 
@@ -1354,7 +1317,7 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 static void
 ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan */
 {
-    String* str;
+    Name* str;
     char* retval;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
@@ -1374,7 +1337,7 @@ ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan */
 static void
 ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */
 {
-    String* str = dictionaryLookup(ttm,frame->argv[1]);
+    Name* str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
@@ -1385,7 +1348,7 @@ ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */
 static void
 ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
 {
-    String* str;
+    Name* str;
     char* s1;
     char* s2;
     int s1len,match,bodylen;
@@ -1438,7 +1401,7 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 {
     ERR err;
     long long num;
-    String* str = dictionaryLookup(ttm,frame->argv[2]);
+    Name* str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
@@ -1453,7 +1416,7 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 
 static void ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 {
-    String* str = dictionaryLookup(ttm,frame->argv[1]);
+    Name* str = dictionaryLookup(ttm,frame->argv[1]);
     char* result;
     if(str == NULL)
 	fail(ttm,ENONAME);
@@ -1466,7 +1429,7 @@ static void ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 }
 
 
-/* String Scanning Operations */
+/* Name Scanning Operations */
 
 static void
 ttm_gn(TTM* ttm, Frame* frame) /* Give n characters */
@@ -1601,7 +1564,7 @@ static void
 ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
-    String* str = dictionaryLookup(ttm,frame->argv[2]);
+    Name* str = dictionaryLookup(ttm,frame->argv[2]);
     char* p;
     char* start;
     unsigned long len;
@@ -1673,7 +1636,7 @@ static void
 ttm_scl(TTM* ttm, Frame* frame) /* Skip class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
-    String* str = dictionaryLookup(ttm,frame->argv[2]);
+    Name* str = dictionaryLookup(ttm,frame->argv[2]);
     char* p;
     char* start;
     unsigned long len;
@@ -1698,7 +1661,7 @@ static void
 ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
-    String* str = dictionaryLookup(ttm,frame->argv[2]);
+    Name* str = dictionaryLookup(ttm,frame->argv[2]);
     char* rp;
     char* retval;
     unsigned long retlen;
@@ -1992,21 +1955,24 @@ ttm_ltl(TTM* ttm, Frame* frame) /* ? Compare logical less-than */
 /* Peripheral Input/Output Operations */
 
 static void
-ttm_ps(TTM* ttm, Frame* frame) /* Print a String */
+ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
 {
     char* s = frame->argv[1];
-    printstring(ttm,stdout,s);
+    char* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
+    FILE* target;
+    if(strcmp(stdxx,"stderr")==0) target=stderr; else target = stdout;
+    printstring(ttm,target,s);
 }
 
 static void
-ttm_psr(TTM* ttm, Frame* frame) /* Print String and Read */
+ttm_psr(TTM* ttm, Frame* frame) /* Print Name and Read */
 {
     ttm_ps(ttm,frame);
     ttm_rs(ttm,frame);
 }
 
 static void
-ttm_rs(TTM* ttm, Frame* frame) /* Read a String */
+ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
 {
     int len,c;
     for(len=0;;len++) {
@@ -2015,13 +1981,6 @@ ttm_rs(TTM* ttm, Frame* frame) /* Read a String */
         setBufferLength(ttm,ttm->result,len+1);
 	ttm->result->content[len] = (char)c;
     }
-}
-
-static void
-ttm_pserr(TTM* ttm, Frame* frame) /* Print a String to stderr */
-{
-    char* s = frame->argv[2];
-    printstring(ttm,stderr,s);
 }
 
 static void
@@ -2036,7 +1995,7 @@ ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */
 /* Library Operations */
 
 static void
-ttm_names(TTM* ttm, Frame* frame) /* Obtain String Names */
+ttm_names(TTM* ttm, Frame* frame) /* Obtain Name Names */
 {
     int i,count,first;
     unsigned long len;
@@ -2047,7 +2006,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain String Names */
     len = 0;
     for(i=0;i<256;i++) {
 	if(ttm->dictionary[i] != NULL) {
-	    String* name = ttm->dictionary[i];
+	    Name* name = ttm->dictionary[i];
 	    while(name != NULL) {
 		count++;
 	        len += strlen(name->name);
@@ -2060,7 +2019,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain String Names */
     first = 1;
     for(i=0;i<256;i++) {
 	if(ttm->dictionary[i] != NULL) {
-	    String* name = ttm->dictionary[i];
+	    Name* name = ttm->dictionary[i];
 	    while(name != NULL) {
 		if(!first) strcpy(p,",");
 		p++;
@@ -2090,7 +2049,7 @@ ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a Name is Defined */
     char* t;
     char* f;
     char* result;
-    String* name;
+    Name* name;
 
     s = frame->argv[1];    
     t = frame->argv[2];
@@ -2103,7 +2062,7 @@ ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a Name is Defined */
 }
 
 static void
-ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a String */
+ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a Name */
 {
     char* s;
     char result[32];
@@ -2142,8 +2101,11 @@ ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */
 static void
 ttm_argv(TTM* ttm, Frame* frame) /* Get ith command line argument */
 {
-    int index = atol(frame->argv[1]);
-    if(index < 0 || index >= getOptionStringLength(argoptions))
+    long long index = 0;
+    ERR err;
+    err = toInt64(frame->argv[1],&index);
+    if(err != ENOERR) fail(ttm,err);
+    if(index < 0 || index >= getOptionNameLength(argoptions))
 	fail(ttm,ERANGE);
     setBufferLength(ttm,ttm->result,strlen(argoptions[index]));
     strcpy(ttm->result->content,argoptions[index]);
@@ -2191,6 +2153,25 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 	bb->active = startpos;
 }
 
+static void
+ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
+{
+    Name* str = dictionaryLookup(ttm,frame->argv[1]);
+    Buffer* result = ttm->result;
+    if(str == NULL)
+	fail(ttm,ENONAME);
+    result->content[0] = NUL;
+    snprintf(result->content,result->alloc,"%s,%d,%d,%s",
+	     str->name,str->minargs,str->maxargs,
+	     (str->novalue?"S":"V"));
+    if(!str->builtin) {
+	char binfo[32];
+	snprintf(binfo,sizeof(binfo)," |body|=%u rp=%u body=|%s|",
+		 (unsigned int)strlen(str->body),str->residual,str->body);
+	strcat(result->content,binfo);
+    }
+}
+
 /**************************************************/
 
 /**
@@ -2221,7 +2202,7 @@ static struct Builtin builtin_orig[] = {
     {"es",1,ARB,"S",ttm_es}, /* Erase string */
     {"sc",2,63,"SV",ttm_sc}, /* Segment and count */
     {"ss",2,2,"S",ttm_ss}, /* Segment a string */
-    /* String Selection */
+    /* Name Selection */
     {"cc",1,1,"SV",ttm_cc}, /* Call one character */
     {"cn",2,2,"SV",ttm_cn}, /* Call n characters */
     {"sn",2,2,"S",ttm_sn}, /* Skip n characters */ /*Batch*/
@@ -2230,7 +2211,7 @@ static struct Builtin builtin_orig[] = {
     {"isc",4,4,"SV",ttm_isc}, /* Initial character scan */
     {"rrp",1,1,"S",ttm_rrp}, /* Reset residual pointer */
     {"scn",3,3,"SV",ttm_scn}, /* Character scan */
-    /* String Scanning Operations */
+    /* Name Scanning Operations */
     {"gn",2,2,"S",ttm_gn}, /* Give n characters */
     {"zlc",1,1,"V",ttm_zlc}, /* Zero-level commas */
     {"zlcp",1,1,"V",ttm_zlcp}, /* Zero-level commas and parentheses */
@@ -2259,13 +2240,12 @@ static struct Builtin builtin_orig[] = {
     {"lt?",4,4,"V",ttm_ltl}, /* ? Compare logical less-than */
     /* Peripheral Input/Output Operations */
     {"cm",1,1,"S",ttm_cm}, /*Change Meta Character*/
-    {"ps",1,1,"S",ttm_ps}, /* Print a String */
-    {"pserr",1,1,"S",ttm_pserr}, /* Print a String to stderr*/
-    {"psr",1,1,"SV",ttm_psr}, /* Print String and Read */
+    {"ps",1,2,"S",ttm_ps}, /* Print a Name */
+    {"psr",1,1,"SV",ttm_psr}, /* Print Name and Read */
 #ifdef IMPLEMENTED
     {"rcd",2,2,"S",ttm_rcd}, /* Set to Read Prom Cards */
 #endif
-    {"rs",0,0,"V",ttm_rs}, /* Read a String */
+    {"rs",0,0,"V",ttm_rs}, /* Read a Name */
     /*Formated Output Operations*/
 #ifdef IMPLEMENTED
     {"fm",1,ARB,"S",ttm_fm}, /* Format a Line or Card */
@@ -2282,14 +2262,14 @@ static struct Builtin builtin_orig[] = {
     {"show",0,1,"S",ttm_show}, /* Show Program Names */
     {"libs",2,2,"S",ttm_libs}, /* Declare standard qualifiers */ /*Batch*/
 #endif
-    {"names",0,1,"S",ttm_names}, /* Obtain String Names */
+    {"names",0,1,"S",ttm_names}, /* Obtain Name Names */
     /* Utility Operations */
 #ifdef IMPLEMENTED
     {"break",0,1,"S",ttm_break}, /* Program Break */
 #endif
     {"exit",0,0,"S",ttm_exit}, /* Return from TTM */
     {"ndf",3,3,"S",ttm_ndf}, /* Determine if a Name is Defined */
-    {"norm",1,1,"S",ttm_norm}, /* Obtain the Norm of a String */
+    {"norm",1,1,"S",ttm_norm}, /* Obtain the Norm of a Name */
     {"time",0,0,"V",ttm_time}, /* Obtain Execution Time */
     {"tf",0,0,"S",ttm_tf}, /* Turn Trace Off */
     {"tn",0,0,"S",ttm_tn}, /* Turn Trace On */
@@ -2317,24 +2297,25 @@ static struct Builtin builtin_orig[] = {
     {"des",1,1,"S",ttm_des}, /* Define error string */ /*Batch*/
 #endif
 
-    {NULL,2,2,NULL} /* terminator */
+    {NULL,0,0,NULL} /* terminator */
     };
     
     /* Functions new to this implementation */
     static struct Builtin builtin_new[] = {
     {"argv",2,2,"V",ttm_argv}, /* Get ith command line argument */
     {"include",2,2,"S",ttm_include}, /* Include text of a file */
-    {NULL,2,2,NULL} /* terminator */
+    {"showname",1,1,"V",ttm_showname}, /* Debug: return info about a name*/
+    {NULL,0,0,NULL} /* terminator */
 };
 
 static void
 defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
 {
     /* Make sure we did not define builtin twice */
-    String* function = dictionaryLookup(ttm,bin->name);
+    Name* function = dictionaryLookup(ttm,bin->name);
     assert(function == NULL);
     /* create a new function object */
-    function = newString(ttm);
+    function = newName(ttm);
     function->builtin = 1;
     function->name = strdup(bin->name);
     function->minargs = bin->minargs;
@@ -2403,7 +2384,7 @@ errstring(ERR err)
     const char* msg = NULL;
     switch(err) {
     case ENOERR: msg="No error"; break;
-    case ENONAME: msg="String or Character Class Name Not Found"; break;
+    case ENONAME: msg="Dictionary Name or Character Class Name Not Found"; break;
     case ENOPRIM: msg="Primitives Not Allowed"; break;
     case EFEWPARMS: msg="Too Few Parameters Given"; break;
     case EFORMAT: msg="Incorrect Format"; break;
@@ -2531,6 +2512,48 @@ utf8count(int c)
     return 1;
 }
 
+/* Copy a character, including multibyte, segment and escapes
+    and increment pointers
+*/
+static int
+copychar(TTM* ttm, char** dstp, char** srcp, int nested)
+{
+    char* src = *srcp;
+    char* dst = *dstp;
+    int c,i,count;
+    c  = *src;
+    if(c == NUL) return 0;
+    if(isescape(c)) {
+	if(nested) *dst++ = c; /* keep the escape char */
+	src++;
+        c = *src;
+	if(!ismultibyte(c)) {
+	    if(!nested) c = convertEscapeChar(c);
+	    if(c != NUL) *dst++ = c;
+	    src++;
+	    return 1;
+	}
+    }
+    if(ismultibyte(c)) {
+        count = utf8count(c);
+	for(i=0;i<count;i++) {
+	   c = *src;
+	   if(c == NUL) return 0;
+	   *dst++ = c;
+	   src++;
+	}
+    } else {
+	c = *src;
+	if(c == NUL) return 0;
+	*dst++ = c;
+	src++;
+    }
+    *srcp = src;
+    *dstp = dst;
+    return 1;
+}
+
+
 /* Given a char, return its escaped value.
 Zero indicates it should be elided
 */
@@ -2616,7 +2639,7 @@ dumpstack(TTM* ttm)
 /* Main() Support functions */
 
 static int
-getOptionStringLength(char** list)
+getOptionNameLength(char** list)
 {
     int i;
     char** p;
@@ -2625,7 +2648,7 @@ getOptionStringLength(char** list)
 }
 
 static int
-pushOptionString(char* option, int max, char** list)
+pushOptionName(char* option, int max, char** list)
 {
     int i;
     for(i=0;i<max;i++) {
@@ -2670,7 +2693,7 @@ convertDtoE(const char* def)
     else
         strcat(macro,";");
     strcat(macro,">");
-    pushOptionString(macro,MAXEOPTIONS,eoptions);    
+    pushOptionName(macro,MAXEOPTIONS,eoptions);    
     free(macro);
 }
 
@@ -2816,7 +2839,7 @@ main(int argc, char** argv)
 	    convertDtoE(optarg);
 	    break;
 	case 'e':
-	    pushOptionString(optarg,MAXEOPTIONS,eoptions);
+	    pushOptionName(optarg,MAXEOPTIONS,eoptions);
 	    break;
 	case 'i':
 	    interactive = 1;
@@ -2824,7 +2847,7 @@ main(int argc, char** argv)
 	case 'I':
 	    if(optarg[strlen(optarg)-1] == '/')
 	        optarg[strlen(optarg)-1] = NUL;
-	    pushOptionString(optarg,MAXINCLUDES,includes);
+	    pushOptionName(optarg,MAXINCLUDES,includes);
 	    break;
 	case 'o':
 	    if(outputfilename == NULL)
@@ -2852,7 +2875,7 @@ main(int argc, char** argv)
 	    }
 	}
         for(;optind < argc;optind++)
-	    pushOptionString(argv[optind++],MAXARGS,argoptions);
+	    pushOptionName(argv[optind],MAXARGS,argoptions);
     }
 
     /* Complain if interactive and output file name specified */
