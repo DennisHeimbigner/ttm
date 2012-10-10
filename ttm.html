@@ -26,7 +26,7 @@ Note that in this latter case, all of standard input will be read
 up to EOF and then processing will commence.
 <p>
 Any arguments after the file name are provided to ttm using the
-<i>#{argv;i}</i> function.
+<i>#&lt;argv;i&gt;</i> function.
 
 <h2>OPTIONS</h2>
 Except where indicated, all flags may be repeated multiple times.
@@ -42,7 +42,7 @@ Set a variety of debug options as encoded in the string.
 <p><dt><b>-D <i>name=string</i></i></b><br>
 <dd>
 Predefine the name as a function whose body is the string.
-Exactly equivalent to -e #{ds;name;string}.
+Exactly equivalent to -e #&lt;ds;name;string&gt;.
 <p><dt><b>-e <i>string</i></b><br>
 <dd>
 Scan the string and execute any macro invocations. Any output
@@ -77,7 +77,7 @@ Specify the main file to execute. Any -D and -e arguments will be
 executed before the main file is executed.
 <p><dt><b><i>arg...</i></b><br>
 <dd>
-Specify arguments that are accessible using the <i>#{argv}</i> function.
+Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
 </dl>
 
 <h2>MODIFICATIONS</h2>
@@ -94,7 +94,7 @@ However, the following general changes to TTM should be noted.
 <li>
 Escape handling is slightly different and adheres more closely
 to the Unix rules. Specifically, the following escape sequences,
-when occurring outside of {...}, are translated as follows.
+when occurring outside of &lt;...&gt;, are translated as follows.
 <table>
 <tr><th>Escape Sequence<th>Translation
 <tr><td>\r<td>carriage return
@@ -132,7 +132,7 @@ arithmetic is usually not feasible. Rather, each character in turn
 must be examined to see if it is multi-byte. This almost certainly
 causes performance issues.
 <p>
-One more point about segment marks. It is possible using #{gn}, for
+One more point about segment marks. It is possible using #&lt;gn&gt;, for
 example, to output a string with segment marks in it. The original
 documentation is silent on how such segment marks are to be treated.
 In this implementation, they are suppressed and will never appear
@@ -144,7 +144,7 @@ using a notation similar to that in [1].
 <p>
 <b><u>ttm</u></b><br>
 <b>Specification: </b>ttm,1,*,S<br>
-<b>Invocation: </b>#{ttm;option;arg1;arg2;...}<br>
+<b>Invocation: </b>#&lt;ttm;option;arg1;arg2;...&gt;<br>
 This function provides a general mechanism for altering
 the behavior of the macro processor.
 The currently defined options are as follows.
@@ -153,13 +153,13 @@ The currently defined options are as follows.
 Change the set of meta-characters, except the escape
 character.  It takes one argument that specifies the set of
 meta characters. Setting the default behavior would use
-this invocation: #{ttm;meta;\#\{\;\}}.
+this invocation: #&lt;ttm;meta;\#\&lt;\;\&gt;&gt;.
 Note that this is separate from the CM function.
 </table>
 <p>
 <b><u>argv</u></b><br>
 <b>Specification: </b>argv,1,1,V<br>
-<b>Invocation: </b><td>#{argv;i}<br>
+<b>Invocation: </b><td>#&lt;argv;i&gt;<br>
 Return the i'th command line argument
 starting at 0 (like java, not like C).
 The parameter i should be a a non-negative
@@ -168,24 +168,24 @@ integer.
 <p>
 <b><u>include</u></b><br>
 <b>Specification: </b><td>include,1,1,S<br>
-<b>Invocation: </b>#{include;filename}<br>
+<b>Invocation: </b>#&lt;include;filename&gt;<br>
 Read the contents of the specified file into the buffer and
 continue processing.  For security reasons, the constraint
 is imposed that the file name must only be accessible
 through one of the include paths (i.e. using -I on the
 command line).  This has the possibly undesirable
-consequence that if the user used #{include}, then the user
+consequence that if the user used #&lt;include&gt;, then the user
 must also specify a -I on the command line.  This constraint
 also implies that the parameter filename must be a
 relative path. If the result from reading the file is unwanted,
-then one should use "-e #{include;filename}" on the command line.
+then one should use "-e #&lt;include;filename&gt;" on the command line.
 
 <h3>Modifications to Function Semantics</h3>
 The semantics of the following functions others have been changed.
 <p>
 <b><u>ps</u></b><br>
 <b>Specification: </b>ps,1,2,S<br>
-<b>Invocation: </b>#{ps;string;stderr}<br>
+<b>Invocation: </b>#&lt;ps;string;stderr&gt;<br>
 This function normally prints the string on
 stdout. If the second argument is the string
 "stderr", however, then it prints to stderr.
@@ -193,7 +193,7 @@ stdout. If the second argument is the string
 <p>
 <b><u>psr</u></b><br>
 <b>Specification: </b>psr,1,1,S<br>
-<b>Invocation: </b>#{psr;string}<br>
+<b>Invocation: </b>#&lt;psr;string&gt;<br>
 This function prints its argument to stdout
 and then reads from stdin up to the meta-character
 (see the cm function).
@@ -201,10 +201,10 @@ and then reads from stdin up to the meta-character
 <p>
 <b><u>cm</u></b><br>
 <b>Specification: </b>cm,1,1,S<br>
-<b>Invocation: </b>#{cm;string}<br>
+<b>Invocation: </b>#&lt;cm;string&gt;<br>
 This function specifies the character
 that is used to terminate input when using,
-for example #{rs}.
+for example #&lt;rs&gt;.
 The default meta-character has been changed
 from "'" to "\n". This means that as a rule,
 reading will read only a single line of input.
@@ -215,7 +215,7 @@ with the escaped '\n' being elided.
 <p>
 <b><u>cf</u></b><br>
 <b>Specification: </b>cf,2,2,S<br>
-<b>Invocation: </b>#{cf;new-name;old-name}<br>
+<b>Invocation: </b>#&lt;cf;new-name;old-name&gt;<br>
 The original definition said that the body of
 old-name, including segment marks and beginning
 at the old-name's residual pointer was copied
@@ -228,7 +228,7 @@ as the body of the new name, ignoring (but duplicating)
 the residual pointer.
 
 <p>
-A number of functions (#{gn}, ${cn}, etc.)
+A number of functions (#&lt;gn&gt;, $&lt;cn&gt;, etc.)
 are supposed to return some fixed number of characters.
 The original documentation is silent about what should
 happen if there are not enough characters available to return.

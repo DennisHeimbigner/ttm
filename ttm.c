@@ -158,7 +158,7 @@ EOTHER		= 99
 
 #define isescape(c)((c) == ttm->escapec || (c) == UNIVERSAL_ESCAPE)
 
-#define ismultibyte(c) (((c) & 0x80) == 0x80 ? 1 : 0)
+#define ismultibyte(c) ((c) != SEGMENT && (c) != CREATEMARK && ((c) & 0x80) == 0x80 ? 1 : 0)
 
 #define iswhitespace(c) ((c) <= ' ' ? 1 : 0)
 
@@ -251,13 +251,21 @@ struct Frame {
 Name Storage and the Dictionary
 */
 
+/* If you add field to this, you need
+   to modify especially ttm_ds
+*/
 struct Name {
     char* name;
     int builtin;
     int minargs;
     int maxargs;
     int novalue; /* must always return no value */
-    unsigned int residual; /* residual "pointer" (offset really) */
+    unsigned int residual; /* Pointer into body in units of characters
+                              (not bytes) where a single utf-8 codepoint
+                              is one char and segment or creation marks count
+                              as one character */
+    unsigned int maxsegmark; /* highest segment mark number
+                                in use in this string */
     TTMFCN fcn; /* builtin == 1 */
     char* body; /* builtin == 0 */
     Name* next; /* "hash" chain */
@@ -446,7 +454,7 @@ freeBuffer(TTM* ttm, Buffer* bb)
     free(bb);
 }
 
-/* Make room for a string of length n at current position. */
+/* Make room for a string of length n at current active position. */
 static void
 expandBuffer(TTM* ttm, Buffer* bb, unsigned long len)
 {
@@ -454,7 +462,8 @@ expandBuffer(TTM* ttm, Buffer* bb, unsigned long len)
     if((bb->alloc - bb->length) < len) fail(ttm,EBUFFERSIZE);
     if(bb->active < bb->end) {
         /* make room for len characters by moving bb->active and up*/
-	makespace(bb->active+len,bb->active,len);
+	unsigned int tomove = (bb->end - bb->active);
+	makespace(bb->active+len,bb->active,tomove);
     }
     bb->active += len;
     bb->length += len;
@@ -780,8 +789,10 @@ scan(TTM* ttm)
 			fail(ttm,EEOS);
 		}
 	    }/*<...> for*/
-	} else /* non-signficant character */
-	    *bb->passive++ = *bb->active++; /* keep moving */
+	} else { /* non-signficant character */
+	    if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+		fail(ttm,EEOS);
+	}
     } /*scan for*/
 
     /* When we get here, we are finished, so clean up */
@@ -822,7 +833,7 @@ exec(TTM* ttm, Buffer* bb)
     /* Locate the function to execute */
     fcn = dictionaryLookup(ttm,frame->argv[0]);
     if(fcn == NULL) fail(ttm,ENONAME);
-    if(fcn->minargs < (frame->argc - 1)) /* -1 to account for function name*/
+    if(fcn->minargs > (frame->argc - 1)) /* -1 to account for function name*/
 	fail(ttm,EFEWPARMS);
     /* Reset the result buffer */
     resetBuffer(ttm,ttm->result);
@@ -900,6 +911,7 @@ parsecall(TTM* ttm, Frame* frame)
 		    fail(ttm,EEOS);
             } else if(c == ttm->openc) {/* <...> nested brackets */
                 bb->active++; /* skip leading lbracket */
+		depth = 1;
                 for(;;) {
                     c = *(bb->active);
                     if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
@@ -911,14 +923,14 @@ parsecall(TTM* ttm, Frame* frame)
                         bb->active++;
                         depth++;
                     } else if(c == ttm->closec) {
-                        bb->active++;
                         if(--depth == 0) break; /* we are done */
+                        *bb->passive++ = (char)c;
+		        bb->active++;
                     } else {
 		        if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
 			    fail(ttm,EEOS);
 		    }
                 }/*<...> for*/
-                break;          
             } else {
                 /* keep moving */
 	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
@@ -1113,10 +1125,17 @@ ttm_ds(TTM* ttm, Frame* frame)
 	str = newName(ttm);
 	str->name = strdup(frame->argv[1]);
 	dictionaryInsert(ttm,str);
+    } else {
+	/* reset as needed */
+	str->builtin = 0;
+	str->minargs = 0;
+	str->maxargs = 0;
+	str->residual = 0;
+	str->maxsegmark = 0;
+	str->fcn = NULL;
+	if(str->body != NULL) free(str->body);
+	str->body = NULL;
     }
-    str->builtin = 0;
-    if(str->body != NULL)
-	free(str->body);
     str->body = strdup(frame->argv[2]);
 }
 
@@ -1139,44 +1158,73 @@ ttm_ss0(TTM* ttm, Frame* frame)
 {
     Name* str;
     int bodylen;
-    char* body;
     int i;
     int segcount;
+    int startseg;
+    Buffer* tmp;
+    unsigned int avail;
 
-    str = dictionaryLookup(ttm,frame->argv[2]);
+    str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
 	fail(ttm,ENOPRIM);
-
+    /* Transfer the name's body to the result buffer for processing */
+    tmp = ttm->result;
+    bodylen = strlen(str->body);
+    setBufferLength(ttm,tmp,bodylen);
+    strcpy(tmp->content,str->body);
+    avail = bodylen;
     segcount = 0;
-    str->minargs = 0;
-    body = str->body;
-    bodylen = strlen(body);
-    for(i=3;i<frame->argc;i++) {
-	char* arg = frame->argv[i];
-	int arglen = strlen(arg);
-        int endpos = (bodylen - arglen); /* max point for which search makes sense */
-	int pos;
+    startseg = str->maxsegmark;
+    for(i=2;i<frame->argc;i++) {
+	int found,arglen;
+	char* arg;
+	/* Start each search from the beginning */
+        tmp->active = tmp->content;
+        tmp->passive = tmp->active;
+		
+	arg = frame->argv[i];
+	arglen = strlen(arg);
+	if(arglen == 0 || arglen > avail)
+	    continue; /* No substitution possible */
 
-	if(arglen == 0 || arglen > bodylen) continue; /* No substitution possible */
 	/* Search for occurrences of arg */
-	for(pos=0;pos<endpos;) {
-	    if(memcmp((void*)(body+pos),(void*)arg,arglen) != 0)
+	found = 0;
+	while(*tmp->active) {
+	    /* Note we can use memcmp because we assume two
+               utf-8 chars will have same sequence of characters;
+	       also, no argument character will match segment or
+               creation mark.
+            */
+	    if(memcmp((void*)tmp->active,(void*)arg,arglen) != 0) {
+		/*no match: move this char, which might be a segment mark */
+		int c = *tmp->active++;
+		*tmp->passive++ = c;
+		if(c == SEGMENT)
+		    *tmp->passive++ = *tmp->active++; /* pass segment index */
 		continue;
-	    /* we have a match, replace match by a segment marker (beginning at 1)*/
-	    /* make sure we have 2 characters of space */
-	    makespace(body+pos+2,body+pos,2);
-	    body[pos++] = SEGMENT;
-	    body[pos++] = (char)((i-1)&0xFF);
-	    /* compress out the argument */
-	    memcpy(body+pos,body+pos+arglen,arglen);
-	    /* fix up */
-	    bodylen -= (arglen - 2);
-            endpos = (bodylen - arglen);
+	    }
+	    /* replace match by a segment marker (beginning at 1) */
+	    /* ensure we have space for 3 characters: segment mark and NUL*/
+	    expandBuffer(ttm,tmp,3);
+	    if(!found) { /* first match */
+		startseg++;
+		found = 1;
+	    }
+	    /* Move active pointer past the matched arg name */
+	    tmp->active += arglen;
+	    /* insert segment mark at passive point*/
+	    *tmp->passive++ = SEGMENT;
+	    *tmp->passive++ = (char)(startseg & 0xFF);
 	    segcount++;
 	}
+        *tmp->passive = NUL;
     }
+    /* save the changed body */
+    str->body = realloc(str->body,strlen(tmp->content)+1);
+    strcpy(str->body,tmp->content);
+    str->maxsegmark = startseg;
     return segcount;
 }
 
@@ -2165,10 +2213,32 @@ ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
 	     str->name,str->minargs,str->maxargs,
 	     (str->novalue?"S":"V"));
     if(!str->builtin) {
+	char* p;
+	char* q;
 	char binfo[32];
-	snprintf(binfo,sizeof(binfo)," |body|=%u rp=%u body=|%s|",
-		 (unsigned int)strlen(str->body),str->residual,str->body);
+	snprintf(binfo,sizeof(binfo)," |body|=%u rp=%u body=|",
+		 (unsigned int)strlen(str->body),str->residual);
+	/* Walk the body character by character checking for segment
+           and creation marks
+	*/
 	strcat(result->content,binfo);
+	p=str->body;
+	q=(result->content + strlen(result->content));
+	while(*p) {
+	    if(ismultibyte(*p)) {
+		if(!copychar(ttm,&q,&p,!NESTED))
+		    fail(ttm,EEOS);
+	    } else if(*p == SEGMENT) {
+		p++;
+		snprintf(binfo,sizeof(binfo),"~%02d",(int)*p++);
+		strcat(q,binfo);
+		q += strlen(binfo);
+	    } else
+		*q++ = *p++;		
+	}
+	*q = NUL;
+	strcat(result->content,"|");
+	setBufferLength(ttm,result,strlen(result->content));
     }
 }
 
@@ -2425,6 +2495,48 @@ errstring(ERR err)
 /**************************************************/
 /* Utility functions */
 
+/* Convert a residual index into
+   a byte count.
+*/
+static unsigned int
+residual2byte(unsigned int rindex, char* s)
+{
+    char* p = s;
+    while(rindex-- > 0) {
+	/* Skip 1 "character" per iteration */
+        int c = *p++;
+	if(c == SEGMENT) {p++;}
+	if(ismultibyte(c)) {p += (utf8count(c)-1);}
+	else {p++;}
+    }
+    return (unsigned int)(p - s);
+}
+
+
+/* Convert a string plus offset (in bytes)
+   to a residual index
+*/
+static unsigned int
+residual2byte(char* s, unsigned int offset)
+{
+    unsigned int rindex = 0;
+    char* p = s;
+    while(offset > 0) {
+        int c = *p++;
+	if(c == SEGMENT) {p++; offset -= 2;}
+	if(ismultibyte(c)) {
+	    int count = utf8count(c);
+	    p += (count-1);
+	    offset -= count;
+
+	else {p++; offset--;}
+	rindex++; /* Skip 1 "character" per iteration */
+
+    }
+    return rindex;
+}
+
+
 /**
 Convert a string to a signed Long
 Use this regular expression:
@@ -2531,7 +2643,7 @@ copychar(TTM* ttm, char** dstp, char** srcp, int nested)
 	    if(!nested) c = convertEscapeChar(c);
 	    if(c != NUL) *dst++ = c;
 	    src++;
-	    return 1;
+	    goto done;
 	}
     }
     if(ismultibyte(c)) {
@@ -2548,6 +2660,7 @@ copychar(TTM* ttm, char** dstp, char** srcp, int nested)
 	*dst++ = c;
 	src++;
     }
+done:
     *srcp = src;
     *dstp = dst;
     return 1;
