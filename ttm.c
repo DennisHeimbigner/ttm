@@ -90,6 +90,9 @@ Constants
 #define MAXINCLUDES 1024
 #define MAXEOPTIONS 1024
 
+/* Maximum codepoint size when using utf8 */
+#define MAXCHARSIZE 6
+
 #define NUL '\0'
 #define LPAREN '('
 #define RPAREN ')'
@@ -104,6 +107,8 @@ Constants
 
 /*Mnemonics*/
 #define NESTED 1
+#define KEEPESCAPE 1
+#define TOSTRING 1
 #define NOTTM NULL
 #define TRACING 1
 
@@ -217,6 +222,8 @@ struct TTM {
     unsigned int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
+    char c[MAXCHARSIZE+1]; /* for use by copychar */
+    unsigned int csize; /* size of the last char from copychar */
 };
 
 /**
@@ -367,8 +374,10 @@ static void fail(TTM* ttm, ERR eno);
 static void fatal(TTM* ttm, const char* msg);
 static const char* errstring(ERR err);
 static ERR toInt64(char* s, long long* lp);
+static unsigned int residual2byte(unsigned int rindex, char* s);
+static unsigned int byte2residual(unsigned int offset, char* s);
 static int utf8count(int c);
-static int copychar(TTM*, char** dstp, char** srcp, int nested);
+static int copychar(TTM*, char** srcp, int keepescape);
 static int convertEscapeChar(int c);
 static void trace(TTM* ttm, int entering, int tracing);
 static void trace1(TTM* ttm, int depth, int entering, int tracing);
@@ -758,8 +767,10 @@ scan(TTM* ttm)
 	if(c == NUL) { /* End of buffer */
 	    break;
 	} else if(isescape(c)) {
-	    if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+	    if(!copychar(ttm,&bb->active,!KEEPESCAPE))
 		fail(ttm,EEOS);
+	    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+	    bb->passive += ttm->csize;
 	} else if(c == ttm->sharpc) {/* Start of call? */
 	    if(bb->active[1] == ttm->openc
 	       || (bb->active[1] == ttm->sharpc
@@ -775,8 +786,10 @@ scan(TTM* ttm)
 	        c = *(bb->active);
 		if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
 	        if(isescape(c)) {
-		    if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+		    if(!copychar(ttm,&bb->active,KEEPESCAPE))
 			fail(ttm,EEOS);
+		    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+		    bb->passive += ttm->csize;
 	        } else if(c == ttm->openc) {
 		    *bb->passive++ = (char)c;
 		    bb->active++;
@@ -785,13 +798,17 @@ scan(TTM* ttm)
 		    bb->active++;
 		    if(--depth == 0) break; /* we are done */
 	        } else { /* keep moving */
-		    if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+		    if(!copychar(ttm,&bb->active,KEEPESCAPE))
 			fail(ttm,EEOS);
+		    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+		    bb->passive += ttm->csize;
 		}
 	    }/*<...> for*/
 	} else { /* non-signficant character */
-	    if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+	    if(!copychar(ttm,&bb->active,!KEEPESCAPE))
 		fail(ttm,EEOS);
+	    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+	    bb->passive += ttm->csize;
 	}
     } /*scan for*/
 
@@ -888,8 +905,10 @@ parsecall(TTM* ttm, Frame* frame)
             c = *bb->active; /* Note that we do not bump here */
             if(c == NUL) fail(ttm,EEOS); /* Unexpected end of buffer */
             if(isescape(c)) {
-	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+	        if(!copychar(ttm,&bb->active,!KEEPESCAPE))
 		    fail(ttm,EEOS);
+		memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+		bb->passive += ttm->csize;
             } else if(c == ttm->semic || c == ttm->closec) {
                 /* End of an argument */
                 *bb->passive++ = NUL; /* null terminate the argument */
@@ -907,8 +926,10 @@ parsecall(TTM* ttm, Frame* frame)
                     /* Recurse to compute inner call */
                     exec(ttm,bb);
                 }
-	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+	        if(!copychar(ttm,&bb->active,!KEEPESCAPE))
 		    fail(ttm,EEOS);
+		memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+		bb->passive += ttm->csize;
             } else if(c == ttm->openc) {/* <...> nested brackets */
                 bb->active++; /* skip leading lbracket */
 		depth = 1;
@@ -916,8 +937,10 @@ parsecall(TTM* ttm, Frame* frame)
                     c = *(bb->active);
                     if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
                     if(isescape(c)) {
-		        if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+		        if(!copychar(ttm,&bb->active,KEEPESCAPE))
 			    fail(ttm,EEOS);
+			memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+			bb->passive += ttm->csize;
                     } else if(c == ttm->openc) {
                         *bb->passive++ = (char)c;
                         bb->active++;
@@ -927,14 +950,18 @@ parsecall(TTM* ttm, Frame* frame)
                         *bb->passive++ = (char)c;
 		        bb->active++;
                     } else {
-		        if(!copychar(ttm,&bb->passive,&bb->active,NESTED))
+		        if(!copychar(ttm,&bb->active,KEEPESCAPE))
 			    fail(ttm,EEOS);
+			memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+			bb->passive += ttm->csize;
 		    }
                 }/*<...> for*/
             } else {
                 /* keep moving */
-	        if(!copychar(ttm,&bb->passive,&bb->active,!NESTED))
+	        if(!copychar(ttm,&bb->active,!KEEPESCAPE))
 		    fail(ttm,EEOS);
+		memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
+		bb->passive += ttm->csize;
             }
 	} /* collect argument for */
     } while(!done);
@@ -1032,6 +1059,8 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     char* body;
     char* apstring;
     Name* str = dictionaryLookup(ttm,frame->argv[1]);
+    unsigned int byteresidual;
+
     if(str == NULL) {/* Define the string */
 	ttm_ds(ttm,frame);
 	return;
@@ -1039,10 +1068,11 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     if(str->builtin) fail(ttm,ENOPRIM);
     body = str->body;
     apstring = frame->argv[2];
-    str->residual = strlen(body)+strlen(apstring);
-    body = realloc(body,str->residual+1);
+    byteresidual = strlen(body)+strlen(apstring);
+    body = realloc(body,offset+1);
     if(body == NULL) fail(ttm,EMEMORY);
     strcat(body,apstring);
+    str->residual = byte2residual(byteresidual,body);
 }
 
 /**
@@ -1251,6 +1281,7 @@ static void
 ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 {
     Name* str;
+    unsigned int byteresidual;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1258,9 +1289,13 @@ ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
     if(str->builtin)
 	fail(ttm,ENOPRIM);
     /* Check for pointing at trailing NUL */
-    if(str->residual < strlen(str->body)) {
-	setBufferLength(ttm,ttm->result,1);
-	ttm->result->content[0] = str->body[str->residual];
+    byteresidual = residual2byte(str->residual,body);
+    if(offset < strlen(str->body)) {
+	char* src = str->body+byteresidual;
+	if(!copychar(ttm,&src,KEEPESCAPE))
+	    fail(ttm,EEOS);
+	strcpy(ttm->result->content,ttm->c);
+	setBufferLength(ttm,ttm->result,ttm->csize);
     }
 }
 
@@ -1271,24 +1306,64 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     long long n;
     int avail;
     ERR err;
+    unsigned int byteresidual;
+    unsigned int bytestart; /* in byte units */
+    unsigned int endresidual; /* in char units */
+    unsigned int startn; /* in terms of char-units */
+    char* src;
+    unsigned int bodylen;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
 	fail(ttm,ENOPRIM);
+
     /* Get number of characters to extract */
     err = toInt64(frame->argv[1],&n);
     if(err != ENOERR) fail(ttm,err);
-    /* modify to match the number available */
-    avail = strlen(str->body) - str->residual;
-    if(avail < 0) avail = 0;
-    if(avail < n) n = avail;
+    if(n == 0) goto nullreturn;
+
+    bodylen = strlen(str->body);
+    if(bodylen == 0) goto nullreturn;
+
+    /* Figure out the true residual pointer */
+    byteresidual = residual2byte(str->residual,str->body);
+    /* Figure out the char-based residual for the end of string */
+    endresidual = byte2residual(bodylen,str->body);
+
+    /* See if we have enough space */
+    avail = endresidual - str->residual;
+    if(avail < 0) goto nullreturn;
+    if(avail < n) n = avail; /* return what is available */
+
+    /* Figure out the starting and ending pointers for the transfer */
     if(n > 0) {
-	setBufferLength(ttm,ttm->result,(long)n);
-	memcpy((void*)ttm->result->content,(void*)(str->body+str->residual),(unsigned long)n);
-	ttm->result->content[n] = NUL;
+	/* We want n characters starting at byteresidual */
+	startn = str->residual;
+    } else {/* n < 0 */
+	n = (- n);
+	/* We want n characters starting at endresidual - |n| */
+	startn = endresidual - n;
     }
+    /* Get true offset point */
+    bytestart = residual2byte(start,str->body);
+    /* ok, copy n characters from startn to endn into the return buffer */
+    src = (str->body + bytestart);
+    setBufferlength(ttm,ttm->result,bodylen); /* upper bound */
+    ttm->result->content[0] = NUL;
+    while(n-- > 0) {
+	if(!copychar(ttm,&src,KEEPESCAPE))
+	    fail(ttm,EEOS);
+	strcat(ttm->result->content,ttm->c);
+    }
+    setBufferLength(ttm,ttm->result,strlen(ttm->result->content));
+    return;
+
+nullreturn:
+	setBufferLength(ttm,ttm->result,0);
+        ttm->result->content[0] = NUL;
+ 	return;
 }
 
 static void
@@ -1296,8 +1371,10 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 {
     Name* str;
     char* rp;
-    char* p;
-    int c;
+    char* rp0;
+    int c,depth;
+    unsigned int byteresidual;
+    unsigned int delta; /* in char units */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1305,36 +1382,30 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     if(str->builtin)
 	fail(ttm,ENOPRIM);
 
-    rp = str->body + str->residual;
-    for(p=rp;(c=*p);p++) {
-	if(c == ttm->escapec || c == UNIVERSAL_ESCAPE) {
-	    *p = UNIVERSAL_ESCAPE;
-	    p++;
-	} else if(c == ttm->semic) {
-	    break;
+    byteresidual = residual2byte(str->residual,str->body);
+    rp = str->body + byteresidual;
+    rp0 = rp;
+    depth = 0;
+    ttm->result->content[0] = NUL; /* so we can strcat */
+    for(delta=0;*rp != NUL;delta++) {
+	int c;
+	if(!copychar(ttm,&rp,KEEPESCAPE))
+	    fail(ttm,EEOS);
+	c = ttm->c[0];
+	if(c == NUL) break;
+	else if(c == ttm->semic) {
+	    if(depth == 0) break; /* reached unnested semicolon*/
 	} else if(c == ttm->openc) {
-	    int depth = 1;
-	    for(;(c=*p);p++) {
-		if(c == ttm->escapec || c == UNIVERSAL_ESCAPE) {
-		    *p = UNIVERSAL_ESCAPE;
-		    p++;
-		} else if(c == ttm->openc) {
-		    depth++;
-		} else if(c == ttm->closec) {
-		    depth--;
-		    if(depth == 0) {p++; break;}
-		}
-	    }
+	    depth++;
+	} else if(c == ttm->closec) {
+	    depth--;
 	}
+	strcat(ttm->result->content,ttm->c);
     }
-
-    if(p >= rp) {/* non-zero length parameter */
-	int len = (p - rp);
-	setBufferLength(ttm,ttm->result,len);
-	memcpy((void*)ttm->result->content,(void*)rp,len);
-	ttm->result->content[len] = NUL;
+    if(delta > 0) {/* non-zero length parameter */
+	setBufferLength(ttm,ttm->result,(rp - rp0);
     }
-    str->residual = (p - str->body);
+    str->residual += delta;
 }
 
 static void
@@ -2226,7 +2297,7 @@ ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
 	q=(result->content + strlen(result->content));
 	while(*p) {
 	    if(ismultibyte(*p)) {
-		if(!copychar(ttm,&q,&p,!NESTED))
+		if(!copychar(ttm,&q,&p,!KEEPESCAPE))
 		    fail(ttm,EEOS);
 	    } else if(*p == SEGMENT) {
 		p++;
@@ -2505,6 +2576,7 @@ residual2byte(unsigned int rindex, char* s)
     while(rindex-- > 0) {
 	/* Skip 1 "character" per iteration */
         int c = *p++;
+	if(c == NUL) {break;}
 	if(c == SEGMENT) {p++;}
 	if(ismultibyte(c)) {p += (utf8count(c)-1);}
 	else {p++;}
@@ -2517,25 +2589,21 @@ residual2byte(unsigned int rindex, char* s)
    to a residual index
 */
 static unsigned int
-residual2byte(char* s, unsigned int offset)
+byte2residual(unsigned int offset, char* s)
 {
     unsigned int rindex = 0;
     char* p = s;
-    while(offset > 0) {
+    char* endp = s + offset;
+    while(p != endp) {
         int c = *p++;
-	if(c == SEGMENT) {p++; offset -= 2;}
-	if(ismultibyte(c)) {
-	    int count = utf8count(c);
-	    p += (count-1);
-	    offset -= count;
-
-	else {p++; offset--;}
+	if(c == NUL) {break;}
+	else if(c == SEGMENT) {p++;}
+	else if(ismultibyte(c)) {p += (utf8count(c) - 1);}
+	else {p++;}
 	rindex++; /* Skip 1 "character" per iteration */
-
     }
     return rindex;
 }
-
 
 /**
 Convert a string to a signed Long
@@ -2624,23 +2692,24 @@ utf8count(int c)
     return 1;
 }
 
-/* Copy a character, including multibyte, segment and escapes
-    and increment pointers
+/* Get a character, including multibyte, segment and escapes
+    and increment src pointer
 */
 static int
-copychar(TTM* ttm, char** dstp, char** srcp, int nested)
+copychar(TTM* ttm, char** srcp, int keepescape)
 {
     char* src = *srcp;
-    char* dst = *dstp;
+    char* dst = ttm->c;
     int c,i,count;
+
     c  = *src;
-    if(c == NUL) return 0;
+    if(c == NUL) goto done;
     if(isescape(c)) {
-	if(nested) *dst++ = c; /* keep the escape char */
+	if(keepescape) *dst++ = c; /* keep the escape char */
 	src++;
         c = *src;
 	if(!ismultibyte(c)) {
-	    if(!nested) c = convertEscapeChar(c);
+	    if(!keepescape) c = convertEscapeChar(c);
 	    if(c != NUL) *dst++ = c;
 	    src++;
 	    goto done;
@@ -2661,8 +2730,9 @@ copychar(TTM* ttm, char** dstp, char** srcp, int nested)
 	src++;
     }
 done:
+    *dst = NUL;
     *srcp = src;
-    *dstp = dst;
+    ttm->csize = (dst - ttm->c);
     return 1;
 }
 
