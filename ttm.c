@@ -59,15 +59,26 @@ static int getopt(int argc, char **argv, char *optstring);
 #endif /*!MSWINDOWS*/
 
 /* Wrap both unix and windows timing in this function */
-static unsigned long long getRunTime(void);
+static long long getRunTime(void);
 
 /**************************************************/
+/* UTF and byte type defs */
 
+typedef int utf32; /* 32-bit utf char type; signed is ok
+                        because of limited # of utf characters
+		        namely <= 0x10FFFF = 1,114,111
+		     */
+typedef char utf8;
+
+/* Maximum codepoint size when using utf8 */
+#define MAXCHARSIZE 4
+
+/**************************************************/
 static void
-makespace(char* dst, char* src, unsigned long len)
+makespace(utf32* dst, utf32* src, unsigned long len)
 {
 #ifdef HAVE_MEMMOVE
-    memmove((void*)dst,(void*)src,len);
+    memmove((void*)dst,(void*)src,len*sizeof(utf32));
 #else	
     src += len;
     dst += len;
@@ -80,20 +91,24 @@ makespace(char* dst, char* src, unsigned long len)
 Constants
 */
 
-#define SEGMENT ((char)0xff) /* Not a legal value in utf-8 and not NUL */
-#define CREATEMARK ((char)0xfe) /* Not a legal value in utf-8 and not NUL */
+/* Assign special meaning to some otherwise illegal utf-32 character values */
 
-#define UNIVERSAL_ESCAPE SEGMENT
+#define SEGMARK ((utf32)0x40000000)
+#define CREATE  ((utf32)0x20000000)
+
+/* Macros to set/clear/test these marks */
+#define setMark(w,mark) ((w) | (mark))
+#define clearMark(w,mark) ((w) & ~(mark))
+#define testMark(w,mark) (((w) & ~(mark)) == 0 ? 0 : 1)
 
 #define MAXMARKS 62
 #define MAXARGS 63
 #define MAXINCLUDES 1024
 #define MAXEOPTIONS 1024
-
-/* Maximum codepoint size when using utf8 */
-#define MAXCHARSIZE 6
+#define MAXINTCHARS 32
 
 #define NUL '\0'
+#define NUL32 ((utf32)0)
 #define LPAREN '('
 #define RPAREN ')'
 #define COMMA ','
@@ -105,17 +120,19 @@ Constants
 
 #define CREATELEN 4 /* # of characters for a create mark */
 
+#define HASHSIZE 128
+
 /*Mnemonics*/
 #define NESTED 1
 #define KEEPESCAPE 1
 #define TOSTRING 1
 #define NOTTM NULL
 #define TRACING 1
+#define UNLIMITED (0x7fffffff)
 
 /* TTM Flags */
 #define FLAG_EXIT 1
 #define FLAG_TRACE 2
-
 
 /**************************************************/
 /* Error Numbers */
@@ -154,6 +171,9 @@ EINCLUDE	= 34, /* Cannot read Include file */
 ERANGE		= 35, /* index out of legal range */
 EMANYPARMS	= 36, /* # parameters > MAXARGS */
 EEOS		= 37, /* Unexpected end of string */
+EASCII		= 38, /* ASCII characters only */
+EUTF8		= 39, /* Illegal utf-8 character set */
+EUTF32		= 40, /* Illegal utf-32 character set */
 /* Default case */
 EOTHER		= 99
 } ERR;
@@ -161,9 +181,9 @@ EOTHER		= 99
 /**************************************************/
 /* "inline" functions */
 
-#define isescape(c)((c) == ttm->escapec || (c) == UNIVERSAL_ESCAPE)
+#define isescape(c)((c) == ttm->escapec)
 
-#define ismultibyte(c) ((c) != SEGMENT && (c) != CREATEMARK && ((c) & 0x80) == 0x80 ? 1 : 0)
+#define ismultibyte(c) (((c) & 0x80) == 0x80 ? 1 : 0)
 
 #define iswhitespace(c) ((c) <= ' ' ? 1 : 0)
 
@@ -197,6 +217,7 @@ typedef struct Buffer Buffer;
 
 typedef void (*TTMFCN)(TTM*, Frame*);
 
+/**************************************************/
 /**
 TTM state object
 */
@@ -209,21 +230,20 @@ struct TTM {
     unsigned long flags;
     unsigned long exitcode;
     unsigned long crcounter; /* for cr marks */
-    int sharpc; /* sharp-like char */
-    int openc; /* <-like char */
-    int closec; /* >-like char */
-    int semic; /* ;-like char */
-    int escapec; /* escape-like char */
-    int metac; /* read eof char */
+    utf32 sharpc; /* sharp-like char */
+    utf32 openc; /* <-like char */
+    utf32 closec; /* >-like char */
+    utf32 semic; /* ;-like char */
+    utf32 escapec; /* escape-like char */
+    utf32 metac; /* read eof char */
     Buffer* buffer; /* contains the string being processed */
     Buffer* result; /* contains result strings from functions */
-    Name* dictionary[256]; /* indexed by str->name[0] */
-    Charclass* charclasses[256]; /* indexed by cl->name[0] */
     unsigned int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
-    char c[MAXCHARSIZE+1]; /* for use by copychar */
-    unsigned int csize; /* size of the last char from copychar */
+    /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
+    Name* dictionary[HASHSIZE];
+    Charclass* charclasses[HASHSIZE];
 };
 
 /**
@@ -238,10 +258,10 @@ struct Buffer {
     unsigned long alloc;  /* including trailing NUL */
     unsigned long length;  /* including trailing NUL; defines what of
                              the allocated space is actual content. */
-    char* active; /* characters yet to be scanned */
-    char* passive; /* characters that will never be scanned again */
-    char* end; /* into content */
-    char* content;
+    utf32* active; /* characters yet to be scanned */
+    utf32* passive; /* characters that will never be scanned again */
+    utf32* end; /* into content */
+    utf32* content;
 };
 
 /**
@@ -249,7 +269,7 @@ struct Buffer {
 */
 
 struct Frame {
-  char* argv[MAXARGS+1];
+  utf32* argv[MAXARGS+1];
   int argc;
   int active; /* 1 => # 0 => ## */
 };
@@ -262,19 +282,16 @@ Name Storage and the Dictionary
    to modify especially ttm_ds
 */
 struct Name {
-    char* name;
+    utf32* name;
     int builtin;
     int minargs;
     int maxargs;
     int novalue; /* must always return no value */
-    unsigned int residual; /* Pointer into body in units of characters
-                              (not bytes) where a single utf-8 codepoint
-                              is one char and segment or creation marks count
-                              as one character */
+    unsigned int residual;
     unsigned int maxsegmark; /* highest segment mark number
                                 in use in this string */
     TTMFCN fcn; /* builtin == 1 */
-    char* body; /* builtin == 0 */
+    utf32* body; /* builtin == 0 */
     Name* next; /* "hash" chain */
 };
 
@@ -283,8 +300,8 @@ Character Classes  and the Charclass table
 */
 
 struct Charclass {
-    char* name;
-    char* characters;
+    utf32* name;
+    utf32* characters;
     int negative;
     Charclass* next;
 };
@@ -293,109 +310,122 @@ struct Charclass {
 /* Forward */
 
 static TTM* newTTM(unsigned long buffersize, unsigned long stacksize);
-static void freeTTM(TTM* ttm);
-static Buffer* newBuffer(TTM* ttm, unsigned long buffersize);
-static void freeBuffer(TTM* ttm, Buffer* bb);
-static void expandBuffer(TTM* ttm, Buffer* bb, unsigned long len);
-static void resetBuffer(TTM* ttm, Buffer* bb);
-static void setBufferLength(TTM* ttm, Buffer* bb, unsigned long len);
-static Frame* pushFrame(TTM* ttm);
-static Frame* popFrame(TTM* ttm);
-static Name* newName(TTM* ttm);
-static void freeName(TTM* ttm, Name* f);
-static void dictionaryInsert(TTM* ttm, Name* str);
-static Name* dictionaryLookup(TTM* ttm, char* name);
-static Name* dictionaryRemove(TTM* ttm, char* name);
-static Charclass* newCharclass(TTM* ttm);
-static void freeCharclass(TTM* ttm, Charclass* cl);
-static void charclassInsert(TTM* ttm, Charclass* cl);
-static Charclass* charclassLookup(TTM* ttm, char* name);
-static Charclass* charclassRemove(TTM* ttm, char* name);
-static int charclassMatch(char* s, char* charclass);
-static void scan(TTM* ttm);
-static void exec(TTM* ttm, Buffer* bb);
-static void parsecall(TTM* ttm, Frame* frame);
-static char* call(TTM* ttm, Frame* frame, char* body);
-static void printstring(TTM* ttm, FILE* output, char* s);
-static void ttm_ap(TTM* ttm, Frame* frame); /* Append to a string */
-static void ttm_cf(TTM* ttm, Frame* frame); /* Copy a function */
-static void ttm_cr(TTM* ttm, Frame* frame); /* Mark for creation */
-static void ttm_ds(TTM* ttm, Frame* frame);
-static void ttm_es(TTM* ttm, Frame* frame); /* Erase string */
-static int ttm_ss0(TTM* ttm, Frame* frame);
-static void ttm_sc(TTM* ttm, Frame* frame); /* Segment and count */
-static void ttm_ss(TTM* ttm, Frame* frame); /* Segment and count */
-static void ttm_cc(TTM* ttm, Frame* frame); /* Call one character */
-static void ttm_cn(TTM* ttm, Frame* frame); /* Call n characters */
-static void ttm_cp(TTM* ttm, Frame* frame); /* Call parameter */
-static void ttm_cs(TTM* ttm, Frame* frame); /* Call segment */
-static void ttm_isc(TTM* ttm, Frame* frame); /* Initial character scan */
-static void ttm_rrp(TTM* ttm, Frame* frame); /* Reset residual pointer */
-static void ttm_scn(TTM* ttm, Frame* frame); /* Character scan */
-static void ttm_sn(TTM* ttm, Frame* frame); /* Skip n characters */
-static void ttm_eos(TTM* ttm, Frame* frame); /* Test for end of string */
-static void ttm_gn(TTM* ttm, Frame* frame); /* Give n characters */
-static void ttm_zlc(TTM* ttm, Frame* frame); /* Zero-level commas */
-static void ttm_zlcp(TTM* ttm, Frame* frame); /* Zero-level commas and parentheses */
-static void ttm_flip(TTM* ttm, Frame* frame); /* Flip (reverse); a string */
-static void ttm_ccl(TTM* ttm, Frame* frame); /* Call class */
-static void ttm_dcl0(TTM* ttm, Frame* frame, int negative);
-static void ttm_dcl(TTM* ttm, Frame* frame); /* Define a negative class */
-static void ttm_dncl(TTM* ttm, Frame* frame); /* Define a negative class */
-static void ttm_ecl(TTM* ttm, Frame* frame); /* Erase a class */
-static void ttm_scl(TTM* ttm, Frame* frame); /* Skip class */
-static void ttm_tcl(TTM* ttm, Frame* frame); /* Test class */
-static void ttm_abs(TTM* ttm, Frame* frame); /* Obtain absolute value */
-static void ttm_ad(TTM* ttm, Frame* frame); /* Add */
-static void ttm_dv(TTM* ttm, Frame* frame); /* Divide and give quotient */
-static void ttm_dvr(TTM* ttm, Frame* frame); /* Divide and give remainder */
-static void ttm_mu(TTM* ttm, Frame* frame); /* Multiply */
-static void ttm_su(TTM* ttm, Frame* frame); /* Substract */
-static void ttm_eq(TTM* ttm, Frame* frame); /* Compare numeric equal */
-static void ttm_gt(TTM* ttm, Frame* frame); /* Compare numeric greater-than */
-static void ttm_lt(TTM* ttm, Frame* frame); /* Compare numeric less-than */
-static void ttm_eql(TTM* ttm, Frame* frame); /* ? Compare logical equal */
-static void ttm_gtl(TTM* ttm, Frame* frame); /* ? Compare logical greater-than */
-static void ttm_ltl(TTM* ttm, Frame* frame); /* ? Compare logical less-than */
-static void ttm_ps(TTM* ttm, Frame* frame); /* Print a Name */
-static void ttm_psr(TTM* ttm, Frame* frame); /* Print Name and Read */
-static void ttm_rs(TTM* ttm, Frame* frame); /* Read a Name */
-static void ttm_cm(TTM* ttm, Frame* frame); /* Change meta character */
-static void ttm_names(TTM* ttm, Frame* frame); /* Obtain Name Names */
-static void ttm_exit(TTM* ttm, Frame* frame); /* Return from TTM */
-static void ttm_ndf(TTM* ttm, Frame* frame); /* Determine if a Name is Defined */
-static void ttm_norm(TTM* ttm, Frame* frame); /* Obtain the Norm of a Name */
-static void ttm_time(TTM* ttm, Frame* frame); /* Obtain Execution Time */
-static void ttm_tf(TTM* ttm, Frame* frame); /* Turn Trace Off */
-static void ttm_tn(TTM* ttm, Frame* frame); /* Turn Trace On */
-static void ttm_argv(TTM* ttm, Frame* frame); /* Get ith command line argument */
-static void ttm_include(TTM* ttm, Frame* frame);  /* Include text of a file */
-static void fail(TTM* ttm, ERR eno);
-static void fatal(TTM* ttm, const char* msg);
+static void freeTTM(TTM*);
+static Buffer* newBuffer(TTM*, unsigned long buffersize);
+static void freeBuffer(TTM*, Buffer* bb);
+static void expandBuffer(TTM*, Buffer* bb, unsigned long len);
+static void resetBuffer(TTM*, Buffer* bb);
+static void setBufferLength(TTM*, Buffer* bb, unsigned long len);
+static Frame* pushFrame(TTM*);
+static Frame* popFrame(TTM*);
+static Name* newName(TTM*);
+static void freeName(TTM*, Name* f);
+static void dictionaryInsert(TTM*, Name* str);
+static Name* dictionaryLookup(TTM*, utf32* name);
+static Name* dictionaryRemove(TTM*, utf32* name);
+static Charclass* newCharclass(TTM*);
+static void freeCharclass(TTM*, Charclass* cl);
+static void charclassInsert(TTM*, Charclass* cl);
+static Charclass* charclassLookup(TTM*, utf32* name);
+static Charclass* charclassRemove(TTM*, utf32* name);
+static int charclassMatch(utf32 c, utf32* charclass);
+static void scan(TTM*);
+static void exec(TTM*, Buffer* bb);
+static void parsecall(TTM*, Frame*);
+static utf32* call(TTM*, Frame*, utf32* body);
+static void printstring(TTM*, FILE* output, utf32* s32);
+static void ttm_ap(TTM*, Frame*);
+static void ttm_cf(TTM*, Frame*);
+static void ttm_cr(TTM*, Frame*);
+static void ttm_ds(TTM*, Frame*);
+static void ttm_es(TTM*, Frame*);
+static int ttm_ss0(TTM*, Frame*);
+static void ttm_sc(TTM*, Frame*);
+static void ttm_ss(TTM*, Frame*);
+static void ttm_cc(TTM*, Frame*);
+static void ttm_cn(TTM*, Frame*);
+static void ttm_cp(TTM*, Frame*);
+static void ttm_cs(TTM*, Frame*);
+static void ttm_isc(TTM*, Frame*);
+static void ttm_rrp(TTM*, Frame*);
+static void ttm_scn(TTM*, Frame*);
+static void ttm_sn(TTM*, Frame*);
+static void ttm_eos(TTM*, Frame*);
+static void ttm_gn(TTM*, Frame*);
+static void ttm_zlc(TTM*, Frame*);
+static void ttm_zlcp(TTM*, Frame*);
+static void ttm_flip(TTM*, Frame*);
+static void ttm_ccl(TTM*, Frame*);
+static void ttm_dcl0(TTM*, Frame*, int negative);
+static void ttm_dcl(TTM*, Frame*);
+static void ttm_dncl(TTM*, Frame*);
+static void ttm_ecl(TTM*, Frame*);
+static void ttm_scl(TTM*, Frame*);
+static void ttm_tcl(TTM*, Frame*);
+static void ttm_abs(TTM*, Frame*);
+static void ttm_ad(TTM*, Frame*);
+static void ttm_dv(TTM*, Frame*);
+static void ttm_dvr(TTM*, Frame*);
+static void ttm_mu(TTM*, Frame*);
+static void ttm_su(TTM*, Frame*);
+static void ttm_eq(TTM*, Frame*);
+static void ttm_gt(TTM*, Frame*);
+static void ttm_lt(TTM*, Frame*);
+static void ttm_eql(TTM*, Frame*);
+static void ttm_gtl(TTM*, Frame*);
+static void ttm_ltl(TTM*, Frame*);
+static void ttm_ps(TTM*, Frame*);
+static void ttm_psr(TTM*, Frame*);
+static void ttm_rs(TTM*, Frame*);
+static void ttm_cm(TTM*, Frame*);
+static void ttm_names(TTM*, Frame*);
+static void ttm_exit(TTM*, Frame*);
+static void ttm_ndf(TTM*, Frame*);
+static void ttm_norm(TTM*, Frame*);
+static void ttm_time(TTM*, Frame*);
+static void ttm_tf(TTM*, Frame*);
+static void ttm_tn(TTM*, Frame*);
+static void ttm_argv(TTM*, Frame*);
+static void ttm_include(TTM*, Frame*);
+static void ttm_showname(TTM*, Frame*);
+static void fail(TTM*, ERR eno);
+static void fatal(TTM*, const char* msg);
 static const char* errstring(ERR err);
-static ERR toInt64(char* s, long long* lp);
-static unsigned int residual2byte(unsigned int rindex, char* s);
-static unsigned int byte2residual(unsigned int offset, char* s);
+static int int2string(utf32* dst, long long n);
+static ERR toInt64(utf32* s, long long* lp);
 static int utf8count(int c);
-static int copychar(TTM*, char** srcp, int keepescape);
-static int convertEscapeChar(int c);
-static void trace(TTM* ttm, int entering, int tracing);
-static void trace1(TTM* ttm, int depth, int entering, int tracing);
-static void dumpstack(TTM* ttm);
+static utf32 convertEscapeChar(utf32 c);
+static void trace(TTM*, int entering, int tracing);
+static void trace1(TTM*, int depth, int entering, int tracing);
+static void dumpstack(TTM*);
 static int getOptionNameLength(char** list);
 static int pushOptionName(char* option, int max, char** list);
 static void initglobals();
 static void usage(void);
 static void convertDtoE(const char* def);
-static void readinput(TTM* ttm, const char* filename,Buffer* bb);
-static int readbalanced(TTM* ttm);
-static void printbuffer(TTM* ttm);
-static int readfile(TTM* ttm, FILE* file, Buffer* bb);
-static void dumpstack(TTM* ttm);
+static void readinput(TTM*, const char* filename,Buffer* bb);
+static int readbalanced(TTM*);
+static void printbuffer(TTM*);
+static int readfile(TTM*, FILE* file, Buffer* bb);
+static int utf32utf8(utf8* dst, utf32 codepoint);
+static int utf8utf32(utf32* codepointp, utf8* src);
+static int string32string8(utf8* dst, utf32* src, unsigned int *lenp);
+static int string8string32(utf32* dst, utf8* src, unsigned int *lenp);
+static unsigned int strlen32(utf32* s);
+static void strcpy32(utf32* dst, utf32* src);
+static void strncpy32(utf32* dst, utf32* src, unsigned int len);
+static utf32* strdup32(utf32* src);
+static int strcmp32(utf32* s1, utf32* s2);
+static int strncmp32(utf32* s1, utf32* s2, unsigned int len);
+static int strcvt(utf32* dst, utf8* src);
+static int streq328(utf32* s32, utf8* s8);
+static void fputc32(utf32 c, FILE* f);
+static utf32 fgetc32(FILE* f);
 
 /**************************************************/
 /* Global variables */
 
+/* Note that these are just standard linux strings */
 static char* includes[MAXINCLUDES+1]; /* null terminated */
 static char* eoptions[MAXEOPTIONS+1]; /* null terminated */
 static char* argoptions[MAXARGS+1]; /* null terminated */
@@ -408,12 +438,12 @@ newTTM(unsigned long buffersize, unsigned long stacksize)
     if(ttm == NULL) return NULL;
     ttm->limits.buffersize = buffersize;
     ttm->limits.stacksize = stacksize;
-    ttm->sharpc = '#';
-    ttm->openc = '<';
-    ttm->closec = '>';
-    ttm->semic = ';';
-    ttm->escapec = '\\';
-    ttm->metac = '\n';
+    ttm->sharpc = (utf32)'#';
+    ttm->openc = (utf32)'<';
+    ttm->closec = (utf32)'>';
+    ttm->semic = (utf32)';';
+    ttm->escapec = (utf32)'\\';
+    ttm->metac = (utf32)'\n';
     ttm->buffer = newBuffer(ttm,buffersize);
     ttm->result = newBuffer(ttm,buffersize);
     ttm->stacknext = 0;
@@ -445,7 +475,7 @@ newBuffer(TTM* ttm, unsigned long buffersize)
     Buffer* bb;
     bb = (Buffer*)calloc(1,sizeof(Buffer));
     if(bb == NULL) fail(ttm,EMEMORY);
-    bb->content = (char*)malloc(buffersize);
+    bb->content = (utf32*)malloc(buffersize*sizeof(utf32));
     if(bb->content == NULL) fail(ttm,EMEMORY);
     bb->alloc = buffersize;
     bb->length = 0;
@@ -477,7 +507,7 @@ expandBuffer(TTM* ttm, Buffer* bb, unsigned long len)
     bb->active += len;
     bb->length += len;
     bb->end = bb->content+bb->length;
-    *(bb->end) = NUL;
+    *(bb->end) = NUL32;
 }
 
 #if 0
@@ -568,8 +598,8 @@ freeName(TTM* ttm, Name* f)
 
 /**
 Dictionary Management.  The string dictionary is
-simplified by making it a array of chains indexed by the
-first char of the name of the string.
+simplified by making it an array of chains indexed by the
+lo order 7 bits of the name[0] of the string.
 */
 
 static void
@@ -577,16 +607,16 @@ dictionaryInsert(TTM* ttm, Name* str)
 {
     Name** table = ttm->dictionary;
     Name* next;
-    int c0 = str->name[0];
+    utf32 index = (str->name[0] | 0x7F);
 
-    next = table[c0];
+    next = table[index];
     if(next == NULL) {
-	table[c0] = str;
+	table[index] = str;
     } else {
 	Name* prev = NULL;
 	/* search chain for str */
         while(next != NULL) {
-	    if(strcmp(str->name,next->name)==0)
+	    if(strcmp32(str->name,next->name)==0)
 		break;
 	    prev = next;
 	    next = next->next;
@@ -603,16 +633,16 @@ dictionaryInsert(TTM* ttm, Name* str)
 }
 
 static Name*
-dictionaryLookup(TTM* ttm, char* name)
+dictionaryLookup(TTM* ttm, utf32* name)
 {
     Name** table = ttm->dictionary;
     Name* f;
-    int c0;
+    utf32 index;
     assert(name != NULL);
-    c0 = name[0];
-    f = table[c0];
+    index = (name[0] | 0x7F);
+    f = table[index];
     while(f != NULL) {/* search chain for str */
-	if(strcmp(name,f->name)==0)
+	if(strcmp32(name,f->name)==0)
 	    break;
 	f = f->next;
     }
@@ -620,18 +650,19 @@ dictionaryLookup(TTM* ttm, char* name)
 }
 
 static Name*
-dictionaryRemove(TTM* ttm, char* name)
+dictionaryRemove(TTM* ttm, utf32* name)
 {
     Name** table = ttm->dictionary;
     Name* next;
     Name* prev;
-    int c0;
+    utf32 index;
+
     assert(name != NULL);
-    c0 = name[0];
-    next = table[c0];
+    index = (name[0] | 0x7F);
+    next = table[index];
     prev = NULL;
     while(next != NULL) {/* search chain for str */
-	if(strcmp(name,next->name)==0) {
+	if(strcmp32(name,next->name)==0) {
 	    prev->next = next->next;
 	    break;
 	}
@@ -670,15 +701,15 @@ charclassInsert(TTM* ttm, Charclass* cl)
 {
     Charclass** table = ttm->charclasses;
     Charclass* next;
-    int c0 = cl->name[0];
-    next = table[c0];
+    utf32 index = (cl->name[0] | 0x7F);
+    next = table[index];
     if(next == NULL) {
-	table[c0] = cl;
+	table[index] = cl;
     } else {
 	Charclass* prev = NULL;
 	/* search chain for cl */
         while(next != NULL) {
-	    if(strcmp(cl->name,next->name)==0)
+	    if(strcmp32(cl->name,next->name)==0)
 		break;
 	    prev = next;
 	    next = next->next;
@@ -695,15 +726,14 @@ charclassInsert(TTM* ttm, Charclass* cl)
 }
 
 static Charclass*
-charclassLookup(TTM* ttm, char* name)
+charclassLookup(TTM* ttm, utf32* name)
 {
     Charclass** table = ttm->charclasses;
     Charclass* cl;
-    int c0;
-    c0 = name[0];
-    cl = table[c0];
+    utf32 index = (name[0] | 0x7F);
+    cl = table[index];
     while(cl != NULL) {/* search chain for cl */
-	if(strcmp(name,cl->name)==0)
+	if(strcmp32(name,cl->name)==0)
 	    break;
 	cl = cl->next;
     }
@@ -711,17 +741,16 @@ charclassLookup(TTM* ttm, char* name)
 }
 
 static Charclass*
-charclassRemove(TTM* ttm, char* name)
+charclassRemove(TTM* ttm, utf32* name)
 {
     Charclass** table = ttm->charclasses;
     Charclass* next;
     Charclass* prev;
-    int c0;
-    c0 = name[0];
-    next = table[c0];
+    utf32 index = (name[0] | 0x7F);
+    next = table[index];
     prev = NULL;
     while(next != NULL) {/* search chain for cl */
-	if(strcmp(name,next->name)==0) {
+	if(strcmp32(name,next->name)==0) {
 	    prev->next = next->next;
 	    break;
 	}
@@ -732,21 +761,11 @@ charclassRemove(TTM* ttm, char* name)
 }
 
 static int
-charclassMatch(char* s, char* charclass)
+charclassMatch(utf32 c, utf32* charclass)
 {
-    int c;
-    char* p=charclass;
-    while((c=*p)) {
-	if(ismultibyte(c)) {
-	    int i;
-	    int count=(utf8count(c)-1);
-	    for(i=0;i<count;i++) {if(s[i] != p[i]) return 0;}
-	    p += count;
-	} else if(*s != *p) {
-	    break;
-	} else /* => *s == *p */
-	    return 1;
-    }
+    utf32* p=charclass;
+    utf32 pc;
+    while((pc=*p++)) {if(c == pc) return 1;}
     return 0;
 }
 
@@ -758,19 +777,17 @@ This is basic top level scanner.
 static void
 scan(TTM* ttm)
 {
-    int c;
+    utf32 c;
     Buffer* bb = ttm->buffer;
 
     for(;;) {
 	if(ttm->flags & FLAG_EXIT) break;
 	c = *bb->active; /* NOTE that we do not bump here */
-	if(c == NUL) { /* End of buffer */
+	if(c == NUL32) { /* End of buffer */
 	    break;
 	} else if(isescape(c)) {
-	    if(!copychar(ttm,&bb->active,!KEEPESCAPE))
-		fail(ttm,EEOS);
-	    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-	    bb->passive += ttm->csize;
+	    bb->active++; /* skip the escape */
+	    *bb->passive++ = *bb->active++;
 	} else if(c == ttm->sharpc) {/* Start of call? */
 	    if(bb->active[1] == ttm->openc
 	       || (bb->active[1] == ttm->sharpc
@@ -778,37 +795,26 @@ scan(TTM* ttm)
 		/* It is a real call */
 		exec(ttm,bb);
 	    } else /* not an call; just pass the # along passively */
-	        *bb->passive++ = (char)c;
+	        *bb->passive++ = c;
 	} else if(c == ttm->openc) { /* Start of <...> escaping */
-	    int depth = 0;
+	    int depth = 1;
 	    /* Skip the leading lbracket */
 	    for(;;) {
 	        c = *(bb->active);
-		if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
+		if(c == NUL32) fail(ttm,EEOS); /* Unexpected EOF */
+	        *bb->passive++ = c;
+	        bb->active++;
 	        if(isescape(c)) {
-		    if(!copychar(ttm,&bb->active,KEEPESCAPE))
-			fail(ttm,EEOS);
-		    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-		    bb->passive += ttm->csize;
+	            *bb->passive++ = *bb->active++;
 	        } else if(c == ttm->openc) {
-		    *bb->passive++ = (char)c;
-		    bb->active++;
 	            depth++;
 		} else if(c == ttm->closec) {
-		    bb->active++;
-		    if(--depth == 0) break; /* we are done */
-	        } else { /* keep moving */
-		    if(!copychar(ttm,&bb->active,KEEPESCAPE))
-			fail(ttm,EEOS);
-		    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-		    bb->passive += ttm->csize;
-		}
+		    if(--depth == 0) {bb->passive--; break;} /* we are done */
+	        } /* else keep moving */
 	    }/*<...> for*/
 	} else { /* non-signficant character */
-	    if(!copychar(ttm,&bb->active,!KEEPESCAPE))
-		fail(ttm,EEOS);
-	    memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-	    bb->passive += ttm->csize;
+	    *bb->passive++ = c;
+	    bb->active++;
 	}
     } /*scan for*/
 
@@ -828,7 +834,7 @@ exec(TTM* ttm, Buffer* bb)
 {
     Frame* frame;
     Name* fcn;
-    char* savepassive;
+    utf32* savepassive;
 
     frame = pushFrame(ttm);
     /* Skip to the start of the function name */
@@ -846,7 +852,7 @@ exec(TTM* ttm, Buffer* bb)
 
     /* Now execute this function, which will leave result in bb->result */
     if(frame->argc == 0) fail(ttm,ENONAME);
-    if(strlen(frame->argv[0])==0) fail(ttm,ENONAME);
+    if(strlen32(frame->argv[0])==0) fail(ttm,ENONAME);
     /* Locate the function to execute */
     fcn = dictionaryLookup(ttm,frame->argv[0]);
     if(fcn == NULL) fail(ttm,ENONAME);
@@ -865,7 +871,7 @@ exec(TTM* ttm, Buffer* bb)
 
     /* Now, put the result into the buffer */
     if(!fcn->novalue && ttm->result->length > 0) {
-	char* insertpos;
+	utf32* insertpos;
 	unsigned long resultlen = ttm->result->length;
 	/*Compute the space avail between bb->passive and bb->active */
 	unsigned long avail = (bb->active - bb->passive); 
@@ -895,7 +901,8 @@ past the call.
 static void
 parsecall(TTM* ttm, Frame* frame)
 {
-    int c,done,depth;
+    int done,depth;
+    utf32 c;
     Buffer* bb = ttm->buffer;
 
     done = 0;
@@ -903,12 +910,10 @@ parsecall(TTM* ttm, Frame* frame)
 	frame->argv[frame->argc] = bb->passive; /* start of ith argument */
 	while(!done) {
             c = *bb->active; /* Note that we do not bump here */
-            if(c == NUL) fail(ttm,EEOS); /* Unexpected end of buffer */
+            if(c == NUL32) fail(ttm,EEOS); /* Unexpected end of buffer */
             if(isescape(c)) {
-	        if(!copychar(ttm,&bb->active,!KEEPESCAPE))
-		    fail(ttm,EEOS);
-		memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-		bb->passive += ttm->csize;
+		bb->active++;
+		*bb->passive++ = *bb->active++;
             } else if(c == ttm->semic || c == ttm->closec) {
                 /* End of an argument */
                 *bb->passive++ = NUL; /* null terminate the argument */
@@ -926,10 +931,7 @@ parsecall(TTM* ttm, Frame* frame)
                     /* Recurse to compute inner call */
                     exec(ttm,bb);
                 }
-	        if(!copychar(ttm,&bb->active,!KEEPESCAPE))
-		    fail(ttm,EEOS);
-		memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-		bb->passive += ttm->csize;
+		*bb->passive++ = *bb->active++;
             } else if(c == ttm->openc) {/* <...> nested brackets */
                 bb->active++; /* skip leading lbracket */
 		depth = 1;
@@ -937,10 +939,8 @@ parsecall(TTM* ttm, Frame* frame)
                     c = *(bb->active);
                     if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
                     if(isescape(c)) {
-		        if(!copychar(ttm,&bb->active,KEEPESCAPE))
-			    fail(ttm,EEOS);
-			memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-			bb->passive += ttm->csize;
+                        *bb->passive++ = (char)c;
+		        *bb->passive++ = *bb->active++;		
                     } else if(c == ttm->openc) {
                         *bb->passive++ = (char)c;
                         bb->active++;
@@ -950,18 +950,13 @@ parsecall(TTM* ttm, Frame* frame)
                         *bb->passive++ = (char)c;
 		        bb->active++;
                     } else {
-		        if(!copychar(ttm,&bb->active,KEEPESCAPE))
-			    fail(ttm,EEOS);
-			memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-			bb->passive += ttm->csize;
+			*bb->passive++ = *bb->active++;
 		    }
                 }/*<...> for*/
             } else {
                 /* keep moving */
-	        if(!copychar(ttm,&bb->active,!KEEPESCAPE))
-		    fail(ttm,EEOS);
-		memcpy((void*)bb->passive,(void*)ttm->c,ttm->csize);
-		bb->passive += ttm->csize;
+		*bb->passive = c;
+		bb->active++;		
             }
 	} /* collect argument for */
     } while(!done);
@@ -972,23 +967,23 @@ parsecall(TTM* ttm, Frame* frame)
 Execute a non-builtin function
 */
 
-static char*
-call(TTM* ttm, Frame* frame, char* body)
+static utf32*
+call(TTM* ttm, Frame* frame, utf32* body)
 {
-    char* p;
-    int c;
+    utf32* p;
+    utf32 c;
     unsigned long len;
-    char* result;
-    char* dst;
+    utf32* result;
+    utf32* dst;
 
     /* Compute the size of the output */
     for(len=0,p=body;(c=*p++);) {
-	if(c == SEGMENT) {
+	if(testMark(c,SEGMARK)) {
 	    int segindex = (int)(*p++);
 	    if(segindex < frame->argc)
-	        len += strlen(frame->argv[segindex]);
+	        len += strlen32(frame->argv[segindex]);
 	    /* else treat as empty string */
-	} else if(c == CREATEMARK) {
+	} else if(c == CREATE) {
 	    len += CREATELEN;
 	} else
 	    len++;
@@ -998,25 +993,26 @@ call(TTM* ttm, Frame* frame, char* body)
     setBufferLength(ttm,ttm->result,len);
     result = ttm->result->content;
     dst = result;
-    dst[0] = NUL; /* so we can use strcat */
+    dst[0] = NUL32; /* so we can use strcat */
     for(p=body;(c=*p++);) {
-	if(c == SEGMENT) {
-	    int segindex = (int)(*p++);
+	if(testMark(c,SEGMARK)) {
+	    int segindex = (int)(c & 0xFF);
 	    if(segindex < frame->argc) {
-		char* arg = frame->argv[segindex];
-	        strcat(dst,arg);
-		dst += strlen(arg);
+		utf32* arg = frame->argv[segindex];
+	        strcpy32(dst,arg);
+		dst += strlen32(arg);
 	    } /* else treat as null string */
-	} else if (c == CREATEMARK) {
-	    char crformat[64];
+	} else if (c == CREATE) {
+	    int len;
+	    char crformat[16];
 	    char crval[CREATELEN+1];
-	    /* Construct the format string */
+	    /* Construct the format string on the fly */
 	    snprintf(crformat,sizeof(crformat),"%%0%dd",CREATELEN);
 	    /* Construct the cr value */
 	    ttm->crcounter++;
 	    snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
-	    strcat(dst,crval);
-	    dst += strlen(crval);
+	    len = strcvt(dst,crval);
+	    dst += len;
 	} else
 	    *dst++ = (char)c;
     }
@@ -1025,25 +1021,21 @@ call(TTM* ttm, Frame* frame, char* body)
 
 /**************************************************/
 /* Built-in Support Procedures */
-
 static void
-printstring(TTM* ttm, FILE* output, char* s)
+printstring(TTM* ttm, FILE* output, utf32* s32)
 {
-    int c;
-    char* p;
-    int slen = strlen(s);
+    int slen = strlen32(s32);
+    utf32 c32;
 
     if(slen == 0) return;
-    for(p=s;(c=*p++);) {
-	if(c == UNIVERSAL_ESCAPE) {
-	    c=*p++;
-	    if(c == NUL)
-		break; /* escape at end of buffer for some reason */
-	    /* if c is a control character, then elide it */
-	    if(!iscontrol(c))
-	        fputc(c,output);
-	} else
-	    fputc(c,output);
+    while((c32=*s32++)) {
+	if(isescape(c32)) {
+	    c32 = *s32++;
+	    c32 = convertEscapeChar(c32);
+	}
+	/* if c is a control character, then elide it */
+	if(c32 != 0 && !iscontrol(c32))
+	    fputc32(c32,output);
     }
 }
 
@@ -1056,23 +1048,24 @@ printstring(TTM* ttm, FILE* output, char* s)
 static void
 ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
 {
-    char* body;
-    char* apstring;
+    utf32* body;
+    utf32* apstring;
     Name* str = dictionaryLookup(ttm,frame->argv[1]);
-    unsigned int byteresidual;
+    unsigned int aplen, bodylen;
 
     if(str == NULL) {/* Define the string */
 	ttm_ds(ttm,frame);
 	return;
     }
     if(str->builtin) fail(ttm,ENOPRIM);
-    body = str->body;
     apstring = frame->argv[2];
-    byteresidual = strlen(body)+strlen(apstring);
-    body = realloc(body,offset+1);
+    aplen = strlen32(apstring);
+    body = str->body;
+    bodylen = strlen32(body);
+    body = realloc(body,bodylen+aplen+1);
     if(body == NULL) fail(ttm,EMEMORY);
-    strcat(body,apstring);
-    str->residual = byte2residual(byteresidual,body);
+    strcpy32(body+bodylen,apstring);
+    str->residual = bodylen+aplen;
 }
 
 /**
@@ -1083,11 +1076,11 @@ have been changed. See ttm.html
 static void
 ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
 {
-    char* newname = frame->argv[1];
-    char* oldname = frame->argv[2];
+    utf32* newname = frame->argv[1];
+    utf32* oldname = frame->argv[2];
     Name* newstr = dictionaryLookup(ttm,newname);
     Name* oldstr = dictionaryLookup(ttm,oldname);
-    char* savename;
+    utf32* savename;
     Name* savenext;
 
     if(oldstr == NULL)
@@ -1095,7 +1088,7 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
     if(newstr == NULL) {
 	/* create a new string object */
 	newstr = newName(ttm);
-	newstr->name = strdup(newname);
+	newstr->name = strdup32(newname);
 	dictionaryInsert(ttm,newstr);
     }
     savenext = newstr->next;
@@ -1105,7 +1098,7 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
     if(newstr->body != NULL) {
 	newstr->next = savenext;
 	newstr->name = savename;
-	newstr->body = strdup(newstr->body);
+	newstr->body = strdup32(newstr->body);
     }
 }
 
@@ -1114,8 +1107,8 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 {
     Name* str;
     int bodylen,crlen;
-    char* body;
-    char* crstring;
+    utf32* body;
+    utf32* crstring;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1124,24 +1117,21 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 	fail(ttm,ENOPRIM);
 
     body = str->body;
-    bodylen = strlen(body);
+    bodylen = strlen32(body);
     crstring = frame->argv[2];
-    crlen = strlen(crstring);
-    if(crlen > 0 && crlen < bodylen) { /* only search if it has a chance of success */
+    crlen = strlen32(crstring);
+    if(crlen > 0) { /* search only if possible success */
+	utf32* p;
 	/* Search for occurrences of arg */
-	int endpos = (bodylen - crlen); /* max point for which search makes sense */
-	int pos;
-	for(pos=0;pos<endpos;) {
-	    if(memcmp((void*)(body+pos),(void*)crstring,crlen) != 0)
-		continue;
+	p = body + str->residual;
+	while(*p) {
+	    if(strncmp32(p,crstring,crlen) != 0)
+		{p++; continue;}
 	    /* we have a match, replace match by a create marker */
-	    makespace(body+pos+1,body+pos,1);
-	    body[pos++] = CREATEMARK;
-	    /* compress out the crstring */
-	    memcpy(body+pos,body+pos+crlen,crlen);
-	    /* fix up */
-	    bodylen -= (crlen - 1);
-            endpos = (bodylen - crlen);
+	    *p = CREATE;
+	    /* compress out all but 1 char of crstring match */
+	    if(crlen > 1)
+		strcpy32(p+1,p+crlen);
 	}
     }
 }
@@ -1153,7 +1143,7 @@ ttm_ds(TTM* ttm, Frame* frame)
     if(str == NULL) {
 	/* create a new string object */
 	str = newName(ttm);
-	str->name = strdup(frame->argv[1]);
+	str->name = strdup32(frame->argv[1]);
 	dictionaryInsert(ttm,str);
     } else {
 	/* reset as needed */
@@ -1166,7 +1156,7 @@ ttm_ds(TTM* ttm, Frame* frame)
 	if(str->body != NULL) free(str->body);
 	str->body = NULL;
     }
-    str->body = strdup(frame->argv[2]);
+    str->body = strdup32(frame->argv[2]);
 }
 
 static void
@@ -1174,7 +1164,7 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 {
     int i;
     for(i=1;i<frame->argc;i++) {
-	char* strname = frame->argv[i];
+	utf32* strname = frame->argv[i];
 	Name* prev = dictionaryRemove(ttm,strname);
 	if(prev != NULL) {
 	    freeName(ttm,prev); /* reclaim the string */
@@ -1187,73 +1177,45 @@ static int
 ttm_ss0(TTM* ttm, Frame* frame)
 {
     Name* str;
-    int bodylen;
-    int i;
-    int segcount;
-    int startseg;
-    Buffer* tmp;
-    unsigned int avail;
+    int i,segcount,startseg,bodylen;
+    utf32* startp;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
 	fail(ttm,ENOPRIM);
-    /* Transfer the name's body to the result buffer for processing */
-    tmp = ttm->result;
-    bodylen = strlen(str->body);
-    setBufferLength(ttm,tmp,bodylen);
-    strcpy(tmp->content,str->body);
-    avail = bodylen;
+
+    bodylen = strlen32(str->body);
+    if(str->residual >= bodylen)
+	return 0; /* no substitution possible */
     segcount = 0;
     startseg = str->maxsegmark;
+    startp = str->body + str->residual;
     for(i=2;i<frame->argc;i++) {
-	int found,arglen;
-	char* arg;
-	/* Start each search from the beginning */
-        tmp->active = tmp->content;
-        tmp->passive = tmp->active;
-		
-	arg = frame->argv[i];
-	arglen = strlen(arg);
-	if(arglen == 0 || arglen > avail)
-	    continue; /* No substitution possible */
-
-	/* Search for occurrences of arg */
-	found = 0;
-	while(*tmp->active) {
-	    /* Note we can use memcmp because we assume two
-               utf-8 chars will have same sequence of characters;
-	       also, no argument character will match segment or
-               creation mark.
-            */
-	    if(memcmp((void*)tmp->active,(void*)arg,arglen) != 0) {
-		/*no match: move this char, which might be a segment mark */
-		int c = *tmp->active++;
-		*tmp->passive++ = c;
-		if(c == SEGMENT)
-		    *tmp->passive++ = *tmp->active++; /* pass segment index */
-		continue;
+	utf32* arg = frame->argv[i];
+	unsigned int arglen = strlen32(arg);
+        if(arglen > 0) { /* search only if possible success */
+	    int found;
+	    utf32* p;
+	    /* Search for occurrences of arg */
+	    p = str->body + str->residual;
+	    found = 0;
+	    while(*p) {
+	        if(strncmp32(p,arg,arglen) != 0)
+		    {p++; continue;}
+		/* we have a match, replace match by a segment marker */
+		if(!found) {/* first match */
+		    startseg++;
+		    found++;
+		}
+		*p = (SEGMARK | startseg);
+		/* compress out all but 1 char of match */
+		if(arglen > 1)
+		    strcpy32(p+1,p+arglen);
 	    }
-	    /* replace match by a segment marker (beginning at 1) */
-	    /* ensure we have space for 3 characters: segment mark and NUL*/
-	    expandBuffer(ttm,tmp,3);
-	    if(!found) { /* first match */
-		startseg++;
-		found = 1;
-	    }
-	    /* Move active pointer past the matched arg name */
-	    tmp->active += arglen;
-	    /* insert segment mark at passive point*/
-	    *tmp->passive++ = SEGMENT;
-	    *tmp->passive++ = (char)(startseg & 0xFF);
-	    segcount++;
 	}
-        *tmp->passive = NUL;
     }
-    /* save the changed body */
-    str->body = realloc(str->body,strlen(tmp->content)+1);
-    strcpy(str->body,tmp->content);
     str->maxsegmark = startseg;
     return segcount;
 }
@@ -1262,11 +1224,12 @@ static void
 ttm_sc(TTM* ttm, Frame* frame) /* Segment and count */
 {
     char count[64];
-    int nsegs = ttm_ss0(ttm,frame);
+    int n,nsegs = ttm_ss0(ttm,frame);
     snprintf(count,sizeof(count),"%d",nsegs);
     /* Insert into ttm->result */
     setBufferLength(ttm,ttm->result,strlen(count));
-    strcpy(ttm->result->content,count);
+    n = strcvt(ttm->result->content,count);
+    setBufferLength(ttm,ttm->result,n);
 }
 
 static void
@@ -1289,13 +1252,10 @@ ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
     if(str->builtin)
 	fail(ttm,ENOPRIM);
     /* Check for pointing at trailing NUL */
-    byteresidual = residual2byte(str->residual,body);
-    if(offset < strlen(str->body)) {
-	char* src = str->body+byteresidual;
-	if(!copychar(ttm,&src,KEEPESCAPE))
-	    fail(ttm,EEOS);
-	strcpy(ttm->result->content,ttm->c);
-	setBufferLength(ttm,ttm->result,ttm->csize);
+    if(str->residual < strlen32(str->body)) {
+	utf32 c32 = *(str->body+byteresidual);
+	*ttm->result->content = c32;
+	setBufferLength(ttm,ttm->result,1);
     }
 }
 
@@ -1304,14 +1264,8 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
 {
     Name* str;
     long long n;
-    int avail;
     ERR err;
-    unsigned int byteresidual;
-    unsigned int bytestart; /* in byte units */
-    unsigned int endresidual; /* in char units */
-    unsigned int startn; /* in terms of char-units */
-    char* src;
-    unsigned int bodylen;
+    int bodylen,avail,startn;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1322,21 +1276,14 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     /* Get number of characters to extract */
     err = toInt64(frame->argv[1],&n);
     if(err != ENOERR) fail(ttm,err);
-    if(n == 0) goto nullreturn;
-
-    bodylen = strlen(str->body);
-    if(bodylen == 0) goto nullreturn;
-
-    /* Figure out the true residual pointer */
-    byteresidual = residual2byte(str->residual,str->body);
-    /* Figure out the char-based residual for the end of string */
-    endresidual = byte2residual(bodylen,str->body);
+    if(n <= 0) fail(ttm,EPOSITIVE);
 
     /* See if we have enough space */
-    avail = endresidual - str->residual;
-    if(avail < 0) goto nullreturn;
-    if(avail < n) n = avail; /* return what is available */
-
+    bodylen = strlen32(str->body);
+    avail = bodylen - str->residual;
+    if(avail > 0 && avail < n) n = avail; /* return what is available */
+    else goto nullreturn;
+    
     /* Figure out the starting and ending pointers for the transfer */
     if(n > 0) {
 	/* We want n characters starting at byteresidual */
@@ -1344,37 +1291,29 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     } else {/* n < 0 */
 	n = (- n);
 	/* We want n characters starting at endresidual - |n| */
-	startn = endresidual - n;
+	startn = bodylen - n;
     }
-    /* Get true offset point */
-    bytestart = residual2byte(start,str->body);
+	
     /* ok, copy n characters from startn to endn into the return buffer */
-    src = (str->body + bytestart);
-    setBufferlength(ttm,ttm->result,bodylen); /* upper bound */
-    ttm->result->content[0] = NUL;
-    while(n-- > 0) {
-	if(!copychar(ttm,&src,KEEPESCAPE))
-	    fail(ttm,EEOS);
-	strcat(ttm->result->content,ttm->c);
-    }
-    setBufferLength(ttm,ttm->result,strlen(ttm->result->content));
+    setBufferLength(ttm,ttm->result,n);
+    strncpy32(ttm->result->content,str->body+startn,n);
     return;
 
 nullreturn:
-	setBufferLength(ttm,ttm->result,0);
-        ttm->result->content[0] = NUL;
- 	return;
+    setBufferLength(ttm,ttm->result,0);
+    ttm->result->content[0] = NUL;
+    return;
 }
 
 static void
 ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 {
     Name* str;
-    char* rp;
-    char* rp0;
-    int c,depth;
-    unsigned int byteresidual;
-    unsigned int delta; /* in char units */
+    unsigned int delta;
+    utf32* rp;
+    utf32* rp0;
+    utf32 c32;
+    int depth;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1382,29 +1321,22 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     if(str->builtin)
 	fail(ttm,ENOPRIM);
 
-    byteresidual = residual2byte(str->residual,str->body);
-    rp = str->body + byteresidual;
+    rp = str->body + str->residual;
     rp0 = rp;
     depth = 0;
-    ttm->result->content[0] = NUL; /* so we can strcat */
-    for(delta=0;*rp != NUL;delta++) {
-	int c;
-	if(!copychar(ttm,&rp,KEEPESCAPE))
-	    fail(ttm,EEOS);
-	c = ttm->c[0];
-	if(c == NUL) break;
-	else if(c == ttm->semic) {
+    ttm->result->content[0] = NUL32; /* so we can strcat */
+    for(;(c32=*rp);rp++) {
+	if(c32 == ttm->semic) {
 	    if(depth == 0) break; /* reached unnested semicolon*/
-	} else if(c == ttm->openc) {
+	} else if(c32 == ttm->openc) {
 	    depth++;
-	} else if(c == ttm->closec) {
+	} else if(c32 == ttm->closec) {
 	    depth--;
 	}
-	strcat(ttm->result->content,ttm->c);
     }
-    if(delta > 0) {/* non-zero length parameter */
-	setBufferLength(ttm,ttm->result,(rp - rp0);
-    }
+    delta = (rp - rp0);
+    setBufferLength(ttm,ttm->result,delta);
+    strncpy32(ttm->result->content,rp0,delta);
     str->residual += delta;
 }
 
@@ -1412,8 +1344,10 @@ static void
 ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 {
     Name* str;
-    char* p;
-    unsigned long offset;
+    utf32 c32;
+    utf32* p;
+    utf32* p0;
+    unsigned int delta;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1422,35 +1356,48 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 	fail(ttm,ENOPRIM);
 
     /* Locate the next segment mark */
-    /* Unclear if create marks also qualify; assume not */
-    p = str->body + str->residual;
-    for(;*p;p++) {if(*p == SEGMENT) break;}
-    offset = (p - str->body) - str->residual;
-    if(offset > 0) {
-	setBufferLength(ttm,ttm->result,offset);
-	memcpy((void*)ttm->result->content,str->body+str->residual,offset);
-	ttm->result->content[offset] = NUL;
+    /* Unclear if create marks also qualify; assume yes */
+    p0 = str->body + str->residual;
+    p = p0;
+    for(;(c32=*p);p++) {
+	if(c32 == NUL32 || testMark(c32,SEGMARK) || testMark(c32,CREATE))
+	    break;
     }
+    delta = (p - p0);
+    if(delta > 0) {
+	setBufferLength(ttm,ttm->result,delta);
+	strncpy32(ttm->result->content,p0,delta);
+    }
+    /* set residual pointer correctly */
+    str->residual += delta;
 }
 
 static void
 ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan */
 {
     Name* str;
-    char* retval;
+    utf32* t;
+    utf32* f;
+    utf32* result;
+    utf32* arg;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
 	fail(ttm,ENOPRIM);
+
+    arg = frame->argv[1];
+    t = frame->argv[3];
+    f = frame->argv[4];
+
     /* check for initial string match */
-    if(strcmp(frame->argv[1],str->body+str->residual)==0) {
-	retval = frame->argv[3];
-    } else
-	retval = frame->argv[4];
-    setBufferLength(ttm,ttm->result,strlen(retval));
-    strcpy(ttm->result->content,retval);    
+    if(strncmp32(str->body+str->residual,arg,strlen32(arg))==0)
+	result = t;
+    else
+	result = f;
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);    
 }
 
 static void
@@ -1468,11 +1415,12 @@ static void
 ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
 {
     Name* str;
-    char* s1;
-    char* s2;
-    int s1len,match,bodylen;
-    char* start;
-    unsigned long offset,endpoint;
+    unsigned int arglen;
+    utf32* t;
+    utf32* f;
+    utf32* result;
+    utf32* arg;
+    utf32* p;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1480,39 +1428,19 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
     if(str->builtin)
 	fail(ttm,ENOPRIM);
 
-    s1 = frame->argv[1];
-    s1len = strlen(s1);
-    s2 = frame->argv[3];
-    if(s1len == 0)
-	goto fail;
-    bodylen = strlen(str->body);
-    if((bodylen - (str->residual + s1len)) < 0)
-	goto fail;
-    start = str->body + str->residual;
-    endpoint = bodylen - s1len;
-    /* check for substring match after the residual pointer */
-    for(match=0,offset=0;offset<endpoint;offset++) {
-	if(memcmp(start+offset,s1,s1len) == 0) {match=1;break;}
-    }
-    if(match) {
-	if(offset == 0)
-	    str->residual += s1len;
-	else {
-	    int retlen = offset - str->residual;
-	    setBufferLength(ttm,ttm->result,retlen);
-	    memcpy((void*)ttm->result->content,(void*)(str->body+retlen),retlen);
-	    ttm->result->content[retlen] = NUL;
-	}
-    } else
-	goto fail;
-    return;
+    arg = frame->argv[1];
+    arglen = strlen32(arg);
+    t = frame->argv[3];
+    f = frame->argv[4];
 
-fail:
-    if(s2 != NULL) {
-	int s2len = strlen(s2);
-        setBufferLength(ttm,ttm->result,s2len);
-        strcpy(ttm->result->content,s2);
-    }
+    /* check for sub string match */
+    p = str->body+str->residual;
+    result = f;
+    for(;*p;p++) {
+        if(strncmp32(p,arg,arglen)==0){result = t; break;}
+    }    
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);    
 }
 
 static void
@@ -1520,85 +1448,98 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 {
     ERR err;
     long long num;
-    Name* str = dictionaryLookup(ttm,frame->argv[2]);
+    Name* str;
+    unsigned int bodylen;
+
+    str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
         fail(ttm,ENOPRIM);
+
     err = toInt64(frame->argv[1],&num);
     if(err != ENOERR) fail(ttm,err);
-    if(err < 0) fail(ttm,EPOSITIVE);   
-    str->residual += (unsigned int)num;
-    if(str->residual > strlen(str->body))
-	str->residual = strlen(str->body);
+    if(num < 0) fail(ttm,EPOSITIVE);   
+
+    str->residual += (int)num;
+    bodylen = strlen32(str->body);
+    if(str->residual > bodylen)
+	str->residual = bodylen;
 }
 
-static void ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
+static void
+ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 {
-    Name* str = dictionaryLookup(ttm,frame->argv[1]);
-    char* result;
+    Name* str;
+    unsigned int bodylen;
+    utf32* t;
+    utf32* f;
+    utf32* result;
+
+    str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
         fail(ttm,ENOPRIM);
-    if(str->residual >= strlen(str->body))
-    result = (str->residual >= strlen(str->body) ? frame->argv[2] : frame->argv[3]);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    bodylen = strlen32(str->body);
+    t = frame->argv[2];
+    f = frame->argv[3];
+    result = (str->residual >= bodylen ? t : f);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
-
 
 /* Name Scanning Operations */
 
 static void
-ttm_gn(TTM* ttm, Frame* frame) /* Give n characters */
+ttm_gn(TTM* ttm, Frame* frame) /* Give n characters from argument string*/
 {
-    char* snum = frame->argv[1];
-    char* s = frame->argv[2];
-    unsigned int slen = strlen(s);
+    utf32* snum = frame->argv[1];
+    utf32* s = frame->argv[2];
+    unsigned int slen = strlen32(s);
     ERR err;
     long long num;
+    utf32* startp;
 
     err = toInt64(snum,&num);
     if(err != ENOERR) fail(ttm,err);
     if(num > 0) {
 	if(slen < num) num = slen;
-	setBufferLength(ttm,ttm->result,(unsigned long)num);
-	memcpy((void*)ttm->result->content,(void*)s,(unsigned long)num);
-	ttm->result->content[num] = NUL;
+	startp = s;
     } else if(num < 0) {
-	unsigned int rem, unum;
 	num = -num;
-	unum = (unsigned long)num;
-	if(slen < unum) unum = slen;
-	rem = (slen - unum);
-	setBufferLength(ttm,ttm->result,rem);
-	memcpy((void*)ttm->result->content,s+rem,unum);
-	ttm->result->content[unum] = NUL;
+	startp = s + num;
+	num = (slen - num);
+    }
+    if(num != 0) {
+        setBufferLength(ttm,ttm->result,(unsigned int)num);
+        strncpy32(ttm->result->content,startp,(unsigned int)num);
     }
 }
 
 static void
 ttm_zlc(TTM* ttm, Frame* frame) /* Zero-level commas */
 {
-    char* s;
-    char* p;
+    utf32* s;
+    utf32* p;
     int slen,c;
 
     s = frame->argv[1];
-    slen = strlen(s);
+    slen = strlen32(s);
     setBufferLength(ttm,ttm->result,slen); /* result will be same length */
-    strcpy(ttm->result->content,s);
+    strcpy32(ttm->result->content,s);
     for(p=ttm->result->content;(c=*p);p++) {
-	if(c == ttm->escapec || c == UNIVERSAL_ESCAPE) {
-	    *p++ = UNIVERSAL_ESCAPE;
+	if(isescape(c)) {
+	    *p++ = c;
+	    p++; /* skip escaped character */
 	} else if(c == COMMA) {
 	    *p++ = ttm->semic;	
 	} else if(c == LPAREN) {
 	    int depth = 1;
 	    for(;(c=*p);p++) {
-		if(c == ttm->escapec || c == UNIVERSAL_ESCAPE) {
-		    *p++ = UNIVERSAL_ESCAPE;
+		if(isescape(c)) {
+		    *p++ = c;
+		    p++;
 		} else if(c == LPAREN) {
 		    depth++;
 		} else if(c == RPAREN) {
@@ -1608,44 +1549,39 @@ ttm_zlc(TTM* ttm, Frame* frame) /* Zero-level commas */
 	    }
 	}
     }
-    *p = NUL; /* make sure it is terminated */
+    *p = NUL32; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(p - ttm->result->content));
 }
 
 static void
 ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses */
 {
-    /* A(B) will give A;B and (A),(B),C will give A;B;C */
-    char* s;
-    char* p;
-    char* q;
-    int slen,c;
+    /* A(B) and A,B will both give A;B and (A),(B),C will give A;B;C */
+    utf32* s;
+    utf32* p;
+    utf32* q;
+    utf32 c;
+    int slen;
 
     s = frame->argv[1];
-    slen = strlen(s);
+    slen = strlen32(s);
     setBufferLength(ttm,ttm->result,slen); /* result may be shorter; handle below */
     q = ttm->result->content;
     p = s;
-    for(;(c=*p);p++) {
-	if(c == ttm->escapec || c == UNIVERSAL_ESCAPE) {
-	    *q++ = UNIVERSAL_ESCAPE;
-	    *q++ = *(++p);
-	} else if(c == COMMA) {
-	    if(p != s && *(q-1)==ttm->semic) {
-	        /* dont copy this comma */
-	    } else
-	        *q++ = ttm->semic;	
+    while((c=*p++)) {
+	if(isescape(c)) {
+	    *q++ = c;
+	    *q++ = *p++;
+	} else if(c == COMMA && p[0] != LPAREN) {
+	    *q++ = ttm->semic;	
 	} else if(c == LPAREN) {
 	    int depth;
-	    if(p != s && *(q-1)==ttm->semic) {
-		/* do not copy this comma */
-	    } else
-	        *q++ = ttm->semic;	
+            *q++ = ttm->semic;	
 	    /* find matching lparen */
-	    for(depth=1,p++;(c=*p);p++) {
-		if(c == ttm->escapec || c == UNIVERSAL_ESCAPE) {
-		    *q++ = UNIVERSAL_ESCAPE;
-		    *q++ = *(++p);
+	    for(depth=1;(c=*p++);) {
+		if(isescape(c)) {
+		    *q++ = c;
+		    *q++ = *p++;
 		} else if(c == LPAREN) {
 		    depth++;
 		} else if(c == RPAREN) {
@@ -1653,30 +1589,30 @@ ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses */
 		    if(depth == 0) break;
 		}
 	    }
-	    if(c == RPAREN) {
-		if(p != s && *(q-1) == ttm->semic) {
-		    /* do not copy this RPAREN */
-		} else
-		    *q++ = ttm->semic;
+	    if(c == RPAREN && p[0] != COMMA) {
+	        *q++ = ttm->semic;
 	    }
 	}
     }
-    *q = NUL; /* make sure it is terminated */
+    *q = NUL32; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(q-ttm->result->content));
 }
 
 static void
 ttm_flip(TTM* ttm, Frame* frame) /* Flip a string */
 {
-    char* s;
-    char* q;
+    utf32* s;
+    utf32* q;
+    utf32* p;
     int slen,i;
 
     s = frame->argv[1];
-    slen = strlen(s);
+    slen = strlen32(s);
     setBufferLength(ttm,ttm->result,slen);
+    p = s + (slen - 1);
     q=ttm->result->content;
-    for(i=slen-1;i>=0;i--) *q++ = s[i];
+    for(i=0;i<slen;i++) {*q++ = *(--s);}
+    *q = NUL32;
 }
 
 static void
@@ -1684,27 +1620,27 @@ ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     Name* str = dictionaryLookup(ttm,frame->argv[2]);
-    char* p;
-    char* start;
-    unsigned long len;
-    int c;
+    utf32 c;
+    utf32* p;
+    utf32* start;
+    int len;
 
     if(cl == NULL || str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
 	fail(ttm,ENOPRIM);
+
     /* Starting at str->residual, locate first char not in class */
     start = str->body+str->residual;
-    p = start;
-    while((c=*p++)) {
-	if(cl->negative && charclassMatch(p,cl->characters)) break;
-	if(!cl->negative && !charclassMatch(p,cl->characters)) break;
+    for(p=start;(c=*p);p++) {
+	if(cl->negative && charclassMatch(c,cl->characters)) break;
+	if(!cl->negative && !charclassMatch(c,cl->characters)) break;
     }
     len = (p - start);
     if(len > 0) {
 	setBufferLength(ttm,ttm->result,len);
-	memcpy((void*)ttm->result->content,start,len);
-	ttm->result->content[len] = NUL;
+	strncpy32(ttm->result->content,start,len);
+	ttm->result->content[len] = NUL32;
 	str->residual += len;
     }
 }
@@ -1717,12 +1653,12 @@ ttm_dcl0(TTM* ttm, Frame* frame, int negative)
     if(cl == NULL) {
 	/* create a new charclass object */
 	cl = newCharclass(ttm);
-	cl->name = strdup(frame->argv[1]);
+	cl->name = strdup32(frame->argv[1]);
 	charclassInsert(ttm,cl);
     }
     if(cl->characters != NULL)
 	free(cl->characters);
-    cl->characters = strdup(frame->argv[2]);
+    cl->characters = strdup32(frame->argv[2]);
     cl->negative = negative;
 }
 
@@ -1743,7 +1679,7 @@ ttm_ecl(TTM* ttm, Frame* frame) /* Erase a class */
 {
     int i;
     for(i=1;i<frame->argc;i++) {
-	char* clname = frame->argv[i];
+	utf32* clname = frame->argv[i];
 	Charclass* prev = charclassRemove(ttm,clname);
 	if(prev != NULL) {
 	    freeCharclass(ttm,prev); /* reclaim the character class */
@@ -1756,21 +1692,21 @@ ttm_scl(TTM* ttm, Frame* frame) /* Skip class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     Name* str = dictionaryLookup(ttm,frame->argv[2]);
-    char* p;
-    char* start;
-    unsigned long len;
-    int c;
+    utf32 c;
+    utf32* p;
+    utf32* start;
+    int len;
 
     if(cl == NULL || str == NULL)
 	fail(ttm,ENONAME);
     if(str->builtin)
 	fail(ttm,ENOPRIM);
+
     /* Starting at str->residual, locate first char not in class */
     start = str->body+str->residual;
-    p = start;
-    while((c=*p++)) {
-	if(cl->negative && charclassMatch(p,cl->characters)) break;
-	if(!cl->negative && !charclassMatch(p,cl->characters)) break;
+    for(p=start;(c=*p);p++) {
+	if(cl->negative && charclassMatch(c,cl->characters)) break;
+	if(!cl->negative && !charclassMatch(c,cl->characters)) break;
     }
     len = (p - start);
     str->residual += len;
@@ -1781,9 +1717,8 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     Name* str = dictionaryLookup(ttm,frame->argv[2]);
-    char* rp;
-    char* retval;
-    unsigned long retlen;
+    utf32* retval;
+    int retlen;
 
     if(cl == NULL)
 	fail(ttm,ENONAME);
@@ -1793,18 +1728,18 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 	retval = frame->argv[4];
     else {
         /* see if char at str->residual is in class */
-        rp = str->body + str->residual;
-        if(cl->negative && charclassMatch(rp,cl->characters)) 
+	utf32 c32 = *(str->body + str->residual);
+        if(cl->negative && charclassMatch(c32,cl->characters)) 
 	    retval = frame->argv[3];
-        else if(!cl->negative && !charclassMatch(rp,cl->characters))
+        else if(!cl->negative && !charclassMatch(c32,cl->characters))
 	    retval = frame->argv[3];
 	else
 	    retval = frame->argv[4];
     }
-    retlen = strlen(retval);
+    retlen = strlen32(retval);
     if(retlen > 0) {
 	setBufferLength(ttm,ttm->result,retlen);
-	strcpy(ttm->result->content,retval);
+	strcpy32(ttm->result->content,retval);
     }    
 }
 
@@ -1813,28 +1748,30 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 static void
 ttm_abs(TTM* ttm, Frame* frame) /* Obtain absolute value */
 {
-    char* slhs;
+    utf32* slhs;
     long long lhs;
     ERR err;
     char result[32];
+    int count;
 
     slhs = frame->argv[1];    
     err = toInt64(slhs,&lhs);
     if(err != ENOERR) fail(ttm,err);
     if(lhs < 0) lhs = -lhs;
     snprintf(result,sizeof(result),"%lld",lhs);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,strlen(result)); /*overkill*/
+    count = strcvt(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,count);/*fixup*/
 }
 
 static void
 ttm_ad(TTM* ttm, Frame* frame) /* Add */
 {
-    char* slhs;
-    char* srhs;
+    utf32* slhs;
+    utf32* srhs;
     long long lhs,rhs;
     ERR err;
-    char result[32];
+    int count;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1844,19 +1781,19 @@ ttm_ad(TTM* ttm, Frame* frame) /* Add */
     err = toInt64(srhs,&rhs);
     if(err != ENOERR) fail(ttm,err);
     lhs = (lhs + rhs);
-    snprintf(result,sizeof(result),"%lld",lhs);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,MAXINTCHARS);
+    count = int2string(ttm->result->content,lhs);
+    setBufferLength(ttm,ttm->result,count); /* fixup */
 }
 
 static void
 ttm_dv(TTM* ttm, Frame* frame) /* Divide and give quotient */
 {
-    char* slhs;
-    char* srhs;
+    utf32* slhs;
+    utf32* srhs;
     long long lhs,rhs;
     ERR err;
-    char result[32];
+    int count;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1866,19 +1803,19 @@ ttm_dv(TTM* ttm, Frame* frame) /* Divide and give quotient */
     err = toInt64(srhs,&rhs);
     if(err != ENOERR) fail(ttm,err);
     lhs = (lhs / rhs);
-    snprintf(result,sizeof(result),"%lld",lhs);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,MAXINTCHARS);
+    count = int2string(ttm->result->content,lhs);
+    setBufferLength(ttm,ttm->result,count); /* fixup */
 }
 
 static void
 ttm_dvr(TTM* ttm, Frame* frame) /* Divide and give remainder */
 {
-    char* slhs;
-    char* srhs;
+    utf32* slhs;
+    utf32* srhs;
     long long lhs,rhs;
     ERR err;
-    char result[32];
+    int count;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1888,19 +1825,19 @@ ttm_dvr(TTM* ttm, Frame* frame) /* Divide and give remainder */
     err = toInt64(srhs,&rhs);
     if(err != ENOERR) fail(ttm,err);
     lhs = (lhs % rhs);
-    snprintf(result,sizeof(result),"%lld",lhs);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,MAXINTCHARS);
+    count = int2string(ttm->result->content,lhs);
+    setBufferLength(ttm,ttm->result,count); /* fixup */
 }
 
 static void
 ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
 {
-    char* slhs;
-    char* srhs;
+    utf32* slhs;
+    utf32* srhs;
     long long lhs,rhs;
     ERR err;
-    char result[32];
+    int count;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1910,19 +1847,19 @@ ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
     err = toInt64(srhs,&rhs);
     if(err != ENOERR) fail(ttm,err);
     lhs = (lhs * rhs);
-    snprintf(result,sizeof(result),"%lld",lhs);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,MAXINTCHARS);
+    count = int2string(ttm->result->content,lhs);
+    setBufferLength(ttm,ttm->result,count); /* fixup */
 }
 
 static void
 ttm_su(TTM* ttm, Frame* frame) /* Substract */
 {
-    char* slhs;
-    char* srhs;
+    utf32* slhs;
+    utf32* srhs;
     long long lhs,rhs;
     ERR err;
-    char result[32];
+    int count;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1931,21 +1868,21 @@ ttm_su(TTM* ttm, Frame* frame) /* Substract */
     err = toInt64(srhs,&rhs);
     if(err != ENOERR) fail(ttm,err);
     lhs = (lhs - rhs);
-    snprintf(result,sizeof(result),"%lld",lhs);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,MAXINTCHARS);
+    count = int2string(ttm->result->content,lhs);
+    setBufferLength(ttm,ttm->result,count); /* fixup */
 }
 
 static void
 ttm_eq(TTM* ttm, Frame* frame) /* Compare numeric equal */
 {
-    char* slhs;
-    char* srhs;
-    char* t;
-    char* f;
+    utf32* slhs;
+    utf32* srhs;
+    utf32* t;
+    utf32* f;
     long long lhs,rhs;
     ERR err;
-    char* result;
+    utf32* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1958,20 +1895,20 @@ ttm_eq(TTM* ttm, Frame* frame) /* Compare numeric equal */
     if(err != ENOERR) fail(ttm,err);
 
     result = (lhs == rhs ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 static void
 ttm_gt(TTM* ttm, Frame* frame) /* Compare numeric greater-than */
 {
-    char* slhs;
-    char* srhs;
-    char* t;
-    char* f;
+    utf32* slhs;
+    utf32* srhs;
+    utf32* t;
+    utf32* f;
     long long lhs,rhs;
     ERR err;
-    char* result;
+    utf32* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -1984,20 +1921,20 @@ ttm_gt(TTM* ttm, Frame* frame) /* Compare numeric greater-than */
     if(err != ENOERR) fail(ttm,err);
 
     result = (lhs > rhs ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 static void
 ttm_lt(TTM* ttm, Frame* frame) /* Compare numeric less-than */
 {
-    char* slhs;
-    char* srhs;
-    char* t;
-    char* f;
+    utf32* slhs;
+    utf32* srhs;
+    utf32* t;
+    utf32* f;
     long long lhs,rhs;
     ERR err;
-    char* result;
+    utf32* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2010,65 +1947,65 @@ ttm_lt(TTM* ttm, Frame* frame) /* Compare numeric less-than */
     if(err != ENOERR) fail(ttm,err);
 
     result = (lhs < rhs ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 static void
 ttm_eql(TTM* ttm, Frame* frame) /* ? Compare logical equal */
 {
-    char* slhs;
-    char* srhs;
-    char* t;
-    char* f;
-    char* result;
+    utf32* slhs;
+    utf32* srhs;
+    utf32* t;
+    utf32* f;
+    utf32* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
     t = frame->argv[3];    
     f = frame->argv[4];
 
-    result = (strcmp(slhs,srhs) == 0 ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    result = (strcmp32(slhs,srhs) == 0 ? t : f);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 static void
 ttm_gtl(TTM* ttm, Frame* frame) /* ? Compare logical greater-than */
 {
-    char* slhs;
-    char* srhs;
-    char* t;
-    char* f;
-    char* result;
+    utf32* slhs;
+    utf32* srhs;
+    utf32* t;
+    utf32* f;
+    utf32* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
     t = frame->argv[3];    
     f = frame->argv[4];
 
-    result = (strcmp(slhs,srhs) > 0 ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    result = (strcmp32(slhs,srhs) > 0 ? t : f);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 static void
 ttm_ltl(TTM* ttm, Frame* frame) /* ? Compare logical less-than */
 {
-    char* slhs;
-    char* srhs;
-    char* t;
-    char* f;
-    char* result;
+    utf32* slhs;
+    utf32* srhs;
+    utf32* t;
+    utf32* f;
+    utf32* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
     t = frame->argv[3];    
     f = frame->argv[4];
 
-    result = (strcmp(slhs,srhs) < 0 ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    result = (strcmp32(slhs,srhs) < 0 ? t : f);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 /* Peripheral Input/Output Operations */
@@ -2076,10 +2013,10 @@ ttm_ltl(TTM* ttm, Frame* frame) /* ? Compare logical less-than */
 static void
 ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
 {
-    char* s = frame->argv[1];
-    char* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
+    utf32* s = frame->argv[1];
+    utf32* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
     FILE* target;
-    if(strcmp(stdxx,"stderr")==0) target=stderr; else target = stdout;
+    if(streq328(stdxx,"stderr")) target=stderr; else target = stdout;
     printstring(ttm,target,s);
 }
 
@@ -2093,20 +2030,22 @@ ttm_psr(TTM* ttm, Frame* frame) /* Print Name and Read */
 static void
 ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
 {
-    int len,c;
+    int len;
+    utf32 c;
     for(len=0;;len++) {
-	c=fgetc(stdin);
+	c=fgetc32(stdin);
 	if(c == ttm->metac) break;
         setBufferLength(ttm,ttm->result,len+1);
-	ttm->result->content[len] = (char)c;
+	ttm->result->content[len] = c;
     }
 }
 
 static void
 ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */
 {
-    char* smeta = frame->argv[1];
-    if(strlen(smeta) > 0) {
+    utf32* smeta = frame->argv[1];
+    if(strlen32(smeta) > 0) {
+	if(smeta[0] > 127) fail(ttm,EASCII);
 	ttm->metac = smeta[0];
     }
 }
@@ -2114,21 +2053,21 @@ ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */
 /* Library Operations */
 
 static void
-ttm_names(TTM* ttm, Frame* frame) /* Obtain Name Names */
+ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names */
 {
     int i,count,first;
     unsigned long len;
-    char* p;
+    utf32* p;
 
     /* First, figure out the total name size and count of number of names */
     count = 0;
     len = 0;
-    for(i=0;i<256;i++) {
+    for(i=0;i<HASHSIZE;i++) {
 	if(ttm->dictionary[i] != NULL) {
 	    Name* name = ttm->dictionary[i];
 	    while(name != NULL) {
 		count++;
-	        len += strlen(name->name);
+	        len += strlen32(name->name);
 		name = name->next;
 	    }
 	}
@@ -2136,14 +2075,14 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain Name Names */
     setBufferLength(ttm,ttm->result,len+(count-1));
     p = ttm->result->content;
     first = 1;
-    for(i=0;i<256;i++) {
+    for(i=0;i<HASHSIZE;i++) {
 	if(ttm->dictionary[i] != NULL) {
 	    Name* name = ttm->dictionary[i];
 	    while(name != NULL) {
-		if(!first) strcpy(p,",");
-		p++;
-		strcpy(p,name->name);		
-	        p += strlen(name->name);
+		if(!first) count = strcvt(p,",");
+		p+=count;
+		strcpy32(p,name->name);		
+	        p += strlen32(name->name);
 		name = name->next;
 		first = 0;
 	    }
@@ -2154,9 +2093,14 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain Name Names */
 static void
 ttm_exit(TTM* ttm, Frame* frame) /* Return from TTM */
 {
+    long long exitcode = 0;
     ttm->flags |= FLAG_EXIT;
-    if(frame->argc > 1)
-	ttm->exitcode = 1;
+    if(frame->argc > 1) {
+	ERR err = toInt64(frame->argv[1],&exitcode);
+	if(err != ENOERR) exitcode = 1;
+	else if(exitcode < 0) exitcode = - exitcode;
+    }	
+    ttm->exitcode = (int)exitcode;
 }
 
 /* Utility Operations */
@@ -2164,10 +2108,10 @@ ttm_exit(TTM* ttm, Frame* frame) /* Return from TTM */
 static void
 ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a Name is Defined */
 {
-    char* s;
-    char* t;
-    char* f;
-    char* result;
+    utf32* s;
+    utf32* t;
+    utf32* f;
+    utf32* result;
     Name* name;
 
     s = frame->argv[1];    
@@ -2176,31 +2120,38 @@ ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a Name is Defined */
 
     name = dictionaryLookup(ttm,s);    
     result = (name != NULL ? t : f);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    setBufferLength(ttm,ttm->result,strlen32(result));
+    strcpy32(ttm->result->content,result);
 }
 
 static void
-ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a Name */
+ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a string */
 {
-    char* s;
+    utf32* s;
     char result[32];
+    int count;
 
     s = frame->argv[1];
-    snprintf(result,sizeof(result),"%u",(unsigned int)strlen(s));
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    snprintf(result,sizeof(result),"%u",strlen32(s));
+    setBufferLength(ttm,ttm->result,strlen(result)); /*temp*/
+    count = strcvt(ttm->result->content,result);
+    ttm->result->content[count] = NUL32;
+    setBufferLength(ttm,ttm->result,count);
 }
 
 static void
 ttm_time(TTM* ttm, Frame* frame) /* Obtain Execution Time */
 {
-    unsigned long long utime;
-    char result[64];
-    utime = getRunTime();
-    snprintf(result,sizeof(result),"%llu",utime);
-    setBufferLength(ttm,ttm->result,strlen(result));
-    strcpy(ttm->result->content,result);
+    long long time;
+    char result[MAXINTCHARS+1];
+    int count;
+
+    time = getRunTime();
+    snprintf(result,sizeof(result),"%lld",time);
+    setBufferLength(ttm,ttm->result,strlen(result));/*temp*/
+    count = strcvt(ttm->result->content,result);
+    ttm->result->content[count] = NUL32;
+    setBufferLength(ttm,ttm->result,count);
 }
 
 static void
@@ -2222,12 +2173,18 @@ ttm_argv(TTM* ttm, Frame* frame) /* Get ith command line argument */
 {
     long long index = 0;
     ERR err;
+    int count;
+    char* arg;
+
     err = toInt64(frame->argv[1],&index);
     if(err != ENOERR) fail(ttm,err);
     if(index < 0 || index >= getOptionNameLength(argoptions))
 	fail(ttm,ERANGE);
-    setBufferLength(ttm,ttm->result,strlen(argoptions[index]));
-    strcpy(ttm->result->content,argoptions[index]);
+    arg = argoptions[index];
+    setBufferLength(ttm,ttm->result,strlen(arg));/*temp*/
+    count = strcvt(ttm->result->content,arg);
+    ttm->result->content[count] = NUL32;
+    setBufferLength(ttm,ttm->result,count);
 }
 
 /**
@@ -2243,19 +2200,28 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 {
     char** path;
     FILE* finclude;
-    char* suffix;
+    char suffix[8192];
     char filename[8192];
-    char* startpos;
-    Buffer* bb = ttm->buffer;
+    utf32* suffix32;
+    Buffer* bb = ttm->result;
+    int suffixlen;
+    int count;
+    unsigned int len;
 
-    suffix = frame->argv[1];
-    if(strlen(suffix) == 0)
+    suffix32 = frame->argv[1];
+    suffixlen = strlen32(suffix32);
+    if(suffixlen == 0)
 	fail(ttm,EINCLUDE);
-    /* try to open file as is */
-    finclude = fopen(filename,"r");
-    if(finclude == NULL && suffix[0] == '/')
-	fail(ttm,EIO);
-    /* Since it is a relative path, try to use -I list */
+    if(suffix32[0] == '/' || suffix32[0] == '\\') {
+	suffix32++;
+	suffixlen--;
+    }
+    /* convert */
+    len = suffixlen;
+    count = string32string8((utf8*)suffix,suffix32,&len);
+    if(count >= 8192) fail(ttm,EBUFFERSIZE);
+    suffix[count] = NUL;
+    /* access thru the -I list */
     for(path=includes;*path;) {
 	strcpy(filename,*path);
 	strcat(filename,"/");
@@ -2265,11 +2231,7 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     }
     if(finclude == NULL)
 	fail(ttm,EINCLUDE);
-    startpos = bb->active;
-    if(!readfile(ttm,finclude,bb))
-	fail(ttm,EIO);
-    if(frame->active)
-	bb->active = startpos;
+    readfile(ttm,finclude,bb);
 }
 
 static void
@@ -2277,39 +2239,49 @@ ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
 {
     Name* str = dictionaryLookup(ttm,frame->argv[1]);
     Buffer* result = ttm->result;
+    char info[8192];
+    utf32* q;
+    int namelen,count;
+
     if(str == NULL)
 	fail(ttm,ENONAME);
     result->content[0] = NUL;
-    snprintf(result->content,result->alloc,"%s,%d,%d,%s",
-	     str->name,str->minargs,str->maxargs,
-	     (str->novalue?"S":"V"));
+    namelen = strlen32(str->name);
+    setBufferLength(ttm,result,namelen);
+    q = result->content;
+    strcpy32(q,str->name);
+    q += namelen;
+    snprintf(info,sizeof(info),",%d,%d,%s",
+	     str->minargs,str->maxargs,(str->novalue?"S":"V"));
+    setBufferLength(ttm,result,result->length+strlen(info));
+    count = strcvt(q,info);
+    q += count;
+    *q = NUL32;
     if(!str->builtin) {
-	char* p;
-	char* q;
-	char binfo[32];
-	snprintf(binfo,sizeof(binfo)," |body|=%u rp=%u body=|",
-		 (unsigned int)strlen(str->body),str->residual);
-	/* Walk the body character by character checking for segment
-           and creation marks
+	utf32 c32;
+	utf32* p;
+	snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
+	setBufferLength(ttm,result,result->length+strlen(info));
+	count = strcvt(q,info);
+	q += count;
+	*q = NUL32;
+	/* Walk the body checking for segment and creation marks
 	*/
-	strcat(result->content,binfo);
 	p=str->body;
-	q=(result->content + strlen(result->content));
-	while(*p) {
-	    if(ismultibyte(*p)) {
-		if(!copychar(ttm,&q,&p,!KEEPESCAPE))
-		    fail(ttm,EEOS);
-	    } else if(*p == SEGMENT) {
-		p++;
-		snprintf(binfo,sizeof(binfo),"~%02d",(int)*p++);
-		strcat(q,binfo);
-		q += strlen(binfo);
-	    } else
-		*q++ = *p++;		
+	while((c32=*p++)) {
+	    if(testMark(c32,SEGMARK)) {
+		snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
+		setBufferLength(ttm,result,result->length+strlen(info));
+		count = strcvt(q,info);
+		q += count;
+		*q = NUL32;
+	    } else {
+		*q++ = c32;
+	    }
 	}
-	*q = NUL;
-	strcat(result->content,"|");
-	setBufferLength(ttm,result,strlen(result->content));
+	*q++ = '|';
+	*q = NUL32;
+	setBufferLength(ttm,result,strlen32(result->content));
     }
 }
 
@@ -2452,18 +2424,27 @@ static struct Builtin builtin_orig[] = {
 static void
 defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
 {
+    Name* function;
+    utf32 binname[8192];
+    int count;
+    unsigned int len;
+
+    len = strlen(bin->name);
+    count = string8string32(binname,bin->name,&len);
+    binname[count] = NUL32;
     /* Make sure we did not define builtin twice */
-    Name* function = dictionaryLookup(ttm,bin->name);
+    function = dictionaryLookup(ttm,binname);
     assert(function == NULL);
     /* create a new function object */
     function = newName(ttm);
     function->builtin = 1;
-    function->name = strdup(bin->name);
     function->minargs = bin->minargs;
     function->maxargs = bin->maxargs;
     if(strcmp(bin->sv,"S")==0)
 	function->novalue = 1;
     function->fcn = bin->fcn;
+    /* Convert name to utf32 */
+    function->name = strdup32(binname);
     dictionaryInsert(ttm,function);
 }
 
@@ -2496,8 +2477,8 @@ fatal(TTM* ttm, const char* msg)
 	int i;
 	Buffer* bb = ttm->buffer;
 	unsigned long leftlen, rightlen;
-	char* cxt0;
-	char* cxt1;
+	utf32* cxt0;
+	utf32* cxt1;
 	/* Dump the frame stack */
 	dumpstack(ttm);
         /* Dump some context */
@@ -2558,6 +2539,9 @@ errstring(ERR err)
     case ERANGE: msg="index out of legal range"; break;
     case EMANYPARMS: msg="Number of parameters greater than MAXARGS"; break;
     case EEOS: msg="Unexpected end of string"; break;
+    case EASCII: msg="ASCII characters only"; break;
+    case EUTF8: msg="Illegal utf-8 character set"; break;
+    case EUTF32: msg="Illegal utf-32 character set"; break;
     case EOTHER: msg="Unknown Error"; break;
     }
     return msg;
@@ -2566,43 +2550,20 @@ errstring(ERR err)
 /**************************************************/
 /* Utility functions */
 
-/* Convert a residual index into
-   a byte count.
-*/
-static unsigned int
-residual2byte(unsigned int rindex, char* s)
-{
-    char* p = s;
-    while(rindex-- > 0) {
-	/* Skip 1 "character" per iteration */
-        int c = *p++;
-	if(c == NUL) {break;}
-	if(c == SEGMENT) {p++;}
-	if(ismultibyte(c)) {p += (utf8count(c)-1);}
-	else {p++;}
-    }
-    return (unsigned int)(p - s);
-}
 
-
-/* Convert a string plus offset (in bytes)
-   to a residual index
+/**
+Convert a long long to a utf32 string
 */
-static unsigned int
-byte2residual(unsigned int offset, char* s)
+
+static int
+int2string(utf32* dst, long long n)
 {
-    unsigned int rindex = 0;
-    char* p = s;
-    char* endp = s + offset;
-    while(p != endp) {
-        int c = *p++;
-	if(c == NUL) {break;}
-	else if(c == SEGMENT) {p++;}
-	else if(ismultibyte(c)) {p += (utf8count(c) - 1);}
-	else {p++;}
-	rindex++; /* Skip 1 "character" per iteration */
-    }
-    return rindex;
+    char result[MAXINTCHARS+1];
+    int count;
+
+    snprintf(result,sizeof(result),"%lld",n);
+    count = strcvt(dst,result);
+    return count;
 }
 
 /**
@@ -2625,10 +2586,10 @@ Return ENOERR if conversion succeeded, err if failed.
 */
 
 static ERR
-toInt64(char* s, long long* lp)
+toInt64(utf32* s, long long* lp)
 {
-    char* p = s;
-    int c;
+    utf32* p = s;
+    utf32 c;
     int negative = 1;
     /* skip white space */
     while((c=*p++)) {if(c != ' ' && c != '\t') break;}
@@ -2662,12 +2623,6 @@ toInt64(char* s, long long* lp)
 		return EMANYDIGITS;
 	    }
 	}      
-	/* See if we have a trailing [mMkK];
-           ignore overflow in this case */
-        if(c == 'm' || c == 'M')
-	    ul = (ul<<20);
-        else if(c == 'k' || c == 'K')
-	    ul = (ul<<10);
 	if(lp) {
 	    /* convert back to signed */
 	    long long l;
@@ -2684,64 +2639,21 @@ toInt64(char* s, long long* lp)
 static int
 utf8count(int c)
 {
-    if(((c) & 0xE0) == 0xC02) return 2;
+    if(((c) & 0x80) == 0x00) return 1; /* us-ascii */
+    if(((c) & 0xE0) == 0xC0) return 2;
     if(((c) & 0xF0) == 0xE0) return 3;
     if(((c) & 0xF8) == 0xF0) return 4;
     if(((c) & 0xFC) == 0xF8) return 5;
     if(((c) & 0xFE) == 0xFC) return 6;
-    return 1;
-}
-
-/* Get a character, including multibyte, segment and escapes
-    and increment src pointer
-*/
-static int
-copychar(TTM* ttm, char** srcp, int keepescape)
-{
-    char* src = *srcp;
-    char* dst = ttm->c;
-    int c,i,count;
-
-    c  = *src;
-    if(c == NUL) goto done;
-    if(isescape(c)) {
-	if(keepescape) *dst++ = c; /* keep the escape char */
-	src++;
-        c = *src;
-	if(!ismultibyte(c)) {
-	    if(!keepescape) c = convertEscapeChar(c);
-	    if(c != NUL) *dst++ = c;
-	    src++;
-	    goto done;
-	}
-    }
-    if(ismultibyte(c)) {
-        count = utf8count(c);
-	for(i=0;i<count;i++) {
-	   c = *src;
-	   if(c == NUL) return 0;
-	   *dst++ = c;
-	   src++;
-	}
-    } else {
-	c = *src;
-	if(c == NUL) return 0;
-	*dst++ = c;
-	src++;
-    }
-done:
-    *dst = NUL;
-    *srcp = src;
-    ttm->csize = (dst - ttm->c);
-    return 1;
+    return 0;
 }
 
 
 /* Given a char, return its escaped value.
 Zero indicates it should be elided
 */
-static int
-convertEscapeChar(int c)
+static utf32
+convertEscapeChar(utf32 c)
 {
     /* de-escape and store */
     switch (c) {
@@ -2772,6 +2684,7 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
     char tag[4];
     int i;
     Frame* frame;
+    utf32* p;
 
     if(tracing && ttm->stacknext == 0) {
 	fprintf(stderr,"trace: no frame to trace\n");
@@ -2789,17 +2702,22 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
     fprintf(stderr,"[%02d] ",depth);
     if(tracing)
         fprintf(stderr,"%s: ",(entering?"begin":"end"));
-    fprintf(stderr,"%s%s",tag,frame->argv[0]);
+    fprintf(stderr,"%s",tag);
+    p = frame->argv[0];
+    while(*p) {fputc(*p++,stderr);}
     if(entering) {
 	for(i=1;i<frame->argc;i++) {
-	    fprintf(stderr,"%c%s",ttm->semic,frame->argv[i]);
+	    p = frame->argv[i];
+	    fputc32(ttm->semic,stderr);
+	    while(*p) {fputc(*p++,stderr);}
 	}
-	if(tracing || depth == ttm->stacknext-1)
-	    fprintf(stderr,"%c\n",ttm->closec);
-	else
+	if(tracing || depth == ttm->stacknext-1) {
+	    fputc32(ttm->closec,stderr);fputc('\n',stderr);
+	} else
 	    fprintf(stderr," ...\n");
-    } else
-	fprintf(stderr,"%c\n",ttm->closec);
+    } else {
+        fputc32(ttm->closec,stderr);fputc('\n',stderr);
+    }
     fflush(stderr);
 }
 
@@ -2883,7 +2801,7 @@ convertDtoE(const char* def)
 static void
 readinput(TTM* ttm, const char* filename,Buffer* bb)
 {
-    char* content = NULL;
+    utf32* content = NULL;
     FILE* f = NULL;
     int isstdin = 0;
     unsigned int i;
@@ -2904,13 +2822,17 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     resetBuffer(ttm,bb);
     content = bb->content;
 
-    /* Read character by character until EOF */
+    /* Read utf8 character by character until EOF */
     for(i=0;i<buffersize-1;i++) {
-	int c = fgetc(f);
-	if(c == EOF) break;
-	content[i] = (char)c;
+	utf32 c32;
+	c32 = fgetc32(f);
+	if(c32 == EOF) break;		
+	if(c32 == ttm->escapec) {
+	    *content++ = c32;
+	    c32 = fgetc32(f);
+	}
+	*content++ = c32;
     }
-    content[i] = NUL;
     setBufferLength(ttm,bb,i);
     if(!isstdin) fclose(f);
 }
@@ -2919,8 +2841,9 @@ static int
 readbalanced(TTM* ttm)
 {
     Buffer* bb;
-    char* content;
-    unsigned int i, depth, iseof;
+    utf32* content;
+    utf32 c32;
+    int depth,i,c;
 
     unsigned long buffersize;
 
@@ -2930,26 +2853,26 @@ readbalanced(TTM* ttm)
     content = bb->content;
 
     /* Read character by character until EOF; take escapes and open/close
-       into account */
-    for(iseof=0,depth=0,i=0;i<buffersize-1;) {
-	int c = fgetc(stdin);
-	content[i++] = (char)c;
-	if(c == EOF) {iseof=1; break;}
-        if(c == ttm->escapec) {
-	    c = fgetc(stdin);
-	    if(c == EOF) break;
-	    content[i] = c;
-	} else if(c == ttm->openc) depth++;
-	else if(c == ttm->closec) {
+       into account; keep outer <...> */
+    for(depth=0,i=0;i<buffersize-1;i++) {
+	c32 = fgetc32(stdin);
+	if(c32 == EOF) break;
+	if(c32 == ttm->escapec) {
+	    *content++ = c32;
+	    c32 = fgetc32(stdin);
+	}
+	*content++ = c32;
+	if(c32 == ttm->openc) {
+	    depth++;
+	} else if(c32 == ttm->closec) {
 	    depth--;
-	    if(depth == 0) {
-		while((c=fgetc(stdin))) {if(c == '\n') break;}
-		break;
-	    }
+	    if(depth == 0) break;
 	}
     }
+    /* skip to end of line */
+    while(c != EOF && c != '\n') {c = fgetc(stdin);}
     setBufferLength(ttm,bb,i);
-    return (i == 0 && iseof ? 0 : 1);
+    return (i == 0 && c32 == EOF ? 0 : 1);
 }
 
 static void
@@ -2962,29 +2885,39 @@ static int
 readfile(TTM* ttm, FILE* file, Buffer* bb)
 {
     long filesize;
+    utf32* p;
+    int count32;
 
     fseek(file,0,SEEK_SET); /* end of the file */
     filesize = ftell(file); /* get file length */
     rewind(file);
  
-    expandBuffer(ttm,bb,(unsigned long)filesize); /* make room for the file input */
-    fread(bb->content,filesize,1,file);
-    if(ferror(file)) return 0;
-    bb->active += (unsigned long)filesize;
-    return 1;
+    setBufferLength(ttm,bb,filesize); /* temp */
+    count32 = 0;
+    p = bb->content;
+    for(;;) {
+	utf32 c = fgetc(file);
+        if(ferror(file)) fail(ttm,EIO);
+	if(c == EOF) break;
+	*p++ = c;
+    }        
+    *p = NUL32;
+    count32 = (p - bb->content);
+    setBufferLength(ttm,bb,count32);
+    return count32;
 }
 
 /**************************************************/
 /* Main() */
 
-static char* options = "B:d:D:e:iI:o:S:V-";
+static const char* options = "B:d:D:e:iI:o:S:V-";
 
 int
 main(int argc, char** argv)
 {
     int i,exitcode;
-    long long buffersize = 0;
-    long long stacksize = 0;
+    long buffersize = 0;
+    long stacksize = 0;
     char* debugargs = strdup("");
     int interactive = 0;
     char* outputfilename = NULL;
@@ -3003,15 +2936,25 @@ main(int argc, char** argv)
 	switch(c) {
 	case 'B':
 	    if(buffersize == 0) {
-		ERR err = toInt64(optarg,&buffersize);
-		if(err != ENOERR || buffersize < 0)
+		if((buffersize = atol(optarg)) < 0)
 		    fatal(NOTTM,"Illegal buffersize");
+		switch (optarg[strlen(optarg)-1]) {
+		case 0: buffersize = 0; break;
+		case 'm': case 'M': buffersize *= (1<<20); break;
+		case 'k': case 'K': buffersize *= (1<<10); break;
+		default: break;
+		}
 	    } break;
 	case 'S':
 	    if(stacksize == 0) {
-		ERR err = toInt64(optarg,&stacksize);
-		if(err != ENOERR || stacksize < 0)
+		if((stacksize = atol(optarg)) < 0)
 		    fatal(NOTTM,"Illegal stacksize");
+		switch (optarg[strlen(optarg)-1]) {
+		case 0: stacksize = 0; break;
+		case 'm': case 'M': stacksize *= (1<<20); break;
+		case 'k': case 'K': stacksize *= (1<<10); break;
+		default: break;
+		}
 	    } break;
 	case 'd':
 	    if(debugargs == NULL)
@@ -3091,12 +3034,15 @@ main(int argc, char** argv)
     defineBuiltinFunctions(ttm);
 
     /* Execute the -e strings in turn */
-    for(i=0;eoptions[i] != NULL;i++) {
-	char* content;
+    for(i=0;eoptions[i]!=NULL;i++) {
+	char* eopt = eoptions[i];
+	int count,elen = strlen(eopt);
+
 	resetBuffer(ttm,ttm->buffer);
-	setBufferLength(ttm,ttm->buffer,strlen(eoptions[i]));
-	content = ttm->buffer->content;
-	strcpy(content,eoptions[i]);
+	setBufferLength(ttm,ttm->buffer,elen); /* temp */
+	count = strcvt(ttm->buffer->content,eopt);	
+	ttm->buffer->content[count] = NUL32;
+	setBufferLength(ttm,ttm->buffer,count);
 	scan(ttm);
 	if(ttm->flags & FLAG_EXIT)
 	    goto done;
@@ -3134,28 +3080,321 @@ done:
 }
 
 /**************************************************/
+/* Manage utf32 versus utf8 */
+
+/**
+Convert a utf32 value to a sequence of utf8 bytes.
+Return -1 if invalid; # chars in utf8 otherwise.
+*/
+static int
+utf32utf8(utf8* dst, utf32 codepoint)
+{
+    utf8* p = dst;
+    unsigned char uchar;
+    /* assert |dst| >= MAXCHARSIZE+1 */
+    if(codepoint <= 0x7F) {
+	uchar = (unsigned char)codepoint;
+       *p++ = (char)uchar;
+    } else if(codepoint <= 0x7FF) {
+       uchar = (unsigned char) 0xC0 | (codepoint >> 6);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
+       *p++ = (char)uchar;
+     }
+     else if(codepoint <= 0xFFFF) {
+       uchar = (unsigned char) 0xE0 | (codepoint >> 12);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | ((codepoint >> 6) & 0x3F);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
+       *p++ = (char)uchar;
+     }
+     else if(codepoint <= 0x10FFFF) {
+       uchar = (unsigned char) 0xF0 | (codepoint >> 18);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | ((codepoint >> 12) & 0x3F);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | ((codepoint >> 6) & 0x3F);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
+       *p++ = (char)uchar;
+     }
+     else
+	return -1; /*invalid*/
+    *p = NUL; /* make sure it is nul terminated. */
+    return (p - dst);
+}
+
+/**
+Convert a utf8 multibyte code to utf32;
+return -1 if invalid;
+return #bytes otherwise.
+*/
+static int
+utf8utf32(utf32* codepointp, utf8* src)
+{
+    /* assert |src| >= MAXCHARSIZE; not necessarily null terminated */
+    utf8* p = src;
+    utf32 codepoint;
+    int charsize;
+    int c0;
+    static int mask[6] = {0x80,0xE0,0xF0,0xF8,0xFC,0xFE};
+
+    p = src;
+    c0 = (int)*p;
+    charsize = utf8count(c0);
+    if(charsize == 0) return -1; /* invalid */
+    codepoint = 0;
+    /* Process the 1st char in the utf8 codepoint */
+    codepoint = (c0 & mask[charsize]);
+    /* Process all but the first char in utf8 codepoint */
+    while(charsize-- > 0)
+	codepoint = (codepoint << 6) | (*p++ & 0x3F);
+    assert((charsize != 1 || codepoint == c0));
+    if(codepointp) *codepointp = codepoint;
+    return 1;    
+}
+
+/**
+Convert len utf32 characters to a string of utf8 characters.
+Stop if src char is NUL32.
+Caller must free returned string.
+Return -1 if error,
+  else # utf8 bytes processed.
+Return actual number of utf32 chars in lenp
+*/
+static int
+string32string8(utf8* dst, utf32* src, unsigned int *lenp)
+{
+    utf32* p32;
+    utf8* p8;
+    int count,i;
+    unsigned int len = *lenp;
+
+    p32 = src;
+    p8 = dst;
+    for(i=0;i<len;i++) {
+	utf32 c=*p32++;
+	if(c == NUL32) {*p8 = NUL; break;}
+	count = utf32utf8(p8,c);
+	if(count == 0) return -1;
+	p8 += count;
+    }
+    *lenp = (p32 - src);
+    return (p8 - dst);
+}
+
+/**
+Convert *lenp utf8 characters to a string of utf32 characters.
+Stop if the utf8 char is NUL.
+Caller must free returned string.
+Return -1 if error, # utf8 bytes processed otherwise.
+Return actual number of utf32 chars in lenp
+*/
+static int
+string8string32(utf32* dst, utf8* src, unsigned int *lenp)
+{
+    utf32* p32;
+    utf8* p8;
+    int count,i;
+    unsigned int len = *lenp;
+
+    p8 = src;
+    p32 = dst;
+    for(i=0;i<len;i++) {
+	utf8 c=*p8;
+	if(c == NUL) {*src = NUL32; break;}
+	count = utf8utf32(p32, p8);
+	if(count == 0) return -1;
+	p32++;
+	p8 += count;
+    }
+    if(lenp) *lenp = (p32 - dst);
+    return (p8 - src);
+}
+
+/* Replacments for strcpy, strcmp ... */
+static unsigned int
+strlen32(utf32* s)
+{
+    unsigned int len = 0;
+    while(*s++) len++;
+    return len;
+}
+
+static void
+strcpy32(utf32* dst, utf32* src)
+{
+    while((*dst++ = *src++));
+}
+
+static void
+strncpy32(utf32* dst, utf32* src, unsigned int len)
+{
+    utf32 c32;
+    while(len-- > 0 && (c32 = *src++)) {*dst++ = c32;}
+    if(c32 != NUL32) *dst = NUL32;
+}
+
+#if 0
+static void
+strcat32(utf32* dst, utf32* src)
+{
+    /* find end of dst */
+    while(*dst++);
+    while((*dst++ = *src++));
+}
+#endif
+
+static utf32*
+strdup32(utf32* src)
+{
+    unsigned int len;
+    utf32* dup;
+
+    len = strlen32(src);
+    dup = (utf32*)malloc(1+(len*sizeof(utf32)));
+    if(dup != NULL) {
+	utf32* dst = dup;
+        while((*dst++ = *src++));
+    }
+    return dup;
+}
+
+static int
+strcmp32(utf32* s1, utf32* s2)
+{
+    while(*s1 && *s2 && *s1 == *s2) {s1++; s2++;}
+    /* Look at the last char to decide */
+    if(*s1 == *s2) return 0; /* completely identical */
+    if(*s1 == NUL32) /*=>*s2!=NUL32*/ return -1; /* s1 is shorter than s2 */
+    if(*s2 == NUL32) /*=>*s1!=NUL32*/ return +1; /* s1 is longer than s2 */
+    return (*s1 < *s2 ? -1 : +1);
+}
+
+static int
+strncmp32(utf32* s1, utf32* s2, unsigned int len)
+{
+    utf32 c1=0;
+    utf32 c2=0;
+    if(len == 0) return 0; /* null strings always equal */
+    while(len-- >= 0) {/* compare thru the last character*/
+	c1 = *s1++;
+	c2 = *s2++;
+	if(c1 != c2) break; /* mismatch before length characters tested*/
+    }
+    /* Look at the last char to decide */
+    if(c1 == c2) return 0; /* completely identical */
+    if(c1 == NUL32) /*=>c2!=NUL32*/ return -1; /* s1 is shorter than s2 */
+    if(c2 == NUL32) /*=>c1!=NUL32*/ return +1; /* s1 is longer than s2 */
+    return (c1 < c2 ? -1 : +1);
+}
+
+/* As an aid for printing,
+   provide a function that simultaneously
+   copies and converts UTF8 characters
+   to a destination. Return # of chars converted.
+   WARNING: does not null terminate the output.
+*/
+   
+static int
+strcvt(utf32* dst, utf8* src)
+{
+    utf8* p = src;
+    int c,converted;
+
+    for(converted=0;(c=*p);converted++) {
+	if(ismultibyte(c)) {
+	    utf32 c32;
+	    int count = utf8count(c);
+	    utf8 c8[MAXCHARSIZE+1];
+	    memcpy((void*)c8,p,count);
+	    c8[count] = NUL;
+	    if(utf8utf32(&c32,c8) < 0) fail(NOTTM,EUTF8);	    
+	    *dst++ = c32;
+	    p += count;	    
+	} else { /* simple ascii char */
+	    *dst++ = (utf32)c;
+	    p++;
+	}
+    }
+    return converted;
+}
+
+/* Test equality of char* string to utf32 string */
+static int
+streq328(utf32* s32, utf8* s8)
+{
+    utf32 c32;
+    int count;
+        
+    while(*s8 && *s32) {
+	count = utf8utf32(&c32,s8);
+	if(count < 0) fail(NOTTM,EUTF8);
+	if(c32 != *s32) break;
+	s8 += count;
+	s32++;
+    }
+    if(*s8 && *s32) return 1; /* equal */
+    return 0;
+}
+
+static void
+fputc32(utf32 c, FILE* f)
+{
+    utf8 c8[MAXCHARSIZE+1];
+    int count,i;
+    if((count = utf32utf8(c8,c)) < 0) fail(NOTTM,EUTF32);
+    for(i=0;i<count;i++) {fputc(c8[i],f);}
+}
+
+static utf32
+fgetc32(FILE* f)
+{
+    int c;
+    utf32 c32;
+        
+    c = fgetc(f);
+    if(c == EOF) return EOF;
+    if(ismultibyte(c)) {
+	utf8 c8[MAXCHARSIZE+1];
+	int count,i;
+	count = utf8count(c);
+	i=0; c8[i++] = c;
+	while(--count > 0) {
+	    c=fgetc(f);
+	    if(c == EOF) fail(NOTTM,EEOS);
+	    c8[i++] = c;
+	}
+	c8[i] = NUL;
+	count = utf8utf32(&c32,c8);
+	if(count < 0) fail(NOTTM,EUTF8);
+    } else
+	c32 = c;
+    return c32;
+}
+
 /**************************************************/
 /**
 Implement functions that deal with Linux versus Windows
 differences.
 */
-
 /**************************************************/
 
 #ifdef MSWINDOWS
 
-static unsigned long long
+static long long
 getRunTime(void)
 {
-    unsigned long long runtime;
+    long long runtime;
     FILETIME ftCreation,ftExit,ftKernel,ftUser;
 
     GetProcessTimes(GetCurrentProcess(),
 		    &ftCreation, &ftExit, &ftKernel, &ftUser);
 
     runtime = ftUser.dwHighDateTime;
-	runtime = runtime << 32;
-	runtime = runtime | ftUser.dwLowDateTime;
+    runtime = runtime << 32;
+    runtime = runtime | ftUser.dwLowDateTime;
     /* Divide by 10000 to get milliseconds from 100 nanosecond ticks */
     runtime /= 10000;
     return runtime;
@@ -3166,10 +3405,10 @@ getRunTime(void)
 
 static long frequency = 0;
 
-static unsigned long long
+static long long
 getRunTime(void)
 {
-    unsigned long long runtime;
+    long long runtime;
     struct tms timers;
 
     if(frequency == 0) 
@@ -3209,24 +3448,24 @@ getopt(int argc, char **argv, char *optstring)
     char c;
     char *cp = malloc(sizeof(char)*1024);
 
-    if (optind == 0)
+    if(optind == 0)
         next = NULL;
     optarg = NULL;
-    if (next == NULL || *next == ('\0')) {
-        if (optind == 0)
+    if(next == NULL || *next == ('\0')) {
+        if(optind == 0)
             optind++;
-        if (optind >= argc
+        if(optind >= argc
 	    || argv[optind][0] != ('-')
             || argv[optind][1] == ('\0')) {
             optarg = NULL;
-            if (optind < argc)
+            if(optind < argc)
                 optarg = argv[optind];
             return EOF;
         }
-        if (strcmp(argv[optind], "--") == 0) {
+        if(strcmp(argv[optind], "--") == 0) {
             optind++;
             optarg = NULL;
-            if (optind < argc)
+            if(optind < argc)
                 optarg = argv[optind];
             return EOF;
         }
@@ -3236,14 +3475,14 @@ getopt(int argc, char **argv, char *optstring)
     }
     c = *next++;
     cp = strchr(optstring, c);
-    if (cp == NULL || c == (':'))
+    if(cp == NULL || c == (':'))
         return ('?');
     cp++;
-    if (*cp == (':')) {
-        if (*next != ('\0')) {
+    if(*cp == (':')) {
+        if(*next != ('\0')) {
             optarg = next;
             next = NULL;
-        } else if (optind < argc) {
+        } else if(optind < argc) {
             optarg = argv[optind];
             optind++;
         } else {
@@ -3253,3 +3492,4 @@ getopt(int argc, char **argv, char *optstring)
     return c;
 }
 #endif /*MSWINDOWS*/
+
