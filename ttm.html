@@ -13,7 +13,7 @@ ttm
 [-o <i>file</i>]
 [-S <i>positive-integer</i>]
 [-V]
-[-X <i><tag>=value</i>]
+[-X <i>tag=value</i>]
 [--]
 [<i>file</i>]
 [<i>arg...</i>]
@@ -63,7 +63,7 @@ The tag is a single character indicating what resource
 to set, and the value is the value to assign to that resource.
 The legal tag characters are as follows:
 <table>
-<tr><th>Tag<th>Resource<th>Value<td>Description
+<tr><th>Tag<th>Resource<th>Value<th>Description
 <tr valign=top><td>b<td>Buffersize<td>integer&gt;0<td>
 Set the internal buffer size. The default is 2^20 characters.
 The suffix m|M is allowed to indicate multiplying by 2^20.
