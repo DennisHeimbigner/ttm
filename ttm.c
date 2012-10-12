@@ -113,8 +113,9 @@ Constants
 #define RPAREN ')'
 #define COMMA ','
 
-#define MINBUFFERSIZE 1024
+#define MINBUFFERSIZE (1<<20)
 #define MINSTACKSIZE 64
+#define MINEXECCOUNT (1<<16)
 
 #define CONTEXTLEN 20
 
@@ -398,6 +399,7 @@ static utf32 convertEscapeChar(utf32 c);
 static void trace(TTM*, int entering, int tracing);
 static void trace1(TTM*, int depth, int entering, int tracing);
 static void dumpstack(TTM*);
+static void print32(utf32* s);
 static int getOptionNameLength(char** list);
 static int pushOptionName(char* option, int max, char** list);
 static void initglobals();
@@ -607,7 +609,7 @@ dictionaryInsert(TTM* ttm, Name* str)
 {
     Name** table = ttm->dictionary;
     Name* next;
-    utf32 index = (str->name[0] | 0x7F);
+    utf32 index = (str->name[0] & 0x7F);
 
     next = table[index];
     if(next == NULL) {
@@ -639,7 +641,7 @@ dictionaryLookup(TTM* ttm, utf32* name)
     Name* f;
     utf32 index;
     assert(name != NULL);
-    index = (name[0] | 0x7F);
+    index = (name[0] & 0x7F);
     f = table[index];
     while(f != NULL) {/* search chain for str */
 	if(strcmp32(name,f->name)==0)
@@ -658,7 +660,7 @@ dictionaryRemove(TTM* ttm, utf32* name)
     utf32 index;
 
     assert(name != NULL);
-    index = (name[0] | 0x7F);
+    index = (name[0] & 0x7F);
     next = table[index];
     prev = NULL;
     while(next != NULL) {/* search chain for str */
@@ -701,7 +703,7 @@ charclassInsert(TTM* ttm, Charclass* cl)
 {
     Charclass** table = ttm->charclasses;
     Charclass* next;
-    utf32 index = (cl->name[0] | 0x7F);
+    utf32 index = (cl->name[0] & 0x7F);
     next = table[index];
     if(next == NULL) {
 	table[index] = cl;
@@ -730,7 +732,7 @@ charclassLookup(TTM* ttm, utf32* name)
 {
     Charclass** table = ttm->charclasses;
     Charclass* cl;
-    utf32 index = (name[0] | 0x7F);
+    utf32 index = (name[0] & 0x7F);
     cl = table[index];
     while(cl != NULL) {/* search chain for cl */
 	if(strcmp32(name,cl->name)==0)
@@ -746,7 +748,7 @@ charclassRemove(TTM* ttm, utf32* name)
     Charclass** table = ttm->charclasses;
     Charclass* next;
     Charclass* prev;
-    utf32 index = (name[0] | 0x7F);
+    utf32 index = (name[0] & 0x7F);
     next = table[index];
     prev = NULL;
     while(next != NULL) {/* search chain for cl */
@@ -907,7 +909,7 @@ parsecall(TTM* ttm, Frame* frame)
 
     done = 0;
     do {
-	frame->argv[frame->argc] = bb->passive; /* start of ith argument */
+	utf32* arg = bb->passive;/* start of ith argument */
 	while(!done) {
             c = *bb->active; /* Note that we do not bump here */
             if(c == NUL32) fail(ttm,EEOS); /* Unexpected end of buffer */
@@ -917,12 +919,17 @@ parsecall(TTM* ttm, Frame* frame)
             } else if(c == ttm->semic || c == ttm->closec) {
                 /* End of an argument */
                 *bb->passive++ = NUL; /* null terminate the argument */
+#ifdef DEBUG
+fprintf(stderr,"parsecall: argv[%d]=|",frame->argc);
+print32(arg);
+fprintf(stderr,"|\n");
+#endif
 		bb->active++; /* skip the semi or close */
                 /* move to next arg */
-                frame->argc++;
+	        frame->argv[frame->argc++] = arg;
                 if(c == ttm->closec) done=1;
                 else if(frame->argc >= MAXARGS) fail(ttm,EMANYPARMS);
-                else frame->argv[frame->argc] = bb->passive;
+                else arg = bb->passive;
             } else if(c == ttm->sharpc) {
                 /* check for call within call */
                 if(bb->active[1] == ttm->openc
@@ -955,7 +962,7 @@ parsecall(TTM* ttm, Frame* frame)
                 }/*<...> for*/
             } else {
                 /* keep moving */
-		*bb->passive = c;
+		*bb->passive++ = c;
 		bb->active++;		
             }
 	} /* collect argument for */
@@ -1244,7 +1251,6 @@ static void
 ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 {
     Name* str;
-    unsigned int byteresidual;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1253,7 +1259,7 @@ ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 	fail(ttm,ENOPRIM);
     /* Check for pointing at trailing NUL */
     if(str->residual < strlen32(str->body)) {
-	utf32 c32 = *(str->body+byteresidual);
+	utf32 c32 = *(str->body+str->residual);
 	*ttm->result->content = c32;
 	setBufferLength(ttm,ttm->result,1);
     }
@@ -2668,6 +2674,46 @@ convertEscapeChar(utf32 c)
     return c;
 }
 
+static void
+traceframe(TTM* ttm, Frame* frame, int traceargs)
+{
+    char tag[4];
+    int i = 0;
+
+    tag[i++] = (char)ttm->sharpc;
+    if(!frame->active)
+	tag[i++] = (char)ttm->sharpc;
+    tag[i++] = (char)ttm->openc;
+    tag[i] = NUL;
+    fprintf(stderr,"%s",tag);
+    print32(frame->argv[0]);
+    if(traceargs) {
+	for(i=1;i<frame->argc;i++) {
+	    fputc32(ttm->semic,stderr);
+	    print32(frame->argv[i]);
+	}
+    }
+    fputc32(ttm->closec,stderr);fputc('\n',stderr);
+    fflush(stderr);
+}
+
+static void
+trace1(TTM* ttm, int depth, int entering, int tracing)
+{
+    Frame* frame;
+
+    if(tracing && ttm->stacknext == 0) {
+	fprintf(stderr,"trace: no frame to trace\n");
+	return;
+    }	
+
+    frame = &ttm->stack[depth];
+    fprintf(stderr,"[%02d] ",depth);
+    if(tracing)
+        fprintf(stderr,"%s: ",(entering?"begin":"end"));
+    traceframe(ttm,frame,entering);
+}
+
 /**
 Trace a top frame in the frame stack.
 */
@@ -2678,49 +2724,8 @@ trace(TTM* ttm, int entering, int tracing)
 }
 
 
-static void
-trace1(TTM* ttm, int depth, int entering, int tracing)
-{
-    char tag[4];
-    int i;
-    Frame* frame;
-    utf32* p;
-
-    if(tracing && ttm->stacknext == 0) {
-	fprintf(stderr,"trace: no frame to trace\n");
-	return;
-    }	
-
-    frame = &ttm->stack[depth];
-
-    i = 0;
-    tag[i++] = (char)ttm->sharpc;
-    if(!frame->active)
-	tag[i++] = (char)ttm->sharpc;
-    tag[i++] = (char)ttm->openc;
-    tag[i] = NUL;
-    fprintf(stderr,"[%02d] ",depth);
-    if(tracing)
-        fprintf(stderr,"%s: ",(entering?"begin":"end"));
-    fprintf(stderr,"%s",tag);
-    p = frame->argv[0];
-    while(*p) {fputc(*p++,stderr);}
-    if(entering) {
-	for(i=1;i<frame->argc;i++) {
-	    p = frame->argv[i];
-	    fputc32(ttm->semic,stderr);
-	    while(*p) {fputc(*p++,stderr);}
-	}
-	if(tracing || depth == ttm->stacknext-1) {
-	    fputc32(ttm->closec,stderr);fputc('\n',stderr);
-	} else
-	    fprintf(stderr," ...\n");
-    } else {
-        fputc32(ttm->closec,stderr);fputc('\n',stderr);
-    }
-    fflush(stderr);
-}
-
+/**************************************************/
+/* Debug Support */
 /**
 Dump the stack
 */
@@ -2735,6 +2740,15 @@ dumpstack(TTM* ttm)
     }
     fflush(stderr);
 }
+
+static void
+print32(utf32* s)
+{
+    utf32 c;
+    while((c=*s++)) fputc32(c,stderr);
+    fflush(stderr);
+}
+
 
 /**************************************************/
 /* Main() Support functions */
@@ -2910,7 +2924,7 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
 /**************************************************/
 /* Main() */
 
-static const char* options = "B:d:D:e:iI:o:S:V-";
+static const char* options = "d:D:e:iI:o:VX:-";
 
 int
 main(int argc, char** argv)
@@ -2934,18 +2948,10 @@ main(int argc, char** argv)
 
     while ((c = getopt(argc, argv, options)) != EOF) {
 	switch(c) {
-	case 'B':
-	    if(buffersize == 0) {
-		if((buffersize = atol(optarg)) < 0)
-		    fatal(NOTTM,"Illegal buffersize");
-		switch (optarg[strlen(optarg)-1]) {
-		case 0: buffersize = 0; break;
-		case 'm': case 'M': buffersize *= (1<<20); break;
-		case 'k': case 'K': buffersize *= (1<<10); break;
-		default: break;
-		}
-	    } break;
-	case 'S':
+	case 'X':
+	    
+
+
 	    if(stacksize == 0) {
 		if((stacksize = atol(optarg)) < 0)
 		    fatal(NOTTM,"Illegal stacksize");

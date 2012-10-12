@@ -5,7 +5,6 @@
 ttm - macro processor
 <h2>SYNOPSIS</h2>
 ttm
-[-B <i>positive-integer</i>]
 [-d <i>string</i>]
 [-D <i>name=string</i>]
 [-e <i>string</i>]
@@ -14,6 +13,7 @@ ttm
 [-o <i>file</i>]
 [-S <i>positive-integer</i>]
 [-V]
+[-X <i><tag>=value</i>]
 [--]
 [<i>file</i>]
 [<i>arg...</i>]
@@ -31,11 +31,6 @@ Any arguments after the file name are provided to ttm using the
 <h2>OPTIONS</h2>
 Except where indicated, all flags may be repeated multiple times.
 <dl>
-<dt><b>-B <i>integer</i></b><br>
-<dd>
-Set the internal buffer size. The default is 10 megabytes (2^21 bytes);
-The suffix m is allowed to indicate multiplying by 2^20.
-<p>
 <dt><b>-d <i>string</i></b><br>
 <dd>
 Set a variety of debug options as encoded in the string.
@@ -58,14 +53,30 @@ Append the directory to the include path.
 <dd>
 Send all output to the specified file. If not specified, then
 output is sent to standard output.
-<p><dt><b>-S <i>integer</i></b><br>
+<p><dt><b>-V</b><br>
 <dd>
+Output the version number of ttm and then exit.
+<p><dt><b>-X <i>tag=value</i></b><br>
+<dd>
+Set a ttm interpreter resource limit.
+The tag is a single character indicating what resource
+to set, and the value is the value to assign to that resource.
+The legal tag characters are as follows:
+<table>
+<tr><th>Tag<th>Resource<th>Value<td>Description
+<tr valign=top><td>b<td>Buffersize<td>integer&gt;0<td>
+Set the internal buffer size. The default is 2^20 characters.
+The suffix m|M is allowed to indicate multiplying by 2^20.
+The suffix k|K is allowed to indicate multiplying by 2^10;
+<tr valign=top><td>s<td>Stacksize<td>integer&gt;0<td>
 Set the internal stack size. The default provides for a maximum
 depth of 64. It is a good idea to keep this number small
 so that runaway recursion can be detected quickly.
-<p><dt><b>-V</i></b><br>
-<dd>
-Output the version number of ttm and then exit.
+<tr valign=top><td>x<td>Executions<td>integer&gt;0<td>
+Limit the number of executions. The default is 2^16.
+The purpose is to catch tail recursive executions that
+do not eat up space.
+</table>
 <p><dt><b>--</i></b><br>
 <dd>
 Signal the end of options and disable further option
