@@ -109,9 +109,11 @@ Constants
 
 #define NUL '\0'
 #define NUL32 ((utf32)0)
+#define COMMA ','
 #define LPAREN '('
 #define RPAREN ')'
-#define COMMA ','
+#define LBRACKET '['
+#define RBRACKET ']'
 
 #define MINBUFFERSIZE (1<<20)
 #define MINSTACKSIZE 64
@@ -175,6 +177,7 @@ EEOS		= 37, /* Unexpected end of string */
 EASCII		= 38, /* ASCII characters only */
 EUTF8		= 39, /* Illegal utf-8 character set */
 EUTF32		= 40, /* Illegal utf-32 character set */
+ETTMCMD		= 41, /* Illegal #<ttm> command */
 /* Default case */
 EOTHER		= 99
 } ERR;
@@ -334,7 +337,7 @@ static int charclassMatch(utf32 c, utf32* charclass);
 static void scan(TTM*);
 static void exec(TTM*, Buffer* bb);
 static void parsecall(TTM*, Frame*);
-static utf32* call(TTM*, Frame*, utf32* body);
+static void call(TTM*, Frame*, utf32* body);
 static void printstring(TTM*, FILE* output, utf32* s32);
 static void ttm_ap(TTM*, Frame*);
 static void ttm_cf(TTM*, Frame*);
@@ -389,7 +392,6 @@ static void ttm_tf(TTM*, Frame*);
 static void ttm_tn(TTM*, Frame*);
 static void ttm_argv(TTM*, Frame*);
 static void ttm_include(TTM*, Frame*);
-static void ttm_showname(TTM*, Frame*);
 static void fail(TTM*, ERR eno);
 static void fatal(TTM*, const char* msg);
 static const char* errstring(ERR err);
@@ -400,7 +402,7 @@ static utf32 convertEscapeChar(utf32 c);
 static void trace(TTM*, int entering, int tracing);
 static void trace1(TTM*, int depth, int entering, int tracing);
 static void dumpstack(TTM*);
-static void dbgprint32(utf32* s);
+static void dbgprint32(utf32* s, char quote);
 static int getOptionNameLength(char** list);
 static int pushOptionName(char* option, int max, char** list);
 static void initglobals();
@@ -420,8 +422,9 @@ static void strncpy32(utf32* dst, utf32* src, unsigned int len);
 static utf32* strdup32(utf32* src);
 static int strcmp32(utf32* s1, utf32* s2);
 static int strncmp32(utf32* s1, utf32* s2, unsigned int len);
-static int strcvt(utf32* dst, utf8* src);
 static int streq328(utf32* s32, utf8* s8);
+static int strcvt32(utf32* dst, utf8* src);
+static int strcvt8(utf8* dst, utf32* src);
 static void memcpy32(utf32* dst, utf32* src, unsigned int len);
 static void fputc32(utf32 c, FILE* f);
 static utf32 fgetc32(FILE* f);
@@ -874,9 +877,9 @@ exec(TTM* ttm, Buffer* bb)
 	call(ttm,frame,fcn->body);
 
 #ifdef DEBUG
-fprintf(stderr,"result: |");
-dbgprint32(ttm->result->content);
-fprintf(stderr,"|\n");
+fprintf(stderr,"result: ");
+dbgprint32(ttm->result->content,'|');
+fprintf(stderr,"\n");
 #endif
 
     if(ttm->flags & FLAG_TRACE)
@@ -904,12 +907,17 @@ fprintf(stderr,"|\n");
 	}
 	memcpy32((void*)insertpos,ttm->result->content,ttm->result->length);
 #ifdef DEBUG
-fprintf(stderr,"context:\n\tpassive=|");
-dbgprint32(ttm->buffer->content);
-fprintf(stderr,"|\n");
-fprintf(stderr,"\tactive=|");
-dbgprint32(ttm->buffer->active);
-fprintf(stderr,"|\n");
+fprintf(stderr,"context:\n\tpassive=");
+/* Since passive is not normally null terminated, we need to fake it */
+  {utf32 save = *ttm->buffer->passive;
+  *ttm->buffer->passive = NUL32;
+  dbgprint32(ttm->buffer->content,'|');
+  *ttm->buffer->passive = save;
+  }
+fprintf(stderr,"\n");
+fprintf(stderr,"\tactive=");
+dbgprint32(ttm->buffer->active,'|');
+fprintf(stderr,"\n");
 #endif
 
     }
@@ -940,9 +948,9 @@ parsecall(TTM* ttm, Frame* frame)
                 /* End of an argument */
                 *bb->passive++ = NUL; /* null terminate the argument */
 #ifdef DEBUG
-fprintf(stderr,"parsecall: argv[%d]=|",frame->argc);
-dbgprint32(arg);
-fprintf(stderr,"|\n");
+fprintf(stderr,"parsecall: argv[%d]=",frame->argc);
+dbgprint32(arg,'|');
+fprintf(stderr,"\n");
 #endif
 		bb->active++; /* skip the semi or close */
                 /* move to next arg */
@@ -995,7 +1003,7 @@ fprintf(stderr,"|\n");
 Execute a non-builtin function
 */
 
-static utf32*
+static void
 call(TTM* ttm, Frame* frame, utf32* body)
 {
     utf32* p;
@@ -1039,19 +1047,13 @@ call(TTM* ttm, Frame* frame, utf32* body)
 	    /* Construct the cr value */
 	    ttm->crcounter++;
 	    snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
-	    len = strcvt(dst,crval);
+	    len = strcvt32(dst,crval);
 	    dst += len;
 	} else
 	    *dst++ = (char)c;
     }
     *dst = NUL32;
-#ifdef DEBUG
-fprintf(stderr,"call: ");
-dbgprint32(result);
-fprintf(stderr,"\n");
-fflush(stderr);
-#endif
-    return result;
+    setBufferLength(ttm,ttm->result,(dst-result));
 }
 
 /**************************************************/
@@ -1262,7 +1264,7 @@ ttm_sc(TTM* ttm, Frame* frame) /* Segment and count */
     snprintf(count,sizeof(count),"%d",nsegs);
     /* Insert into ttm->result */
     setBufferLength(ttm,ttm->result,strlen(count));
-    n = strcvt(ttm->result->content,count);
+    n = strcvt32(ttm->result->content,count);
     setBufferLength(ttm,ttm->result,n);
 }
 
@@ -1793,7 +1795,7 @@ ttm_abs(TTM* ttm, Frame* frame) /* Obtain absolute value */
     if(lhs < 0) lhs = -lhs;
     snprintf(result,sizeof(result),"%lld",lhs);
     setBufferLength(ttm,ttm->result,strlen(result)); /*overkill*/
-    count = strcvt(ttm->result->content,result);
+    count = strcvt32(ttm->result->content,result);
     setBufferLength(ttm,ttm->result,count);/*fixup*/
 }
 
@@ -2112,8 +2114,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names */
 	if(ttm->dictionary[i] != NULL) {
 	    Name* name = ttm->dictionary[i];
 	    while(name != NULL) {
-		if(!first) count = strcvt(p,",");
-		p+=count;
+		if(!first) {*p++ = ',';}
 		strcpy32(p,name->name);		
 	        p += strlen32(name->name);
 		name = name->next;
@@ -2167,8 +2168,7 @@ ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a string */
     s = frame->argv[1];
     snprintf(result,sizeof(result),"%u",strlen32(s));
     setBufferLength(ttm,ttm->result,strlen(result)); /*temp*/
-    count = strcvt(ttm->result->content,result);
-    ttm->result->content[count] = NUL32;
+    count = strcvt32(ttm->result->content,result);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2182,8 +2182,7 @@ ttm_time(TTM* ttm, Frame* frame) /* Obtain Execution Time */
     time = getRunTime();
     snprintf(result,sizeof(result),"%lld",time);
     setBufferLength(ttm,ttm->result,strlen(result));/*temp*/
-    count = strcvt(ttm->result->content,result);
-    ttm->result->content[count] = NUL32;
+    count = strcvt32(ttm->result->content,result);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2215,8 +2214,7 @@ ttm_argv(TTM* ttm, Frame* frame) /* Get ith command line argument */
 	fail(ttm,ERANGE);
     arg = argoptions[index];
     setBufferLength(ttm,ttm->result,strlen(arg));/*temp*/
-    count = strcvt(ttm->result->content,arg);
-    ttm->result->content[count] = NUL32;
+    count = strcvt32(ttm->result->content,arg);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2267,61 +2265,148 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     readfile(ttm,finclude,bb);
 }
 
+/**
+Helper functions for all the ttm commands
+and subcommands
+*/
+
+/**
+#<ttm;meta;newmetachars>
+*/
 static void
-ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
+ttm_ttm_meta(TTM* ttm, Frame* frame)
 {
-    Name* str = dictionaryLookup(ttm,frame->argv[1]);
+    utf32* arg = frame->argv[2];
+    if(strlen(arg) != 5) fail(ttm,ETTMCMD);
+    ttm->sharpc = arg[0];
+    ttm->openc = arg[1];
+    ttm->semic = arg[2];
+    ttm->closec = arg[3];
+    ttm->escapec = arg[4];
+}
+
+/**
+#<ttm;info;name;...>
+*/
+static void
+ttm_ttm_info_name(TTM* ttm, Frame* frame)
+{
+    Name* str;
     Buffer* result = ttm->result;
     char info[8192];
     utf32* q;
-    int namelen,count;
+    utf32* p;
+    utf32 c32;
+    int namelen,count,i;
 
-    if(str == NULL)
-	fail(ttm,ENONAME);
-    result->content[0] = NUL;
-    namelen = strlen32(str->name);
-    setBufferLength(ttm,result,namelen);
+    setBufferLength(ttm,result,result->alloc);
     q = result->content;
-    strcpy32(q,str->name);
-    q += namelen;
-    snprintf(info,sizeof(info),",%d,%d,%s",
-	     str->minargs,str->maxargs,(str->novalue?"S":"V"));
-    setBufferLength(ttm,result,result->length+strlen(info));
-    count = strcvt(q,info);
-    q += count;
     *q = NUL32;
-    if(!str->builtin) {
-	utf32 c32;
-	utf32* p;
-	snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
-	setBufferLength(ttm,result,result->length+strlen(info));
-	count = strcvt(q,info);
-	q += count;
-	*q = NUL32;
-	/* Walk the body checking for segment and creation marks
-	*/
-	p=str->body;
-	setBufferLength(ttm,result,result->length + strlen32(str->body));
-	while((c32=*p++)) {
-	    if(testMark(c32,SEGMARK)) {
-		snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
-		setBufferLength(ttm,result,result->length+strlen(info));
-		count = strcvt(q,info);
-		q += count;
-		*q = NUL32;
-	    } else {
-		*q++ = c32;
-	    }
+    for(i=3;i<frame->argc;i++) {
+        str = dictionaryLookup(ttm,frame->argv[i]);
+        if(str == NULL) fail(ttm,ENONAME);
+        namelen = strlen32(str->name);
+        strcpy32(q,str->name);
+        q += namelen;
+        snprintf(info,sizeof(info),",%d,%d,%s",
+                 str->minargs,str->maxargs,(str->novalue?"S":"V"));
+        count = strcvt32(q,info);
+        q += count;
+        if(!str->builtin) {
+            snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
+            count = strcvt32(q,info);
+            q += count;
+            /* Walk the body checking for segment and creation marks */
+            p=str->body;
+            while((c32=*p++)) {
+                if(testMark(c32,SEGMARK)) {
+                    snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
+                    count = strcvt32(q,info);
+                    q += count;
+                } else
+                    *q++ = c32;
+            }
+            *q++ = '|';
 	}
-	*q = NUL32;
-	setBufferLength(ttm,result,strlen32(result->content));
-#ifdef DEBUG
-	fprintf(stderr,"showname: ");
-	dbgprint32(result->content);
-	fprintf(stderr,"\n");
-	fflush(stderr);
-#endif
+	*q++ = '\n';
     }
+    setBufferLength(ttm,result,(q - result->content));
+#ifdef DEBUG
+    fprintf(stderr,"info.name: ");
+    dbgprint32(result->content,'"');
+    fprintf(stderr,"\n");
+    fflush(stderr);
+#endif
+}
+
+/**
+#<ttm;info;class;...>
+*/
+static void
+ttm_ttm_info_class(TTM* ttm, Frame* frame) /* Misc. combined actions */
+{
+    Charclass* cl;
+    utf32* q;
+    utf32* p;
+    utf32 c32;
+    int i,len;
+    Buffer* result = ttm->result;
+
+    q = result->content;
+    *q = NUL;
+    setBufferLength(ttm,result,result->alloc-1); /* max space avail */
+    for(i=3;i<frame->argc;i++) {
+        cl = charclassLookup(ttm,frame->argv[i]);
+        if(cl == NULL) fail(ttm,ENONAME);
+        len = strlen32(cl->name);
+        strcpy32(q,cl->name);
+        q += len;
+        *q++ = ' ';
+        *q++ = LBRACKET;
+        if(cl->negative) *q++ = '^';
+        for(p=cl->characters;(c32=*p++);) {
+            if(c32 == LBRACKET || c32 == RBRACKET)
+                *q++ = '\\';
+            *q++ = c32;
+        }
+	*q++ = '\n';
+    }
+    setBufferLength(ttm,result,(q - result->content));
+#ifdef DEBUG
+    fprintf(stderr,"info.class: ");
+    dbgprint32(result->content,'"');
+    fprintf(stderr,"\n");
+    fflush(stderr);
+#endif
+}
+
+/**
+#<ttm;info;class;...>
+*/
+
+static void
+ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
+{
+    /* Get the discriminate string */
+    char discrim[(4*255)+1]; /* upper bound for 255 characters + nul term */
+    int len;
+    
+    len = strcvt8(discrim,frame->argv[1]);
+    discrim[len] = NUL;
+
+    if(frame->argc >= 4 && strcmp("info",discrim)==0) {
+        len = strcvt8(discrim,frame->argv[2]);
+        discrim[len] = NUL;
+        if(strcmp("name",discrim)==0) {
+	    ttm_ttm_info_name(ttm,Frame);
+        } else if(strcmp("class",discrim)==0) {
+	    ttm_ttm_info_class(ttm,Frame);
+	} else
+	    fail(ttm,ETTMCMD);
+    } else {
+	fail(ttm,ETTMCMD);
+    }
+
 }
 
 /**************************************************/
@@ -2456,7 +2541,7 @@ static struct Builtin builtin_orig[] = {
     static struct Builtin builtin_new[] = {
     {"argv",1,1,"V",ttm_argv}, /* Get ith command line argument */
     {"include",1,1,"S",ttm_include}, /* Include text of a file */
-    {"showname",1,1,"V",ttm_showname}, /* Debug: return info about a name*/
+    {"ttm",1,ARB,"SV",ttm_ttm}, /* Misc. combined actions */
     {NULL,0,0,NULL} /* terminator */
 };
 
@@ -2513,29 +2598,22 @@ fatal(TTM* ttm, const char* msg)
 {
     fprintf(stderr,"Fatal error: %s\n",msg);
     if(ttm != NULL) {
-	int i;
-	Buffer* bb = ttm->buffer;
-	unsigned long leftlen, rightlen;
-	utf32* cxt0;
-	utf32* cxt1;
 	/* Dump the frame stack */
 	dumpstack(ttm);
-        /* Dump some context */
-        cxt0 = bb->passive;
-	if(cxt0 == NULL) cxt0 = bb->content;
-	if((bb->content + CONTEXTLEN) > cxt0)
-	    cxt0 = bb->content;
-        cxt1 = bb->active;
-	if((bb->content + (bb->length - CONTEXTLEN)) < cxt1)
-	    cxt1 = (bb->content+bb->length);
-	leftlen = (bb->passive - cxt0);
-	rightlen = (cxt1 - bb->active);
-	fprintf(stderr,"context: |");
-	for(i=0;i<leftlen;i++) fputc(cxt0[i],stderr);
-	fprintf(stderr,"| ... |");
-	for(i=0;i<rightlen;i++) fputc(cxt1[i],stderr);
-	fprintf(stderr,"|\n");
+        /* Dump passive and active strings*/
+	fprintf(stderr,"context: ");
+        /* Since passive is not normally null terminated, we need to fake it */
+	{
+	    utf32 save = *ttm->buffer->passive;
+	    *ttm->buffer->passive = NUL32;
+	    dbgprint32(ttm->buffer->content,'|');
+	    *ttm->buffer->passive = save;
+	}
+	fprintf(stderr," ... ");
+	dbgprint32(ttm->buffer->active,'|');
+	fprintf(stderr,"\n");
     }
+    fflush(stderr);
     exit(1);
 }
 
@@ -2581,6 +2659,7 @@ errstring(ERR err)
     case EASCII: msg="ASCII characters only"; break;
     case EUTF8: msg="Illegal utf-8 character set"; break;
     case EUTF32: msg="Illegal utf-32 character set"; break;
+    case ETTMCMD: msg="Illegal #<ttm> command"; break;
     case EOTHER: msg="Unknown Error"; break;
     }
     return msg;
@@ -2601,7 +2680,7 @@ int2string(utf32* dst, long long n)
     int count;
 
     snprintf(result,sizeof(result),"%lld",n);
-    count = strcvt(dst,result);
+    count = strcvt32(dst,result);
     return count;
 }
 
@@ -2717,14 +2796,14 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     tag[i++] = (char)ttm->openc;
     tag[i] = NUL;
     fprintf(stderr,"%s",tag);
-    dbgprint32(frame->argv[0]);
+    dbgprint32(frame->argv[0],NUL);
     if(traceargs) {
 	for(i=1;i<frame->argc;i++) {
 	    fputc32(ttm->semic,stderr);
-	    dbgprint32(frame->argv[i]);
+	    dbgprint32(frame->argv[i],NUL);
 	}
     }
-    fputc32(ttm->closec,stderr);fputc('\n',stderr);
+    fputc32(ttm->closec,stderr);
     fflush(stderr);
 }
 
@@ -2743,6 +2822,12 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
     if(tracing)
         fprintf(stderr,"%s: ",(entering?"begin":"end"));
     traceframe(ttm,frame,entering);
+    /* Dump the contents of result if !entering */
+    if(!entering) {
+	fprintf(stderr," => ");
+	dbgprint32(ttm->result->content,'"');
+    } 
+    fprintf(stderr,"\n");
 }
 
 /**
@@ -2773,9 +2858,11 @@ dumpstack(TTM* ttm)
 }
 
 static void
-dbgprint32(utf32* s)
+dbgprint32(utf32* s, char quote)
 {
     utf32 c;
+    if(quote != NUL)
+	fputc(quote,stderr);
     while((c=*s++)) {
 	if(iscontrol(c)) {
 	    fputc32('\\',stderr);
@@ -2792,9 +2879,13 @@ dbgprint32(utf32* s)
 		fprintf(stderr,"%s",digits);
 		} break;
 	    }
-	} else
+	} else {
+	    if(c == quote) fputc('\\',stderr);
 	    fputc32(c,stderr);
+	}
     }
+    if(quote != NUL)
+	fputc(quote,stderr);
     fflush(stderr);
 }
 
@@ -3126,8 +3217,7 @@ main(int argc, char** argv)
 
 	resetBuffer(ttm,ttm->buffer);
 	setBufferLength(ttm,ttm->buffer,elen); /* temp */
-	count = strcvt(ttm->buffer->content,eopt);	
-	ttm->buffer->content[count] = NUL32;
+	count = strcvt32(ttm->buffer->content,eopt);	
 	setBufferLength(ttm,ttm->buffer,count);
 	scan(ttm);
 	if(ttm->flags & FLAG_EXIT)
@@ -3376,37 +3466,6 @@ strncmp32(utf32* s1, utf32* s2, unsigned int len)
     return (c1 < c2 ? -1 : +1);
 }
 
-/* As an aid for printing,
-   provide a function that simultaneously
-   copies and converts UTF8 characters
-   to a destination. Return # of chars converted.
-   WARNING: does not null terminate the output.
-*/
-   
-static int
-strcvt(utf32* dst, utf8* src)
-{
-    utf8* p = src;
-    int c,converted;
-
-    for(converted=0;(c=*p);converted++) {
-	if(ismultibyte(c)) {
-	    utf32 c32;
-	    int count = utf8count(c);
-	    utf8 c8[MAXCHARSIZE+1];
-	    memcpy((void*)c8,p,count);
-	    c8[count] = NUL;
-	    if(utf8utf32(&c32,c8) < 0) fail(NOTTM,EUTF8);	    
-	    *dst++ = c32;
-	    p += count;	    
-	} else { /* simple ascii char */
-	    *dst++ = (utf32)c;
-	    p++;
-	}
-    }
-    dst[converted] = NUL32;
-    return converted;
-}
 
 /* Test equality of char* string to utf32 string */
 static int
@@ -3465,6 +3524,64 @@ fgetc32(FILE* f)
     } else
 	c32 = c;
     return c32;
+}
+
+/**
+As a convenience, provide a function that simultaneously
+copies and converts UTF8 characters to a utf32 destination. Return
+# of chars prooduced.
+WARNING: does not null terminate the output.
+Basically a wrapper around utf8utf32.
+*/
+   
+static int
+strcvt32(utf32* dst, utf8* src)
+{
+    utf8* p = src;
+    int c,converted;
+
+    for(converted=0;(c=*p);converted++) {
+	if(ismultibyte(c)) {
+	    utf32 c32;
+	    int count = utf8count(c);
+	    utf8 c8[MAXCHARSIZE+1];
+	    memcpy((void*)c8,p,count);
+	    c8[count] = NUL;
+	    if(utf8utf32(&c32,c8) < 0) fail(NOTTM,EUTF8);	    
+	    *dst++ = c32;
+	    p += count;	    
+	} else { /* simple ascii char */
+	    *dst++ = (utf32)c;
+	    p++;
+	}
+    }
+    return converted;
+}
+
+/**
+As a convenience, provide a function that simultaneously
+copies and converts UTF32 characters to a utf8 destination. Return
+# of bytes produced.
+WARNING: does not null terminate the output.
+Basically a wrapper around utf32utf8.
+*/
+   
+static int
+strcvt8(utf8* dst, utf32* src)
+{
+    utf32* p = src;
+    utf8*  q = dst;
+    utf32 c32;
+    int count;
+
+    while((c32=*p++)) {
+        utf8 c8[MAXCHARSIZE+1];
+	count = utf32utf8(c8,c32);
+	if(count <= 0) fail(NOTTM,EUTF32);
+	memcpy(q,c8,count);
+	q += count;
+    }	
+    return (q - dst);
 }
 
 /**************************************************/

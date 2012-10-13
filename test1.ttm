@@ -1,5 +1,7 @@
-#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>
-#<ss;def;name;subs;text>
-##<showname;def>
-#<def;XX;34;12345>
-#<XX;0000>
+#<ds;x;1234>
+##<ap;x;567890>
+##<ttm;info;name;x>
+##<rrp;x>
+##<cc;x>
+##<cn;x;8>
+##<cn;x;2>

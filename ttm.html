@@ -154,18 +154,30 @@ A number of new functions have been implemented and are describe below
 using a notation similar to that in [1].
 <p>
 <b><u>ttm</u></b><br>
-<b>Specification: </b>ttm,1,*,S<br>
-<b>Invocation: </b>#&lt;ttm;option;arg1;arg2;...&gt;<br>
-This function provides a general mechanism for altering
-the behavior of the macro processor.
-The currently defined options are as follows.
+<b>Specification: </b>ttm,2,*,S<br>
+<b>Invocation: </b>#&lt;ttm;cmd;arg1;arg2;...&gt;<br>
+This function provides a general mechanism for embedding
+special commands to extract or alter interpreter information.
+The currently defined commands are as follows.
 <table>
-<tr valign=top><td>meta<td>
-Change the set of meta-characters, except the escape
-character.  It takes one argument that specifies the set of
+<tr><th>Command<th>Description
+<tr valign=top><td>#&lt;ttm;meta;metachars&gt;<td>
+Change the set of meta-characters.
+It takes one argument that specifies the set of
 meta characters. Setting the default behavior would use
-this invocation: #&lt;ttm;meta;\#\&lt;\;\&gt;&gt;.
+this invocation: #&lt;ttm;meta; \#\&lt;\;\&gt;\\&gt;.
 Note that this is separate from the CM function.
+<tr valign=top><!--empty line-->
+<tr valign=top><td>#&lt;ttm;info;subcommands;...&gt;<td>
+Dump information about internal ttm structures.
+The currently defined subcommands for info are as follows.
+<table>
+<tr><th>SubCommand<th>Description
+<tr valign=top><td>#&lt;ttm;info;name;name1;name2...&gt;<td>
+Return info about each namei.
+<tr valign=top><td>#&lt;ttm;info;class;class1;class2...&gt;<td>
+Return info about each classi.
+</table>
 </table>
 <p>
 <b><u>argv</u></b><br>
