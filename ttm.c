@@ -82,7 +82,7 @@ makespace(utf32* dst, utf32* src, unsigned long len)
 #else	
     src += len;
     dst += len;
-    while(len-- > 0) *dst-- = *src--;
+    for(;len>0;len--) *{dst-- = *src--;}
 #endif
 }
 
@@ -99,7 +99,7 @@ Constants
 /* Macros to set/clear/test these marks */
 #define setMark(w,mark) ((w) | (mark))
 #define clearMark(w,mark) ((w) & ~(mark))
-#define testMark(w,mark) (((w) & ~(mark)) == 0 ? 0 : 1)
+#define testMark(w,mark) (((w) & (mark)) == 0 ? 0 : 1)
 
 #define MAXMARKS 62
 #define MAXARGS 63
@@ -225,8 +225,9 @@ TTM state object
 
 struct TTM {
     struct Limits {
-        unsigned long buffersize;
-        unsigned long stacksize;
+        long buffersize;
+        long stacksize;
+        long execcount;
     } limits;
     unsigned long flags;
     unsigned long exitcode;
@@ -310,7 +311,7 @@ struct Charclass {
 /**************************************************/
 /* Forward */
 
-static TTM* newTTM(unsigned long buffersize, unsigned long stacksize);
+static TTM* newTTM(long,long,long);
 static void freeTTM(TTM*);
 static Buffer* newBuffer(TTM*, unsigned long buffersize);
 static void freeBuffer(TTM*, Buffer* bb);
@@ -399,11 +400,11 @@ static utf32 convertEscapeChar(utf32 c);
 static void trace(TTM*, int entering, int tracing);
 static void trace1(TTM*, int depth, int entering, int tracing);
 static void dumpstack(TTM*);
-static void print32(utf32* s);
+static void dbgprint32(utf32* s);
 static int getOptionNameLength(char** list);
 static int pushOptionName(char* option, int max, char** list);
 static void initglobals();
-static void usage(void);
+static void usage(const char*);
 static void convertDtoE(const char* def);
 static void readinput(TTM*, const char* filename,Buffer* bb);
 static int readbalanced(TTM*);
@@ -421,6 +422,7 @@ static int strcmp32(utf32* s1, utf32* s2);
 static int strncmp32(utf32* s1, utf32* s2, unsigned int len);
 static int strcvt(utf32* dst, utf8* src);
 static int streq328(utf32* s32, utf8* s8);
+static void memcpy32(utf32* dst, utf32* src, unsigned int len);
 static void fputc32(utf32 c, FILE* f);
 static utf32 fgetc32(FILE* f);
 
@@ -434,12 +436,13 @@ static char* argoptions[MAXARGS+1]; /* null terminated */
 
 /**************************************************/
 static TTM*
-newTTM(unsigned long buffersize, unsigned long stacksize)
+newTTM(long buffersize, long stacksize, long execcount)
 {
     TTM* ttm = (TTM*)calloc(1,sizeof(TTM));
     if(ttm == NULL) return NULL;
     ttm->limits.buffersize = buffersize;
     ttm->limits.stacksize = stacksize;
+    ttm->limits.execcount = execcount;
     ttm->sharpc = (utf32)'#';
     ttm->openc = (utf32)'<';
     ttm->closec = (utf32)'>';
@@ -519,7 +522,7 @@ compressBuffer(TTM* ttm, Buffer* bb, unsigned long len)
 {
     assert(bb != NULL);
     if(len > 0 && bb->active < bb->end) {
-	memcpy(bb->active,bb->active+len,len);	
+	memcpy32(bb->active,bb->active+len,len);	
     }    
     bb->length -= len;
     bb->end = bb->content+bb->length;
@@ -864,10 +867,18 @@ exec(TTM* ttm, Buffer* bb)
     resetBuffer(ttm,ttm->result);
     if(ttm->flags & FLAG_TRACE)
 	trace(ttm,1,TRACING);
-    if(fcn->builtin)
+    if(fcn->builtin) {
 	fcn->fcn(ttm,frame);
-    else /* invoke the pseudo function "call" */
+	if(fcn->novalue) resetBuffer(ttm,ttm->result);
+    } else /* invoke the pseudo function "call" */
 	call(ttm,frame,fcn->body);
+
+#ifdef DEBUG
+fprintf(stderr,"result: |");
+dbgprint32(ttm->result->content);
+fprintf(stderr,"|\n");
+#endif
+
     if(ttm->flags & FLAG_TRACE)
 	trace(ttm,0,TRACING);
 
@@ -891,7 +902,16 @@ exec(TTM* ttm, Buffer* bb)
 	    insertpos = bb->passive;
 	    bb->passive += resultlen;
 	}
-	memcpy((void*)insertpos,ttm->result->content,ttm->result->length);
+	memcpy32((void*)insertpos,ttm->result->content,ttm->result->length);
+#ifdef DEBUG
+fprintf(stderr,"context:\n\tpassive=|");
+dbgprint32(ttm->buffer->content);
+fprintf(stderr,"|\n");
+fprintf(stderr,"\tactive=|");
+dbgprint32(ttm->buffer->active);
+fprintf(stderr,"|\n");
+#endif
+
     }
     popFrame(ttm);
 }
@@ -921,7 +941,7 @@ parsecall(TTM* ttm, Frame* frame)
                 *bb->passive++ = NUL; /* null terminate the argument */
 #ifdef DEBUG
 fprintf(stderr,"parsecall: argv[%d]=|",frame->argc);
-print32(arg);
+dbgprint32(arg);
 fprintf(stderr,"|\n");
 #endif
 		bb->active++; /* skip the semi or close */
@@ -953,9 +973,10 @@ fprintf(stderr,"|\n");
                         bb->active++;
                         depth++;
                     } else if(c == ttm->closec) {
-                        if(--depth == 0) break; /* we are done */
-                        *bb->passive++ = (char)c;
+			depth--;
 		        bb->active++;
+                        if(depth == 0) break; /* we are done */
+                        *bb->passive++ = (char)c;
                     } else {
 			*bb->passive++ = *bb->active++;
 		    }
@@ -995,7 +1016,7 @@ call(TTM* ttm, Frame* frame, utf32* body)
 	} else
 	    len++;
     }
-    /* Compute the result */
+    /* Compute the body using ttm->result  */
     resetBuffer(ttm,ttm->result);
     setBufferLength(ttm,ttm->result,len);
     result = ttm->result->content;
@@ -1023,6 +1044,13 @@ call(TTM* ttm, Frame* frame, utf32* body)
 	} else
 	    *dst++ = (char)c;
     }
+    *dst = NUL32;
+#ifdef DEBUG
+fprintf(stderr,"call: ");
+dbgprint32(result);
+fprintf(stderr,"\n");
+fflush(stderr);
+#endif
     return result;
 }
 
@@ -1040,8 +1068,7 @@ printstring(TTM* ttm, FILE* output, utf32* s32)
 	    c32 = *s32++;
 	    c32 = convertEscapeChar(c32);
 	}
-	/* if c is a control character, then elide it */
-	if(c32 != 0 && !iscontrol(c32))
+	if(c32 != 0)
 	    fputc32(c32,output);
     }
 }
@@ -2274,6 +2301,7 @@ ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
 	/* Walk the body checking for segment and creation marks
 	*/
 	p=str->body;
+	setBufferLength(ttm,result,result->length + strlen32(str->body));
 	while((c32=*p++)) {
 	    if(testMark(c32,SEGMARK)) {
 		snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
@@ -2285,9 +2313,14 @@ ttm_showname(TTM* ttm, Frame* frame) /* Return info about a name */
 		*q++ = c32;
 	    }
 	}
-	*q++ = '|';
 	*q = NUL32;
 	setBufferLength(ttm,result,strlen32(result->content));
+#ifdef DEBUG
+	fprintf(stderr,"showname: ");
+	dbgprint32(result->content);
+	fprintf(stderr,"\n");
+	fflush(stderr);
+#endif
     }
 }
 
@@ -2421,8 +2454,8 @@ static struct Builtin builtin_orig[] = {
     
     /* Functions new to this implementation */
     static struct Builtin builtin_new[] = {
-    {"argv",2,2,"V",ttm_argv}, /* Get ith command line argument */
-    {"include",2,2,"S",ttm_include}, /* Include text of a file */
+    {"argv",1,1,"V",ttm_argv}, /* Get ith command line argument */
+    {"include",1,1,"S",ttm_include}, /* Include text of a file */
     {"showname",1,1,"V",ttm_showname}, /* Debug: return info about a name*/
     {NULL,0,0,NULL} /* terminator */
 };
@@ -2649,8 +2682,6 @@ utf8count(int c)
     if(((c) & 0xE0) == 0xC0) return 2;
     if(((c) & 0xF0) == 0xE0) return 3;
     if(((c) & 0xF8) == 0xF0) return 4;
-    if(((c) & 0xFC) == 0xF8) return 5;
-    if(((c) & 0xFE) == 0xFC) return 6;
     return 0;
 }
 
@@ -2686,11 +2717,11 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     tag[i++] = (char)ttm->openc;
     tag[i] = NUL;
     fprintf(stderr,"%s",tag);
-    print32(frame->argv[0]);
+    dbgprint32(frame->argv[0]);
     if(traceargs) {
 	for(i=1;i<frame->argc;i++) {
 	    fputc32(ttm->semic,stderr);
-	    print32(frame->argv[i]);
+	    dbgprint32(frame->argv[i]);
 	}
     }
     fputc32(ttm->closec,stderr);fputc('\n',stderr);
@@ -2736,19 +2767,36 @@ dumpstack(TTM* ttm)
     for(i=ttm->stacknext-1;i>=0;i--) {
 	Frame* frame;
 	frame = &ttm->stack[i];
-        trace(ttm,0,!TRACING);
+        trace1(ttm,i,1,!TRACING);
     }
     fflush(stderr);
 }
 
 static void
-print32(utf32* s)
+dbgprint32(utf32* s)
 {
     utf32 c;
-    while((c=*s++)) fputc32(c,stderr);
+    while((c=*s++)) {
+	if(iscontrol(c)) {
+	    fputc32('\\',stderr);
+	    switch (c) {
+	    case '\r': fputc('r',stderr); break;
+	    case '\n': fputc('n',stderr); break;
+	    case '\t': fputc('t',stderr); break;
+	    case '\b': fputc('b',stderr); break;
+	    case '\f': fputc('f',stderr); break;
+	    default: {
+		/* dump as a decimal character */
+		char digits[4];
+		snprintf(digits,sizeof(digits),"%d",(int)c);
+		fprintf(stderr,"%s",digits);
+		} break;
+	    }
+	} else
+	    fputc32(c,stderr);
+    }
     fflush(stderr);
 }
-
 
 /**************************************************/
 /* Main() Support functions */
@@ -2785,11 +2833,13 @@ initglobals()
 }
 
 static void
-usage(void)
+usage(const char* msg)
 {
+    if(msg != NULL)
+	fprintf(stderr,"%s\n",msg);
     fprintf(stderr,"ttm [-B integer] [-d string] [-D name=string] [-e string] [-i] [-I directory] [-o file] [-V] [--] [file] [arg...]\n");
     fprintf(stderr,"\tOptions may be repeated\n");
-    exit(0);
+    if(msg != NULL) exit(1); else exit(0);
 }
 
 /* Convert option -Dx=y to option -e '#<ds;x;y>' */
@@ -2921,6 +2971,25 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
     return count32;
 }
 
+static long
+tagvalue(const char* p)
+{
+    unsigned long value;
+    int c;
+    if(p == NULL || p[0] == NUL)
+	return -1;
+    value = atol(p);
+    c = p[strlen(p)-1];
+    switch (c) {
+    case 0: break;
+    case 'm': case 'M': value *= (1<<20); break;
+    case 'k': case 'K': value *= (1<<10); break;
+    default: break;
+    }
+    return value;
+}
+
+
 /**************************************************/
 /* Main() */
 
@@ -2932,6 +3001,7 @@ main(int argc, char** argv)
     int i,exitcode;
     long buffersize = 0;
     long stacksize = 0;
+    long execcount = 0;
     char* debugargs = strdup("");
     int interactive = 0;
     char* outputfilename = NULL;
@@ -2940,28 +3010,36 @@ main(int argc, char** argv)
     FILE* outputfile = NULL;
     TTM* ttm = NULL;
     int c;
+    char* p;
 
     if(argc == 1)
-	usage();
+	usage(NULL);
 
     initglobals();
 
     while ((c = getopt(argc, argv, options)) != EOF) {
 	switch(c) {
 	case 'X':
-	    
+	    if(optarg == NULL) usage("Illegal -X tag");
+	    p = optarg;
+	    c = *p++;
+	    if(*p++ != '=') usage("Missing -X tag value");
+	    switch (c) {
+	    case 'b':
+		if(buffersize == 0 && (buffersize = tagvalue(p)) < 0)
+		    usage("Illegal buffersize");
+		break;
+	    case 's':
+		if(stacksize == 0 && (stacksize = tagvalue(p)) < 0)
+		    usage("Illegal stacksize");
+		break;
+	    case 'x':
+		if(execcount == 0 && (execcount = tagvalue(p)) < 0)
+		    usage("Illegal execcount");
+		break;
+	    default: usage("Illegal -X tag");
+	    }
 
-
-	    if(stacksize == 0) {
-		if((stacksize = atol(optarg)) < 0)
-		    fatal(NOTTM,"Illegal stacksize");
-		switch (optarg[strlen(optarg)-1]) {
-		case 0: stacksize = 0; break;
-		case 'm': case 'M': stacksize *= (1<<20); break;
-		case 'k': case 'K': stacksize *= (1<<10); break;
-		default: break;
-		}
-	    } break;
 	case 'd':
 	    if(debugargs == NULL)
 	        debugargs = strdup(optarg);
@@ -2992,7 +3070,7 @@ main(int argc, char** argv)
 	    break;
 	case '?':
 	default:
-	    usage();
+	    usage("Illegal option");
 	}
     }
 
@@ -3020,6 +3098,8 @@ main(int argc, char** argv)
 	buffersize = MINBUFFERSIZE;	    
     if(stacksize < MINSTACKSIZE)
 	stacksize = MINSTACKSIZE;	    
+    if(execcount < MINEXECCOUNT)
+	execcount = MINEXECCOUNT;	    
 
     if(outputfilename == NULL) {
 	outputfile = stdout;
@@ -3034,7 +3114,7 @@ main(int argc, char** argv)
     }
 
     /* Create the ttm state */
-    ttm = newTTM((unsigned long)buffersize,(unsigned long)stacksize);
+    ttm = newTTM(buffersize,stacksize,execcount);
     ttm->output = outputfile;
 
     defineBuiltinFunctions(ttm);
@@ -3140,11 +3220,11 @@ static int
 utf8utf32(utf32* codepointp, utf8* src)
 {
     /* assert |src| >= MAXCHARSIZE; not necessarily null terminated */
-    utf8* p = src;
+    utf8* p;
     utf32 codepoint;
     int charsize;
     int c0;
-    static int mask[6] = {0x80,0xE0,0xF0,0xF8,0xFC,0xFE};
+    static int mask[5] = {0x00,0x7F,0x1F,0x0F,0x07};
 
     p = src;
     c0 = (int)*p;
@@ -3154,7 +3234,7 @@ utf8utf32(utf32* codepointp, utf8* src)
     /* Process the 1st char in the utf8 codepoint */
     codepoint = (c0 & mask[charsize]);
     /* Process all but the first char in utf8 codepoint */
-    while(charsize-- > 0)
+    while(--charsize > 0)
 	codepoint = (codepoint << 6) | (*p++ & 0x3F);
     assert((charsize != 1 || codepoint == c0));
     if(codepointp) *codepointp = codepoint;
@@ -3238,7 +3318,7 @@ static void
 strncpy32(utf32* dst, utf32* src, unsigned int len)
 {
     utf32 c32;
-    while(len-- > 0 && (c32 = *src++)) {*dst++ = c32;}
+    for(;len>0 && (c32 = *src++);len--){*dst++ = c32;}
     if(c32 != NUL32) *dst = NUL32;
 }
 
@@ -3284,7 +3364,7 @@ strncmp32(utf32* s1, utf32* s2, unsigned int len)
     utf32 c1=0;
     utf32 c2=0;
     if(len == 0) return 0; /* null strings always equal */
-    while(len-- >= 0) {/* compare thru the last character*/
+    for(;len>0;len--) {/* compare thru the last character*/
 	c1 = *s1++;
 	c2 = *s2++;
 	if(c1 != c2) break; /* mismatch before length characters tested*/
@@ -3324,6 +3404,7 @@ strcvt(utf32* dst, utf8* src)
 	    p++;
 	}
     }
+    dst[converted] = NUL32;
     return converted;
 }
 
@@ -3343,6 +3424,12 @@ streq328(utf32* s32, utf8* s8)
     }
     if(*s8 && *s32) return 1; /* equal */
     return 0;
+}
+
+static void
+memcpy32(utf32* dst, utf32* src, unsigned int len)
+{
+    memcpy((void*)dst,(void*)src,len*sizeof(utf32));
 }
 
 static void
@@ -3416,11 +3503,12 @@ getRunTime(void)
 {
     long long runtime;
     struct tms timers;
+    clock_t tic;
 
     if(frequency == 0) 
         frequency = sysconf(_SC_CLK_TCK);
 
-    (void)times(&timers);
+    tic=times(&timers);
     runtime = timers.tms_utime; /* in clock ticks */
     runtime = ((runtime * 1000) / frequency) ; /* runtime in milliseconds */    
     return runtime;
