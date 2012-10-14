@@ -68,7 +68,9 @@ typedef int utf32; /* 32-bit utf char type; signed is ok
                         because of limited # of utf characters
 		        namely <= 0x10FFFF = 1,114,111
 		     */
+#if 0
 typedef char utf8;
+#endif
 
 /* Maximum codepoint size when using utf8 */
 #define MAXCHARSIZE 4
@@ -134,7 +136,7 @@ Constants
 #define UNLIMITED (0x7fffffff)
 
 /* TTM Flags */
-#define FLAG_EXIT 1
+#define FLAG_EXIT  1
 #define FLAG_TRACE 2
 
 /**************************************************/
@@ -397,7 +399,6 @@ static void fatal(TTM*, const char* msg);
 static const char* errstring(ERR err);
 static int int2string(utf32* dst, long long n);
 static ERR toInt64(utf32* s, long long* lp);
-static int utf8count(int c);
 static utf32 convertEscapeChar(utf32 c);
 static void trace(TTM*, int entering, int tracing);
 static void trace1(TTM*, int depth, int entering, int tracing);
@@ -412,27 +413,34 @@ static void readinput(TTM*, const char* filename,Buffer* bb);
 static int readbalanced(TTM*);
 static void printbuffer(TTM*);
 static int readfile(TTM*, FILE* file, Buffer* bb);
-static int utf32utf8(utf8* dst, utf32 codepoint);
-static int utf8utf32(utf32* codepointp, utf8* src);
-static int string32string8(utf8* dst, utf32* src, unsigned int *lenp);
-static int string8string32(utf32* dst, utf8* src, unsigned int *lenp);
+
+/* utf32 replacements for common unix strXXX functions */
 static unsigned int strlen32(utf32* s);
 static void strcpy32(utf32* dst, utf32* src);
 static void strncpy32(utf32* dst, utf32* src, unsigned int len);
 static utf32* strdup32(utf32* src);
 static int strcmp32(utf32* s1, utf32* s2);
 static int strncmp32(utf32* s1, utf32* s2, unsigned int len);
+static void memcpy32(utf32* dst, utf32* src, unsigned int len);
+
 static int streq328(utf32* s32, utf8* s8);
 static int strcvt32(utf32* dst, utf8* src);
 static int strcvt8(utf8* dst, utf32* src);
-static void memcpy32(utf32* dst, utf32* src, unsigned int len);
+
+/* Read/Write Management */
 static void fputc32(utf32 c, FILE* f);
 static utf32 fgetc32(FILE* f);
+
+/* UTF32 <-> char management */
+static int utf8count(int c);
+static int utf32utf8(utf8* dst, utf32 codepoint);
+static int utf8utf32(utf32* codepointp, utf8* src);
+static int string32string8(utf8* dst, utf32* src, unsigned int *lenp);
+static int string8string32(utf32* dst, utf8* src, unsigned int *lenp);
 
 /**************************************************/
 /* Global variables */
 
-/* Note that these are just standard linux strings */
 static char* includes[MAXINCLUDES+1]; /* null terminated */
 static char* eoptions[MAXEOPTIONS+1]; /* null terminated */
 static char* argoptions[MAXARGS+1]; /* null terminated */
@@ -2277,7 +2285,7 @@ static void
 ttm_ttm_meta(TTM* ttm, Frame* frame)
 {
     utf32* arg = frame->argv[2];
-    if(strlen(arg) != 5) fail(ttm,ETTMCMD);
+    if(strlen32(arg) != 5) fail(ttm,ETTMCMD);
     ttm->sharpc = arg[0];
     ttm->openc = arg[1];
     ttm->semic = arg[2];
@@ -2299,7 +2307,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
     utf32 c32;
     int namelen,count,i;
 
-    setBufferLength(ttm,result,result->alloc);
+    setBufferLength(ttm,result,result->alloc-1);
     q = result->content;
     *q = NUL32;
     for(i=3;i<frame->argc;i++) {
@@ -2394,13 +2402,15 @@ ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
     len = strcvt8(discrim,frame->argv[1]);
     discrim[len] = NUL;
 
-    if(frame->argc >= 4 && strcmp("info",discrim)==0) {
+    if(frame->argc >= 3 && strcmp("meta",discrim)==0) {
+	ttm_ttm_meta(ttm,frame);
+    } else if(frame->argc >= 4 && strcmp("info",discrim)==0) {
         len = strcvt8(discrim,frame->argv[2]);
         discrim[len] = NUL;
         if(strcmp("name",discrim)==0) {
-	    ttm_ttm_info_name(ttm,Frame);
+	    ttm_ttm_info_name(ttm,frame);
         } else if(strcmp("class",discrim)==0) {
-	    ttm_ttm_info_class(ttm,Frame);
+	    ttm_ttm_info_class(ttm,frame);
 	} else
 	    fail(ttm,ETTMCMD);
     } else {
@@ -2992,7 +3002,17 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     if(!isstdin) fclose(f);
 }
 
-static int
+/**
+Read from input until the
+read characters form a 
+balanced string with respect
+to the current open/close characters.
+Read past the final balancing character
+to the next end of line.
+Return 0 if the read was terminated
+by EOF. 1 otherwise.
+*/
+
 readbalanced(TTM* ttm)
 {
     Buffer* bb;
@@ -3025,7 +3045,7 @@ readbalanced(TTM* ttm)
 	}
     }
     /* skip to end of line */
-    while(c != EOF && c != '\n') {c = fgetc(stdin);}
+    while(c32 != EOF && c32 != '\n') {c32 = fgetc32(stdin);}
     setBufferLength(ttm,bb,i);
     return (i == 0 && c32 == EOF ? 0 : 1);
 }
@@ -3051,7 +3071,7 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
     count32 = 0;
     p = bb->content;
     for(;;) {
-	utf32 c = fgetc(file);
+	utf32 c = fgetc32(file);
         if(ferror(file)) fail(ttm,EIO);
 	if(c == EOF) break;
 	*p++ = c;
@@ -3336,7 +3356,7 @@ Convert len utf32 characters to a string of utf8 characters.
 Stop if src char is NUL32.
 Caller must free returned string.
 Return -1 if error,
-  else # utf8 bytes processed.
+else # bytes processed.
 Return actual number of utf32 chars in lenp
 */
 static int
@@ -3500,6 +3520,7 @@ fputc32(utf32 c, FILE* f)
     for(i=0;i<count;i++) {fputc(c8[i],f);}
 }
 
+/* All reading of characters should go thru this function */
 static utf32
 fgetc32(FILE* f)
 {
