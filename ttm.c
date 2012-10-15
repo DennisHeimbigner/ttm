@@ -8,11 +8,17 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 
 /**************************************************/
 /**
-(Un)Define these if you have/have-not the specified capability.
+(Un)Define these if you do (not) have the specified capability.
 This is in lieu of the typical config.h.
 */
 
+/* Define if the equivalent of the standard Unix memove() is available */
 #define HAVE_MEMMOVE 
+
+/* Use ISO-8859-1 Character set for input/output */
+#undef ISO_8859 
+
+/**************************************************/
 
 /* It is not clear what the correct Windows CPP Tag should be.
    Assume _WIN32, but this may not work with cygwin.
@@ -23,6 +29,7 @@ This is in lieu of the typical config.h.
 #define MSWINDOWS 1
 #endif
 
+/* Reduce visual studio verbosity */
 #ifdef MSWINDOWS
 #define _CRT_SECURE_NO_WARNINGS 1
 #endif
@@ -62,17 +69,27 @@ static int getopt(int argc, char **argv, char *optstring);
 static long long getRunTime(void);
 
 /**************************************************/
-/* UTF and byte type defs */
+/* UTF and char Definitions */
+
+/**
+We use the standard "char" type for input/output,
+but also assume that this type may point to
+multibyte characters (i.e. utf8).
+In order to identify such strings,
+we use the alias "char_t".
+
+Note also that it is assumed that all C string constants
+in this file are restricted to US-ASCII, which is a subset
+of both UTF-8 and ISO-8859-1.
+*/
+
+typedef char char_t;
 
 typedef int utf32; /* 32-bit utf char type; signed is ok
                         because of limited # of utf characters
 		        namely <= 0x10FFFF = 1,114,111
 		     */
-#if 0
-typedef char utf8;
-#endif
-
-/* Maximum codepoint size when using utf8 */
+/* Maximum codepoint size when using char_t */
 #define MAXCHARSIZE 4
 
 /**************************************************/
@@ -117,6 +134,10 @@ Constants
 #define LBRACKET '['
 #define RBRACKET ']'
 
+#ifdef ISO_8859
+#define MAXCHAR8859 ((char_t)255)i
+#endif
+
 #define MINBUFFERSIZE (1<<20)
 #define MINSTACKSIZE 64
 #define MINEXECCOUNT (1<<16)
@@ -133,7 +154,7 @@ Constants
 #define TOSTRING 1
 #define NOTTM NULL
 #define TRACING 1
-#define UNLIMITED (0x7fffffff)
+#define TOEOS (0x7fffffff)
 
 /* TTM Flags */
 #define FLAG_EXIT  1
@@ -177,7 +198,7 @@ ERANGE		= 35, /* index out of legal range */
 EMANYPARMS	= 36, /* # parameters > MAXARGS */
 EEOS		= 37, /* Unexpected end of string */
 EASCII		= 38, /* ASCII characters only */
-EUTF8		= 39, /* Illegal utf-8 character set */
+ECHAR8		= 39, /* Illegal 8-bit character set value */
 EUTF32		= 40, /* Illegal utf-32 character set */
 ETTMCMD		= 41, /* Illegal #<ttm> command */
 /* Default case */
@@ -415,29 +436,26 @@ static void printbuffer(TTM*);
 static int readfile(TTM*, FILE* file, Buffer* bb);
 
 /* utf32 replacements for common unix strXXX functions */
-static unsigned int strlen32(utf32* s);
+static int strlen32(utf32* s);
 static void strcpy32(utf32* dst, utf32* src);
 static void strncpy32(utf32* dst, utf32* src, unsigned int len);
 static utf32* strdup32(utf32* src);
 static int strcmp32(utf32* s1, utf32* s2);
 static int strncmp32(utf32* s1, utf32* s2, unsigned int len);
-static void memcpy32(utf32* dst, utf32* src, unsigned int len);
-
-static int streq328(utf32* s32, utf8* s8);
-static int strcvt32(utf32* dst, utf8* src);
-static int strcvt8(utf8* dst, utf32* src);
-
+static void memcpy32(utf32* dst, utf32* src, int len);
 /* Read/Write Management */
 static void fputc32(utf32 c, FILE* f);
 static utf32 fgetc32(FILE* f);
 
 /* UTF32 <-> char management */
-static int utf8count(int c);
-static int utf32utf8(utf8* dst, utf32 codepoint);
-static int utf8utf32(utf32* codepointp, utf8* src);
-static int string32string8(utf8* dst, utf32* src, unsigned int *lenp);
-static int string8string32(utf32* dst, utf8* src, unsigned int *lenp);
-
+static int streq328(utf32* s32, char_t* s8);
+static int toChar8(char_t* dst, utf32 codepoint);
+static int toChar32(utf32* codepointp, char_t* src);
+static int toString8(char_t* dst, utf32* src, int len);
+static int toString32(utf32* dst, char_t* src, int len);
+#ifndef ISO_8859
+static int utf8count(unsigned int c);
+#endif
 /**************************************************/
 /* Global variables */
 
@@ -810,11 +828,14 @@ scan(TTM* ttm)
                     && bb->active[2] == ttm->openc)) {
 		/* It is a real call */
 		exec(ttm,bb);
-	    } else /* not an call; just pass the # along passively */
+	    } else {/* not an call; just pass the # along passively */
 	        *bb->passive++ = c;
+		*bb->active++;
+	    }
 	} else if(c == ttm->openc) { /* Start of <...> escaping */
+	    /* skip the leading lbracket */
 	    int depth = 1;
-	    /* Skip the leading lbracket */
+	    bb->active++;
 	    for(;;) {
 	        c = *(bb->active);
 		if(c == NUL32) fail(ttm,EEOS); /* Unexpected EOF */
@@ -1055,7 +1076,7 @@ call(TTM* ttm, Frame* frame, utf32* body)
 	    /* Construct the cr value */
 	    ttm->crcounter++;
 	    snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
-	    len = strcvt32(dst,crval);
+	    len = toString32(dst,crval,TOEOS);
 	    dst += len;
 	} else
 	    *dst++ = (char)c;
@@ -1272,7 +1293,7 @@ ttm_sc(TTM* ttm, Frame* frame) /* Segment and count */
     snprintf(count,sizeof(count),"%d",nsegs);
     /* Insert into ttm->result */
     setBufferLength(ttm,ttm->result,strlen(count));
-    n = strcvt32(ttm->result->content,count);
+    n = toString32(ttm->result->content,count,TOEOS);
     setBufferLength(ttm,ttm->result,n);
 }
 
@@ -1803,7 +1824,7 @@ ttm_abs(TTM* ttm, Frame* frame) /* Obtain absolute value */
     if(lhs < 0) lhs = -lhs;
     snprintf(result,sizeof(result),"%lld",lhs);
     setBufferLength(ttm,ttm->result,strlen(result)); /*overkill*/
-    count = strcvt32(ttm->result->content,result);
+    count = toString32(ttm->result->content,result,TOEOS);
     setBufferLength(ttm,ttm->result,count);/*fixup*/
 }
 
@@ -2176,7 +2197,7 @@ ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a string */
     s = frame->argv[1];
     snprintf(result,sizeof(result),"%u",strlen32(s));
     setBufferLength(ttm,ttm->result,strlen(result)); /*temp*/
-    count = strcvt32(ttm->result->content,result);
+    count = toString32(ttm->result->content,result,TOEOS);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2190,7 +2211,7 @@ ttm_time(TTM* ttm, Frame* frame) /* Obtain Execution Time */
     time = getRunTime();
     snprintf(result,sizeof(result),"%lld",time);
     setBufferLength(ttm,ttm->result,strlen(result));/*temp*/
-    count = strcvt32(ttm->result->content,result);
+    count = toString32(ttm->result->content,result,TOEOS);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2213,7 +2234,7 @@ ttm_argv(TTM* ttm, Frame* frame) /* Get ith command line argument */
 {
     long long index = 0;
     ERR err;
-    int count;
+    int count,arglen;
     char* arg;
 
     err = toInt64(frame->argv[1],&index);
@@ -2221,8 +2242,9 @@ ttm_argv(TTM* ttm, Frame* frame) /* Get ith command line argument */
     if(index < 0 || index >= getOptionNameLength(argoptions))
 	fail(ttm,ERANGE);
     arg = argoptions[index];
-    setBufferLength(ttm,ttm->result,strlen(arg));/*temp*/
-    count = strcvt32(ttm->result->content,arg);
+    arglen = strlen(arg);
+    setBufferLength(ttm,ttm->result,arglen);/*temp*/
+    count = toString32(ttm->result->content,arg,arglen);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2245,7 +2267,6 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     Buffer* bb = ttm->result;
     int suffixlen;
     int count;
-    unsigned int len;
 
     suffix32 = frame->argv[1];
     suffixlen = strlen32(suffix32);
@@ -2256,8 +2277,7 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 	suffixlen--;
     }
     /* convert */
-    len = suffixlen;
-    count = string32string8((utf8*)suffix,suffix32,&len);
+    count = toString8((char_t*)suffix,suffix32,suffixlen);
     if(count >= 8192) fail(ttm,EBUFFERSIZE);
     suffix[count] = NUL;
     /* access thru the -I list */
@@ -2318,18 +2338,18 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
         q += namelen;
         snprintf(info,sizeof(info),",%d,%d,%s",
                  str->minargs,str->maxargs,(str->novalue?"S":"V"));
-        count = strcvt32(q,info);
+        count = toString32(q,info,TOEOS);
         q += count;
         if(!str->builtin) {
             snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
-            count = strcvt32(q,info);
+            count = toString32(q,info,TOEOS);
             q += count;
             /* Walk the body checking for segment and creation marks */
             p=str->body;
             while((c32=*p++)) {
                 if(testMark(c32,SEGMARK)) {
                     snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
-                    count = strcvt32(q,info);
+                    count = toString32(q,info,TOEOS);
                     q += count;
                 } else
                     *q++ = c32;
@@ -2397,16 +2417,16 @@ ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
 {
     /* Get the discriminate string */
     char discrim[(4*255)+1]; /* upper bound for 255 characters + nul term */
-    int len;
+    int count;
     
-    len = strcvt8(discrim,frame->argv[1]);
-    discrim[len] = NUL;
+    count = toString8(discrim,frame->argv[1],TOEOS);
+    discrim[count] = NUL;
 
     if(frame->argc >= 3 && strcmp("meta",discrim)==0) {
 	ttm_ttm_meta(ttm,frame);
     } else if(frame->argc >= 4 && strcmp("info",discrim)==0) {
-        len = strcvt8(discrim,frame->argv[2]);
-        discrim[len] = NUL;
+        count = toString8(discrim,frame->argv[2],TOEOS);
+        discrim[count] = NUL;
         if(strcmp("name",discrim)==0) {
 	    ttm_ttm_info_name(ttm,frame);
         } else if(strcmp("class",discrim)==0) {
@@ -2561,10 +2581,8 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     Name* function;
     utf32 binname[8192];
     int count;
-    unsigned int len;
 
-    len = strlen(bin->name);
-    count = string8string32(binname,bin->name,&len);
+    count = toString32(binname,bin->name,strlen(bin->name));
     binname[count] = NUL32;
     /* Make sure we did not define builtin twice */
     function = dictionaryLookup(ttm,binname);
@@ -2667,7 +2685,7 @@ errstring(ERR err)
     case EMANYPARMS: msg="Number of parameters greater than MAXARGS"; break;
     case EEOS: msg="Unexpected end of string"; break;
     case EASCII: msg="ASCII characters only"; break;
-    case EUTF8: msg="Illegal utf-8 character set"; break;
+    case ECHAR8: msg="Illegal utf-8 character set"; break;
     case EUTF32: msg="Illegal utf-32 character set"; break;
     case ETTMCMD: msg="Illegal #<ttm> command"; break;
     case EOTHER: msg="Unknown Error"; break;
@@ -2690,7 +2708,7 @@ int2string(utf32* dst, long long n)
     int count;
 
     snprintf(result,sizeof(result),"%lld",n);
-    count = strcvt32(dst,result);
+    count = toString32(dst,result,TOEOS);
     return count;
 }
 
@@ -2762,18 +2780,6 @@ toInt64(utf32* s, long long* lp)
     } /* else illegal */
     return EDECIMAL;
 }
-
-/* Assumes ismultibyte(c) is true */
-static int
-utf8count(int c)
-{
-    if(((c) & 0x80) == 0x00) return 1; /* us-ascii */
-    if(((c) & 0xE0) == 0xC0) return 2;
-    if(((c) & 0xF0) == 0xE0) return 3;
-    if(((c) & 0xF8) == 0xF0) return 4;
-    return 0;
-}
-
 
 /* Given a char, return its escaped value.
 Zero indicates it should be elided
@@ -2987,7 +2993,7 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     resetBuffer(ttm,bb);
     content = bb->content;
 
-    /* Read utf8 character by character until EOF */
+    /* Read char_t character by character until EOF */
     for(i=0;i<buffersize-1;i++) {
 	utf32 c32;
 	c32 = fgetc32(f);
@@ -3013,12 +3019,13 @@ Return 0 if the read was terminated
 by EOF. 1 otherwise.
 */
 
+static int
 readbalanced(TTM* ttm)
 {
     Buffer* bb;
     utf32* content;
     utf32 c32;
-    int depth,i,c;
+    int depth,i;
 
     unsigned long buffersize;
 
@@ -3237,7 +3244,7 @@ main(int argc, char** argv)
 
 	resetBuffer(ttm,ttm->buffer);
 	setBufferLength(ttm,ttm->buffer,elen); /* temp */
-	count = strcvt32(ttm->buffer->content,eopt);	
+	count = toString32(ttm->buffer->content,eopt,elen);	
 	setBufferLength(ttm,ttm->buffer,count);
 	scan(ttm);
 	if(ttm->flags & FLAG_EXIT)
@@ -3275,146 +3282,13 @@ done:
     exit(exitcode);
 }
 
-/**************************************************/
-/* Manage utf32 versus utf8 */
-
-/**
-Convert a utf32 value to a sequence of utf8 bytes.
-Return -1 if invalid; # chars in utf8 otherwise.
-*/
-static int
-utf32utf8(utf8* dst, utf32 codepoint)
-{
-    utf8* p = dst;
-    unsigned char uchar;
-    /* assert |dst| >= MAXCHARSIZE+1 */
-    if(codepoint <= 0x7F) {
-	uchar = (unsigned char)codepoint;
-       *p++ = (char)uchar;
-    } else if(codepoint <= 0x7FF) {
-       uchar = (unsigned char) 0xC0 | (codepoint >> 6);
-       *p++ = (char)uchar;
-       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
-       *p++ = (char)uchar;
-     }
-     else if(codepoint <= 0xFFFF) {
-       uchar = (unsigned char) 0xE0 | (codepoint >> 12);
-       *p++ = (char)uchar;
-       uchar = (unsigned char) 0x80 | ((codepoint >> 6) & 0x3F);
-       *p++ = (char)uchar;
-       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
-       *p++ = (char)uchar;
-     }
-     else if(codepoint <= 0x10FFFF) {
-       uchar = (unsigned char) 0xF0 | (codepoint >> 18);
-       *p++ = (char)uchar;
-       uchar = (unsigned char) 0x80 | ((codepoint >> 12) & 0x3F);
-       *p++ = (char)uchar;
-       uchar = (unsigned char) 0x80 | ((codepoint >> 6) & 0x3F);
-       *p++ = (char)uchar;
-       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
-       *p++ = (char)uchar;
-     }
-     else
-	return -1; /*invalid*/
-    *p = NUL; /* make sure it is nul terminated. */
-    return (p - dst);
-}
-
-/**
-Convert a utf8 multibyte code to utf32;
-return -1 if invalid;
-return #bytes otherwise.
-*/
-static int
-utf8utf32(utf32* codepointp, utf8* src)
-{
-    /* assert |src| >= MAXCHARSIZE; not necessarily null terminated */
-    utf8* p;
-    utf32 codepoint;
-    int charsize;
-    int c0;
-    static int mask[5] = {0x00,0x7F,0x1F,0x0F,0x07};
-
-    p = src;
-    c0 = (int)*p;
-    charsize = utf8count(c0);
-    if(charsize == 0) return -1; /* invalid */
-    codepoint = 0;
-    /* Process the 1st char in the utf8 codepoint */
-    codepoint = (c0 & mask[charsize]);
-    /* Process all but the first char in utf8 codepoint */
-    while(--charsize > 0)
-	codepoint = (codepoint << 6) | (*p++ & 0x3F);
-    assert((charsize != 1 || codepoint == c0));
-    if(codepointp) *codepointp = codepoint;
-    return 1;    
-}
-
-/**
-Convert len utf32 characters to a string of utf8 characters.
-Stop if src char is NUL32.
-Caller must free returned string.
-Return -1 if error,
-else # bytes processed.
-Return actual number of utf32 chars in lenp
-*/
-static int
-string32string8(utf8* dst, utf32* src, unsigned int *lenp)
-{
-    utf32* p32;
-    utf8* p8;
-    int count,i;
-    unsigned int len = *lenp;
-
-    p32 = src;
-    p8 = dst;
-    for(i=0;i<len;i++) {
-	utf32 c=*p32++;
-	if(c == NUL32) {*p8 = NUL; break;}
-	count = utf32utf8(p8,c);
-	if(count == 0) return -1;
-	p8 += count;
-    }
-    *lenp = (p32 - src);
-    return (p8 - dst);
-}
-
-/**
-Convert *lenp utf8 characters to a string of utf32 characters.
-Stop if the utf8 char is NUL.
-Caller must free returned string.
-Return -1 if error, # utf8 bytes processed otherwise.
-Return actual number of utf32 chars in lenp
-*/
-static int
-string8string32(utf32* dst, utf8* src, unsigned int *lenp)
-{
-    utf32* p32;
-    utf8* p8;
-    int count,i;
-    unsigned int len = *lenp;
-
-    p8 = src;
-    p32 = dst;
-    for(i=0;i<len;i++) {
-	utf8 c=*p8;
-	if(c == NUL) {*src = NUL32; break;}
-	count = utf8utf32(p32, p8);
-	if(count == 0) return -1;
-	p32++;
-	p8 += count;
-    }
-    if(lenp) *lenp = (p32 - dst);
-    return (p8 - src);
-}
-
 /* Replacments for strcpy, strcmp ... */
-static unsigned int
+static int
 strlen32(utf32* s)
 {
     unsigned int len = 0;
-    while(*s++) len++;
+    while(*s++)
+	len++;
     return len;
 }
 
@@ -3487,16 +3361,25 @@ strncmp32(utf32* s1, utf32* s2, unsigned int len)
 }
 
 
+static void
+memcpy32(utf32* dst, utf32* src, int len)
+{
+    memcpy((void*)dst,(void*)src,len*sizeof(utf32));
+}
+
+/**************************************************/
+/* Manage utf32 versus char_t */
+
 /* Test equality of char* string to utf32 string */
 static int
-streq328(utf32* s32, utf8* s8)
+streq328(utf32* s32, char_t* s8)
 {
     utf32 c32;
     int count;
         
     while(*s8 && *s32) {
-	count = utf8utf32(&c32,s8);
-	if(count < 0) fail(NOTTM,EUTF8);
+	count = toChar32(&c32,s8);
+	if(count < 0) fail(NOTTM,ECHAR8);
 	if(c32 != *s32) break;
 	s8 += count;
 	s32++;
@@ -3505,106 +3388,245 @@ streq328(utf32* s32, utf8* s8)
     return 0;
 }
 
-static void
-memcpy32(utf32* dst, utf32* src, unsigned int len)
+/**
+Convert a string of utf32 characters to a string of char_t
+characters.  Stop when len src characters are processed or
+end-of-string is encountered, whichever comes first.
+WARNING: result is not nul-terminated.
+Return: -1 if error, # of dst chars produced otherwise.
+*/
+
+static int
+toString8(char_t* dst, utf32* src, int len)
 {
-    memcpy((void*)dst,(void*)src,len*sizeof(utf32));
+    utf32* p32;
+    char_t* q8;
+    int i;
+
+    p32 = src;
+    q8 = dst;
+    for(i=0;i<len;i++) {
+	int count;
+	utf32 c=*p32++;
+	if(c == NUL32) break;
+	count = toChar8(q8,c);
+	if(count == 0) return -1;
+	q8 += count;
+    }
+    return (q8 - dst);
 }
 
-static void
-fputc32(utf32 c, FILE* f)
+/**
+Convert a string of char_t characters to a string of utf32
+characters.  Stop when len src bytes are processed or
+end-of-string is encountered, whichever comes first.
+WARNING: src length is in bytes, not characters.
+WARNING: result is not nul-terminated.
+Return: -1 if error, # of dst chars produced otherwise.
+*/
+static int
+toString32(utf32* dst, char_t* src, int len)
 {
-    utf8 c8[MAXCHARSIZE+1];
+    utf32* q32;
+    char_t* p8;
+    int i,count;
+
+    p8 = src;
+    q32 = dst;
+    for(count=0,i=0;i<len;i+=count) {
+	char_t c = *p8;
+	if(c == NUL) break;
+	count = toChar32(q32, p8);
+	if(count == 0) return -1;
+	q32++;
+	p8 += count;
+    }
+    return (q32 - dst);
+}
+
+#ifndef ISO_8859
+/**
+Convert a utf32 value to a sequence of char_t bytes.
+Return -1 if invalid; # chars in char_t* dst otherwise.
+*/
+static int
+toChar8(char_t* dst, utf32 codepoint)
+{
+    char_t* p = dst;
+    unsigned char uchar;
+    /* assert |dst| >= MAXCHARSIZE+1 */
+    if(codepoint <= 0x7F) {
+	uchar = (unsigned char)codepoint;
+       *p++ = (char)uchar;
+    } else if(codepoint <= 0x7FF) {
+       uchar = (unsigned char) 0xC0 | (codepoint >> 6);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
+       *p++ = (char)uchar;
+     }
+     else if(codepoint <= 0xFFFF) {
+       uchar = (unsigned char) 0xE0 | (codepoint >> 12);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | ((codepoint >> 6) & 0x3F);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
+       *p++ = (char)uchar;
+     }
+     else if(codepoint <= 0x10FFFF) {
+       uchar = (unsigned char) 0xF0 | (codepoint >> 18);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | ((codepoint >> 12) & 0x3F);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | ((codepoint >> 6) & 0x3F);
+       *p++ = (char)uchar;
+       uchar = (unsigned char) 0x80 | (codepoint & 0x3F);
+       *p++ = (char)uchar;
+     }
+     else
+	return -1; /*invalid*/
+    *p = NUL; /* make sure it is nul terminated. */
+    return (p - dst);
+}
+
+/**
+Convert a char_t multibyte code to utf32;
+return -1 if invalid, #bytes processed from src otherwise.
+*/
+static int
+toChar32(utf32* codepointp, char_t* src)
+{
+    /* assert |src| >= MAXCHARSIZE; not necessarily null terminated */
+    char_t* p;
+    utf32 codepoint;
+    int charsize;
+    unsigned int c0;
+    static int mask[5] = {0x00,0x7F,0x1F,0x0F,0x07};
+    unsigned char bytes[4];
+    int i;
+
+    p = src;
+    c0 = (unsigned int)*p;
+    charsize = utf8count(c0);
+    if(charsize == 0) return -1; /* invalid */
+    /* Process the 1st char in the char_t codepoint */
+    bytes[0] = (c0 & mask[charsize]);
+    for(i=1;i<charsize;i++) {
+	unsigned char c;
+	p++;
+	c = *p;
+	bytes[i] = (c & 0x3F);
+    }
+    codepoint = (bytes[0]);
+    for(i=1;i<charsize;i++) {
+	unsigned char c = bytes[i];
+	codepoint <<= 6;
+	codepoint |= (c & 0x3F);
+    }
+    if(codepointp) *codepointp = codepoint;
+    return 1;    
+}
+
+/* Assumes ismultibyte(c) is true */
+static int
+utf8count(unsigned int c)
+{
+    if(((c) & 0x80) == 0x00) return 1; /* us-ascii */
+    if(((c) & 0xE0) == 0xC0) return 2;
+    if(((c) & 0xF0) == 0xE0) return 3;
+    if(((c) & 0xF8) == 0xF0) return 4;
+    return 0;
+}
+
+#endif /*!ISO_8859*/
+
+#ifdef ISO_8859
+static int
+toChar8(char_t* dst, utf32 codepoint)
+{
+    /* Output codepoint as up to 3 non-0 ISO 88659 characters */
+    char_t* q = dst;
+    int shift = 16;
+    char iso[3];
+    iso[2] = (codepoint >> shift) & 0xFF; shift -= 8;
+    iso[1] = (codepoint >> shift) & 0xFF; shift -= 8;
+    iso[0] = (codepoint >> shift) & 0xFF; shift -= 8;
+    if(iso[2] != 0) *q++ = iso[2];
+    if(iso[1] != 0) *q++ = iso[1];
+    if(iso[0] != 0) *q++ = iso[0];
+    return (q - dst);
+}
+
+static int
+toChar32(utf32* codepointp, char_t* src)
+{
+    *codepointp = (utf32)(*src);
+    return 1;
+}
+#endif
+
+/**************************************************/
+/* Character Input/Output */ 
+
+#ifndef ISO_8859
+/* Unless you know that you are outputing ASCII,
+   all output should go thru this procedure.
+*/
+static void
+fputc32(utf32 c32, FILE* f)
+{
+    char_t c8[MAXCHARSIZE+1];
     int count,i;
-    if((count = utf32utf8(c8,c)) < 0) fail(NOTTM,EUTF32);
+    if((count = toChar8(c8,c32)) < 0) fail(NOTTM,EUTF32);
     for(i=0;i<count;i++) {fputc(c8[i],f);}
 }
 
-/* All reading of characters should go thru this function */
+/* All reading of characters should go thru this procedure. */
 static utf32
 fgetc32(FILE* f)
 {
-    int c;
+    unsigned int c;
     utf32 c32;
         
     c = fgetc(f);
     if(c == EOF) return EOF;
     if(ismultibyte(c)) {
-	utf8 c8[MAXCHARSIZE+1];
+	char_t c8[MAXCHARSIZE+1];
 	int count,i;
 	count = utf8count(c);
-	i=0; c8[i++] = c;
+	i=0; c8[i++] = (char_t)c;
 	while(--count > 0) {
 	    c=fgetc(f);
 	    if(c == EOF) fail(NOTTM,EEOS);
-	    c8[i++] = c;
+	    c8[i++] = (char_t)c;
 	}
 	c8[i] = NUL;
-	count = utf8utf32(&c32,c8);
-	if(count < 0) fail(NOTTM,EUTF8);
+	count = toChar32(&c32,c8);
+	if(count < 0) fail(NOTTM,ECHAR8);
     } else
 	c32 = c;
     return c32;
 }
+#endif /*!ISO_8859*/
 
-/**
-As a convenience, provide a function that simultaneously
-copies and converts UTF8 characters to a utf32 destination. Return
-# of chars prooduced.
-WARNING: does not null terminate the output.
-Basically a wrapper around utf8utf32.
-*/
-   
-static int
-strcvt32(utf32* dst, utf8* src)
+#ifdef ISO_8859
+static void
+fputc32(utf32 c32, FILE* f)
 {
-    utf8* p = src;
-    int c,converted;
-
-    for(converted=0;(c=*p);converted++) {
-	if(ismultibyte(c)) {
-	    utf32 c32;
-	    int count = utf8count(c);
-	    utf8 c8[MAXCHARSIZE+1];
-	    memcpy((void*)c8,p,count);
-	    c8[count] = NUL;
-	    if(utf8utf32(&c32,c8) < 0) fail(NOTTM,EUTF8);	    
-	    *dst++ = c32;
-	    p += count;	    
-	} else { /* simple ascii char */
-	    *dst++ = (utf32)c;
-	    p++;
-	}
-    }
-    return converted;
+    char_t c8[MAXCHARSIZE+1];
+    int count,i;
+    count = toChar8(c8,c32);
+    for(i=0;i<count;i++) fputc(c8[i],f);
 }
 
-/**
-As a convenience, provide a function that simultaneously
-copies and converts UTF32 characters to a utf8 destination. Return
-# of bytes produced.
-WARNING: does not null terminate the output.
-Basically a wrapper around utf32utf8.
-*/
-   
-static int
-strcvt8(utf8* dst, utf32* src)
+/* All reading of characters should go thru this procedure. */
+static utf32
+fgetc32(FILE* f)
 {
-    utf32* p = src;
-    utf8*  q = dst;
-    utf32 c32;
-    int count;
-
-    while((c32=*p++)) {
-        utf8 c8[MAXCHARSIZE+1];
-	count = utf32utf8(c8,c32);
-	if(count <= 0) fail(NOTTM,EUTF32);
-	memcpy(q,c8,count);
-	q += count;
-    }	
-    return (q - dst);
+    int c = fgetc(f);
+    return c;
 }
 
+#endif
 /**************************************************/
 /**
 Implement functions that deal with Linux versus Windows

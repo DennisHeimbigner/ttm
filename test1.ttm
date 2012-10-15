@@ -1,5 +1,12 @@
-#<ds;x;1234>
+#<ds;greek;<ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>>
+#<ds;kanji;龥>
+#<ds;katakana;キャク>
+#<ds;有為の;奥山>
+##<ttm;info;name;greek;kanji;katakana;有為の>
+#<exit>
+#<ds;x;12θ34>
 ##<ap;x;567890>
+##<ss;x;θ>
 ##<ttm;info;name;x>
 ##<rrp;x>
 ##<cc;x>
