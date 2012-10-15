@@ -815,7 +815,6 @@ scan(TTM* ttm)
     Buffer* bb = ttm->buffer;
 
     for(;;) {
-	if(ttm->flags & FLAG_EXIT) break;
 	c = *bb->active; /* NOTE that we do not bump here */
 	if(c == NUL32) { /* End of buffer */
 	    break;
@@ -828,9 +827,10 @@ scan(TTM* ttm)
                     && bb->active[2] == ttm->openc)) {
 		/* It is a real call */
 		exec(ttm,bb);
+	        if(ttm->flags & FLAG_EXIT) goto exiting;
 	    } else {/* not an call; just pass the # along passively */
 	        *bb->passive++ = c;
-		*bb->active++;
+		bb->active++;
 	    }
 	} else if(c == ttm->openc) { /* Start of <...> escaping */
 	    /* skip the leading lbracket */
@@ -864,6 +864,8 @@ scan(TTM* ttm)
 	/* reset bb->active */
 	bb->active = bb->passive;
     }
+exiting:
+    return;
 }
 
 static void
@@ -886,6 +888,7 @@ exec(TTM* ttm, Buffer* bb)
     savepassive = bb->passive;
     parsecall(ttm,frame);
     bb->passive = savepassive;
+    if(ttm->flags & FLAG_EXIT) goto exiting;
 
     /* Now execute this function, which will leave result in bb->result */
     if(frame->argc == 0) fail(ttm,ENONAME);
@@ -902,6 +905,7 @@ exec(TTM* ttm, Buffer* bb)
     if(fcn->builtin) {
 	fcn->fcn(ttm,frame);
 	if(fcn->novalue) resetBuffer(ttm,ttm->result);
+	if(ttm->flags & FLAG_EXIT) goto exiting;
     } else /* invoke the pseudo function "call" */
 	call(ttm,frame,fcn->body);
 
@@ -950,6 +954,7 @@ fprintf(stderr,"\n");
 #endif
 
     }
+exiting:
     popFrame(ttm);
 }
 
@@ -994,6 +999,7 @@ fprintf(stderr,"\n");
                         && bb->active[2] == ttm->openc)) {
                     /* Recurse to compute inner call */
                     exec(ttm,bb);
+		    if(ttm->flags & FLAG_EXIT) goto exiting;
                 }
 		*bb->passive++ = *bb->active++;
             } else if(c == ttm->openc) {/* <...> nested brackets */
@@ -1025,6 +1031,8 @@ fprintf(stderr,"\n");
             }
 	} /* collect argument for */
     } while(!done);
+exiting:
+    return;
 }
 
 /**************************************************/
@@ -2334,27 +2342,40 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
         str = dictionaryLookup(ttm,frame->argv[i]);
         if(str == NULL) fail(ttm,ENONAME);
         namelen = strlen32(str->name);
-        strcpy32(q,str->name);
-        q += namelen;
-        snprintf(info,sizeof(info),",%d,%d,%s",
-                 str->minargs,str->maxargs,(str->novalue?"S":"V"));
-        count = toString32(q,info,TOEOS);
-        q += count;
-        if(!str->builtin) {
-            snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
-            count = toString32(q,info,TOEOS);
-            q += count;
-            /* Walk the body checking for segment and creation marks */
-            p=str->body;
-            while((c32=*p++)) {
-                if(testMark(c32,SEGMARK)) {
-                    snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
-                    count = toString32(q,info,TOEOS);
-                    q += count;
-                } else
-                    *q++ = c32;
-            }
-            *q++ = '|';
+	strcpy32(q,str->name);
+	q += namelen;
+	if(str->builtin) {
+	    snprintf(info,sizeof(info),",%d,",str->minargs);
+	    count = toString32(q,info,TOEOS);
+	    q += count;
+	    if(str->minargs < 0)
+		*q++ = '*';
+	    else {
+		snprintf(info,sizeof(info),"%d",str->maxargs);
+		count = toString32(q,info,TOEOS);
+		q += count;
+	    }
+	    *q++ = ',';
+	    *q++ = (str->novalue?'S':'V');
+	} else {
+	    count = toString32(q,",-,-,V",TOEOS);
+	    q += count;
+	}
+	if(!str->builtin) {
+	    snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
+	    count = toString32(q,info,TOEOS);
+	    q += count;
+	    /* Walk the body checking for segment and creation marks */
+	    p=str->body;
+	    while((c32=*p++)) {
+		if(testMark(c32,SEGMARK)) {
+		    snprintf(info,sizeof(info),"$%02d",(int)(c32 & 0xFF));
+		    count = toString32(q,info,TOEOS);
+		    q += count;
+		} else
+		    *q++ = c32;
+	    }
+	    *q++ = '|';
 	}
 	*q++ = '\n';
     }
@@ -2567,8 +2588,8 @@ static struct Builtin builtin_orig[] = {
     {NULL,0,0,NULL} /* terminator */
     };
     
-    /* Functions new to this implementation */
-    static struct Builtin builtin_new[] = {
+/* Functions new to this implementation */
+static struct Builtin builtin_new[] = {
     {"argv",1,1,"V",ttm_argv}, /* Get ith command line argument */
     {"include",1,1,"S",ttm_include}, /* Include text of a file */
     {"ttm",1,ARB,"SV",ttm_ttm}, /* Misc. combined actions */
@@ -2608,6 +2629,50 @@ defineBuiltinFunctions(TTM* ttm)
 	defineBuiltinFunction1(ttm,bin);
     for(bin=builtin_new;bin->name != NULL;bin++)
 	defineBuiltinFunction1(ttm,bin);
+}
+
+/**************************************************/
+/* Predefined strings */
+struct Predefined {
+    char* name;
+    char* body;
+};
+
+/* Predefined Strings */
+static struct Predefined predefines[] = {
+    {"def","#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>#<ss;def;name;subs;text>"},
+    {"ignore","#<def;ignore;text;>"},
+    {NULL,NULL} /* terminator */
+};
+
+static void
+predefineNames(TTM* ttm)
+{
+    struct Predefined* pre;
+    utf32 name32[64];
+    int count,bodylen;
+    Name* fcn;
+    int saveflags = ttm->flags;
+    ttm->flags &= ~FLAG_TRACE;
+
+    for(pre=predefines;pre->name != NULL;pre++) {
+	bodylen = strlen(pre->body);
+	resetBuffer(ttm,ttm->buffer);
+	setBufferLength(ttm,ttm->buffer,bodylen); /* temp */
+	count = toString32(ttm->buffer->content,pre->body,bodylen);	
+	setBufferLength(ttm,ttm->buffer,count);
+	scan(ttm);
+	resetBuffer(ttm,ttm->buffer); /* throw away any result */
+	/* Validate */
+	if(strlen(pre->name) >= sizeof(name32)/sizeof(utf32))
+	    fatal(ttm,"Predefined Name name is too long");
+	count = toString32(name32,pre->name,TOEOS);
+	name32[count] = NUL32;
+        fcn = dictionaryLookup(ttm,name32);
+        if(fcn == NULL) fatal(ttm,"Could not define a predefined name");
+    }
+    ttm->flags = saveflags;
+
 }
 
 /**************************************************/
@@ -3236,6 +3301,7 @@ main(int argc, char** argv)
     ttm->output = outputfile;
 
     defineBuiltinFunctions(ttm);
+    predefineNames(ttm);
 
     /* Execute the -e strings in turn */
     for(i=0;eoptions[i]!=NULL;i++) {
