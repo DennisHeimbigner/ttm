@@ -178,14 +178,6 @@ Return info about each namei.
 Return info about each classi.
 </table>
 </table>
-<p>
-<b><u>argv</u></b><br>
-<b>Specification: </b>argv,1,1,V<br>
-<b>Invocation: </b><td>#&lt;argv;i&gt;<br>
-Return the i'th command line argument
-starting at 0 (like java, not like C).
-The parameter i should be a a non-negative
-integer.
 
 <p>
 <b><u>include</u></b><br>
@@ -202,8 +194,50 @@ also implies that the parameter filename must be a
 relative path. If the result from reading the file is unwanted,
 then one should use "-e #&lt;include;filename&gt;" on the command line.
 
+<p>
+<b><u>argv</u></b><br>
+<b>Specification: </b>argv,1,1,V<br>
+<b>Invocation: </b><td>#&lt;argv;i&gt;<br>
+Return the i'th command line argument
+starting at 0 (like java, not like C).
+The parameter i should be a a non-negative
+integer.
+
+<p>
+<b><u>classes</u></b><br>
+<b>Specification: </b>classes,0,0,V<br>
+<b>Invocation: </b><td>#&lt;classes&gt;<br>
+Return the names of all defined character classes
+arranged in sorted order and separated by commas.
+
+<p>
+<b><u>pf</u></b><br>
+<b>Specification: </b>pf,0,1,S<br>
+<b>Invocation: </b>#&lt;pf;stderr&gt;<br>
+If no arguments are given, then flush stdout and stderr.
+If the single argument is the string 'stderr',
+then flush stderr.
+If the single argument is the string 'stdout'
+then flush stdout.
+
 <h3>Modifications to Function Semantics</h3>
 The semantics of the following functions others have been changed.
+<p>
+<b><u>ad</u></b><br>
+<b>Specification: </b>ad,2,*,V<br>
+<b>Invocation: </b>#&lt;ad;num1;...numn&gt;<br>
+This function normally takes only two arguments.
+It has been extended to take an arbitrary number
+of arguments and return the sum of all of the arguments.
+
+<p>
+<b><u>mu</u></b><br>
+<b>Specification: </b>mu,2,*,V<br>
+<b>Invocation: </b>#&lt;mu;num1;...numn&gt;<br>
+This function normally takes only two arguments.
+It has been extended to take an arbitrary number
+of arguments and return the product of all of the arguments.
+
 <p>
 <b><u>ps</u></b><br>
 <b>Specification: </b>ps,1,2,S<br>
@@ -257,6 +291,82 @@ This was changed to allow optional specification
 of a return code.
 
 <p>
+<b><u>names</u></b><br>
+<b>Specification: </b>exit,0,1,V<br>
+<b>Invocation: </b>#&lt;names&gt;</br>
+This was changed so that
+if the second argument is present, then
+all names are returned, otherwise only non-builtin
+names are returned.
+
+<p>
+<b><u>tn</u></b><br>
+<b>Specification: </b>tn,0,*,V<br>
+<b>Invocation: </b>#&lt;tn;name1;...namen&gt;</br>
+This was changed so that only the specified function names
+will be traced. If there are no names provided, then all function
+invocations will be traced.
+
+<p>
+<b><u>tf</u></b><br>
+<b>Specification: </b>tf,0,*,V<br>
+<b>Invocation: </b>#&lt;tn;name1;...namen&gt;</br>
+This was changed so that only the specified function names
+will have tracing turned off. If there are no names provided, then no
+function invocations will be traced. Note that turning off all tracing
+will turn off tracing on all specific function.
+
+<p>
+<b><u>ps</u></b><br>
+<b>Specification: </b>ps,1,2,S<br>
+<b>Invocation: </b>#&lt;ps;string;stdxx&gt;</br>
+This was changed to an optional allow a second argument that
+specifies sending the output to either "stdout"
+or "stderr". If missing, then stdout is assumed.
+Additionally, in order to avoid spoofing, all control
+characters except newline are elided and a final newline is forced.
+
+<p>
+<b><u>rs</u></b><br>
+<b>Specification: </b>rs,0,0,S<br>
+<b>Invocation: </b>#&lt;rs&gt;</br>
+In order to avoid spoofing, the string 'ttm>' is printed
+before reading.
+
+<p>
+<b><u>rs</u></b><br>
+<b>Specification: </b>rs,0,0,S<br>
+<b>Invocation: </b>#&lt;rs&gt;</br>
+In order to avoid spoofing, the string 'ttm>' is printed
+before reading.
+
+<p>
+The time function from the interactive version differs from
+that of the batch version. The interactive time function
+corresponds to the batch xtime function and the batch time
+function returns time of day instead of execution time.
+The batch versions of time and xtime are implemented.
+In additon, ctime is implemented to give time of day
+in Unix ctime format.
+<p>
+<b><u>time</u></b><br>
+<b>Specification: </b>time,0,0,V<br>
+<b>Invocation: </b>#&lt;time&gt;</br>
+Returns the time of day in 100'ths of second
+from ?.
+<p>
+<b><u>xtime</u></b><br>
+<b>Specification: </b>xtime,0,0,V<br>
+<b>Invocation: </b>#&lt;time&gt;</br>
+Returns the execution time in 100'ths of second.
+<p>
+<b><u>ctime</u></b><br>
+<b>Specification: </b>ctime,1,1,V<br>
+<b>Invocation: </b>#&lt;ctime;time&gt;</br>
+Convert the time (the result of a call to #&lt;time&gt)
+to a printable string as defined by the Unix ctime function.
+
+<p>
 A number of functions (#&lt;gn&gt;, $&lt;cn&gt;, etc.)
 are supposed to return some fixed number of characters.
 The original documentation is silent about what should
@@ -298,19 +408,70 @@ The following functions from the original ttm
 are implemented.
 
 <table>
-<tr><td>abs,1,1,V<td>ad,2,2,V<td>ap,2,2,S<td>cc,1,1,SV
-<tr><td>ccl,2,2,SV<td>cf,2,2,S<td>cm,1,1,S<td>cn,2,2,SV
-<tr><td>cp,1,1,SV<td>cr,2,2,S<td>cs,1,1,SV<td>dcl,2,2,S
-<tr><td>dncl,2,2,S<td>ds,2,2,S<td>dv,2,2,V<td>dvr,2,2,V
-<tr><td>ecl,1,*,S<td>eos,2,2,S<td>eq,4,4,V<td>eq?,4,4,V
-<tr><td>es,1,*,S<td>exit,0,0,S<td>flip,2,2,S<td>gn,2,2,S
-<tr><td>gt,4,4,V<td>gt?,4,4,V<td>isc,4,4,SV<td>lt,4,4,V
-<tr><td>lt?,4,4,V<td>mu,2,2,V<td>names,0,1,S<td>ndf,3,3,S
-<tr><td>norm,1,1,S<td>ps,1,2,S<td>psr,1,1,SV
-<tr><td>rrp,1,1,S<td>rs,0,0,V<td>sc,2,63,SV<td>scl,2,2,S
-<tr><td>scn,3,3,SV<td>sn,2,2,S<td>ss,2,2,S<td>su,2,2,V
-<tr><td>tcl,4,4,V<td>tf,0,0,S<td>time,0,0,V<td>tn,0,0,S
-<tr><td>zlc,1,1,V<td>zlcp,1,1,V
+<tr>
+<td>abs,1,1,V
+<td>ad,2,2,V
+<td>ap,2,2,S
+<td>cc,1,1,SV
+<tr>
+<td>ccl,2,2,SV
+<td>cf,2,2,S
+<td>cm,1,1,S
+<td>cn,2,2,SV
+<tr>
+<td>cp,1,1,SV
+<td>cr,2,2,S
+<td>cs,1,1,SV
+<td>ctime,1,1,V
+<tr>
+<td>dcl,2,2,S
+<td>dncl,2,2,S
+<td>ds,2,2,S
+<td>dv,2,2,V
+<tr>
+<td>dvr,2,2,V
+<td>ecl,1,*,S
+<td>eos,3,3,V
+<td>eq,4,4,V
+<tr>
+<td>eq?,4,4,V
+<td>es,1,*,S
+<td>exit,0,0,S
+<td>flip,1,1,V
+<tr>
+<td>gn,2,2,V
+<td>gt,4,4,V
+<td>gt?,4,4,V
+<td>isc,4,4,SV
+<tr>
+<td>lt,4,4,V
+<td>lt?,4,4,V
+<td>mu,2,2,V
+<td>names,0,1,V
+<tr>
+<td>ndf,3,3,V
+<td>norm,1,1,V
+<td>ps,1,2,S
+<td>psr,1,1,SV
+<tr>
+<td>rrp,1,1,S
+<td>rs,0,0,V
+<td>sc,2,63,SV
+<td>scl,2,2,S
+<tr>
+<td>scn,3,3,SV
+<td>sn,2,2,S
+<td>ss,2,2,S
+<td>su,2,2,V
+<tr>
+<td>tcl,4,4,V
+<td>tf,0,0,S
+<td>time,0,0,V
+<td>tn,0,0,S
+<tr>
+<td>xtime,0,0,V
+<td>zlc,1,1,V
+<td>zlcp,1,1,V
 </table>
 
 <h2>UNIMPLEMENTED FUNCTIONS</h2>
@@ -326,11 +487,22 @@ The following functions from the batch ttm
 are not implemented.
 <p>
 <table>
-<td>insw,2,2,S<td>ttmsw,2,2,S<td>cd,0,0,V<td>cdsw,2,2,S
-<td>for,0,0,V<td>forsw,2,2,S<td>pk,0,0,V<td>pksw,2,2,S
-<td>ps,1,1,S<td>page,1,1,S<td>sp,1,1,S<td>fm,0,*,S
-<td>tabs,1,10,S<td>scc,3,3,S<td>fmsw,2,2,S<td>time,0,0,V
-<td>xtime,0,0,V<td>des,1,1,S
+<tr><td>insw,2,2,S
+<td>ttmsw,2,2,S
+<td>cd,0,0,V
+<td>cdsw,2,2,S
+<td>for,0,0,V
+<td>forsw,2,2,S
+<td>pk,0,0,V
+<td>pksw,2,2,S
+<td>ps,1,1,S
+<td>page,1,1,S
+<td>sp,1,1,S
+<td>fm,0,*,S
+<td>tabs,1,10,S
+<td>scc,3,3,S
+<td>fmsw,2,2,S
+<td>des,1,1,S
 </table>
 </body>
 </html>
