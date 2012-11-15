@@ -1,0 +1,14 @@
+include Makefile
+
+git::
+	sh ./git.sh
+
+install::
+	cp -fr ./git/ttm f:/git
+
+
+T1=t.ttm a b c
+q0:: ttm.exe
+	./ttm ${T1}
+qq:: ttm.exe
+	gdb --args ttm ${T1}

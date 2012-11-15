@@ -2,9 +2,14 @@
 This software is released under the terms of the Apache License version 2.
 For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 */
+
 /**************************************************/
 
-#if 0
+#define VERSION "1.0"
+
+/**************************************************/
+
+#if 1
 #define DEBUG 1
 #endif
 
@@ -3519,7 +3524,11 @@ main(int argc, char** argv)
 		if(execcount == 0 && (execcount = tagvalue(p)) < 0)
 		    usage("Illegal execcount");
 		break;
-	    default: usage("Illegal -X tag");
+	    case 'V':
+		printf("ttm version: %s\n",VERSION);
+		usage("");
+		break;
+	    default: usage("Illegal option");
 	    }
 
 	case 'd':

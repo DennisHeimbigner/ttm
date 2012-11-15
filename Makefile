@@ -21,11 +21,3 @@ check:: ttm.exe
 	./ttm ${TESTCMD} <./tmp >& ./test.output
 	diff -w ./test.baseline ./test.output
 
-T1=t.ttm a b c
-q0:: ttm.exe
-	./ttm ${T1}
-qq:: ttm.exe
-	gdb --args ttm ${T1}
-
-
-
