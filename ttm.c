@@ -9,7 +9,7 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 
 /**************************************************/
 
-#if 1
+#if 0
 #define DEBUG 1
 #endif
 
@@ -3524,11 +3524,7 @@ main(int argc, char** argv)
 		if(execcount == 0 && (execcount = tagvalue(p)) < 0)
 		    usage("Illegal execcount");
 		break;
-	    case 'V':
-		printf("ttm version: %s\n",VERSION);
-		usage("");
-		break;
-	    default: usage("Illegal option");
+	    default: usage("Illegal -X option");
 	    }
 
 	case 'd':
@@ -3555,8 +3551,9 @@ main(int argc, char** argv)
 		outputfilename = strdup(optarg);
 	    break;
 	case 'V':
-	    printf("TTM Version 1.0\n");
+	    printf("ttm version: %s\n",VERSION);
 	    exit(0);
+	    break;
 	case '-':
 	    break;
 	case '?':
