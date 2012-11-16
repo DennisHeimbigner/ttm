@@ -105,7 +105,7 @@ typedef int utf32; /* 32-bit utf char type; signed is ok
 
 /**************************************************/
 static void
-makespace(utf32* dst, utf32* src, unsigned long len)
+makespace(utf32* dst, utf32* src, unsigned int len)
 {
 #ifdef HAVE_MEMMOVE
     memmove((void*)dst,(void*)src,len*sizeof(utf32));
@@ -268,13 +268,13 @@ TTM state object
 
 struct TTM {
     struct Limits {
-        long buffersize;
-        long stacksize;
-        long execcount;
+        unsigned int buffersize;
+        unsigned int stacksize;
+        unsigned int execcount;
     } limits;
-    unsigned long flags;
-    unsigned long exitcode;
-    unsigned long crcounter; /* for cr marks */
+    unsigned int flags;
+    unsigned int exitcode;
+    unsigned int crcounter; /* for cr marks */
     utf32 sharpc; /* sharp-like char */
     utf32 openc; /* <-like char */
     utf32 closec; /* >-like char */
@@ -283,7 +283,7 @@ struct TTM {
     utf32 metac; /* read eof char */
     Buffer* buffer; /* contains the string being processed */
     Buffer* result; /* contains result strings from functions */
-    int stacknext; /* |stack| == (stacknext) */
+    unsigned int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
     int   isstdout;
@@ -303,8 +303,8 @@ we can use pointers into the buffer space in e.g. struct Name.
  */
 
 struct Buffer {
-    unsigned long alloc;  /* including trailing NUL */
-    unsigned long length;  /* including trailing NUL; defines what of
+    unsigned int alloc;  /* including trailing NUL */
+    unsigned int length;  /* including trailing NUL; defines what of
                              the allocated space is actual content. */
     utf32* active; /* characters yet to be scanned */
     utf32* passive; /* characters that will never be scanned again */
@@ -318,7 +318,7 @@ struct Buffer {
 
 struct Frame {
   utf32* argv[MAXARGS+1];
-  int argc;
+  unsigned int argc;
   int active; /* 1 => # 0 => ## */
 };
 
@@ -334,11 +334,11 @@ struct Name {
     int trace;
     int locked;
     int builtin;
-    int minargs;
-    int maxargs;
+    unsigned int minargs;
+    unsigned int maxargs;
     int novalue; /* must always return no value */
-    int residual;
-    int maxsegmark; /* highest segment mark number
+    unsigned int residual;
+    unsigned int maxsegmark; /* highest segment mark number
                                 in use in this string */
     TTMFCN fcn; /* builtin == 1 */
     utf32* body; /* builtin == 0 */
@@ -361,11 +361,11 @@ struct Charclass {
 
 static TTM* newTTM(long,long,long);
 static void freeTTM(TTM*);
-static Buffer* newBuffer(TTM*, unsigned long buffersize);
+static Buffer* newBuffer(TTM*, unsigned intbuffersize);
 static void freeBuffer(TTM*, Buffer* bb);
-static void expandBuffer(TTM*, Buffer* bb, unsigned long len);
+static void expandBuffer(TTM*, Buffer* bb, unsigned int len);
 static void resetBuffer(TTM*, Buffer* bb);
-static void setBufferLength(TTM*, Buffer* bb, unsigned long len);
+static void setBufferLength(TTM*, Buffer* bb, unsigned int len);
 static Frame* pushFrame(TTM*);
 static Frame* popFrame(TTM*);
 static Name* newName(TTM*);
@@ -454,7 +454,7 @@ static void trace1(TTM*, int depth, int entering, int tracing);
 static void dumpstack(TTM*);
 static void dbgprint32(utf32* s, char quote);
 static int getOptionNameLength(char** list);
-static int pushOptionName(char* option, int max, char** list);
+static int pushOptionName(char* option, unsigned int max, char** list);
 static void initglobals();
 static void usage(const char*);
 static void convertDtoE(const char* def);
@@ -464,7 +464,7 @@ static void printbuffer(TTM*);
 static int readfile(TTM*, FILE* file, Buffer* bb);
 
 /* utf32 replacements for common unix strXXX functions */
-static int strlen32(utf32* s);
+static unsigned int strlen32(utf32* s);
 static void strcpy32(utf32* dst, utf32* src);
 static void strncpy32(utf32* dst, utf32* src, unsigned int len);
 static utf32* strdup32(utf32* src);
@@ -532,7 +532,7 @@ freeTTM(TTM* ttm)
 /**************************************************/
 
 static Buffer*
-newBuffer(TTM* ttm, unsigned long buffersize)
+newBuffer(TTM* ttm, unsigned int buffersize)
 {
     Buffer* bb;
     bb = (Buffer*)calloc(1,sizeof(Buffer));
@@ -557,7 +557,7 @@ freeBuffer(TTM* ttm, Buffer* bb)
 
 /* Make room for a string of length n at current active position. */
 static void
-expandBuffer(TTM* ttm, Buffer* bb, unsigned long len)
+expandBuffer(TTM* ttm, Buffer* bb, unsigned int len)
 {
     assert(bb != NULL);
     if((bb->alloc - bb->length) < len) fail(ttm,EBUFFERSIZE);
@@ -575,7 +575,7 @@ expandBuffer(TTM* ttm, Buffer* bb, unsigned long len)
 #if 0
 /* Remove len characters at current position */
 static void
-compressBuffer(TTM* ttm, Buffer* bb, unsigned long len)
+compressBuffer(TTM* ttm, Buffer* bb, unsigned int len)
 {
     assert(bb != NULL);
     if(len > 0 && bb->active < bb->end) {
@@ -603,7 +603,7 @@ resetBuffer(TTM* ttm, Buffer* bb)
    If space is added, its content is undefined.
 */
 static void
-setBufferLength(TTM* ttm, Buffer* bb, unsigned long len)
+setBufferLength(TTM* ttm, Buffer* bb, unsigned int len)
 {
     if(len >= bb->alloc) fail(ttm,EBUFFERSIZE);
     bb->length = len;
@@ -894,7 +894,7 @@ scan(TTM* ttm)
 
     /* When we get here, we are finished, so clean up */
     { 
-	unsigned long newlen;
+	unsigned int newlen;
 	/* reset the buffer length using bb->passive.*/
 	newlen = bb->passive - bb->content;
 	setBufferLength(ttm,bb,newlen);
@@ -958,9 +958,9 @@ fprintf(stderr,"\n");
     /* Now, put the result into the buffer */
     if(!fcn->novalue && ttm->result->length > 0) {
 	utf32* insertpos;
-	unsigned long resultlen = ttm->result->length;
+	unsigned int resultlen = ttm->result->length;
 	/*Compute the space avail between bb->passive and bb->active */
-	unsigned long avail = (bb->active - bb->passive); 
+	unsigned int avail = (bb->active - bb->passive); 
 	/* Compute amount we need to expand, if any */
 	if(avail < resultlen)
 	    expandBuffer(ttm,bb,(resultlen - avail));/*will change bb->active*/
@@ -1081,14 +1081,14 @@ call(TTM* ttm, Frame* frame, utf32* body)
 {
     utf32* p;
     utf32 c;
-    unsigned long len;
+    unsigned int len;
     utf32* result;
     utf32* dst;
 
     /* Compute the size of the output */
     for(len=0,p=body;(c=*p++);) {
 	if(testMark(c,SEGMARK)) {
-	    int segindex = (int)(*p++);
+	    unsigned int segindex = (unsigned int)(*p++);
 	    if(segindex < frame->argc)
 	        len += strlen32(frame->argv[segindex]);
 	    /* else treat as empty string */
@@ -1105,7 +1105,7 @@ call(TTM* ttm, Frame* frame, utf32* body)
     dst[0] = NUL32; /* so we can use strcat */
     for(p=body;(c=*p++);) {
 	if(testMark(c,SEGMARK)) {
-	    int segindex = (int)(c & 0xFF);
+	    unsigned int segindex = (unsigned int)(c & 0xFF);
 	    if(segindex < frame->argc) {
 		utf32* arg = frame->argv[segindex];
 	        strcpy32(dst,arg);
@@ -1288,7 +1288,7 @@ ttm_ds(TTM* ttm, Frame* frame)
 static void
 ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 {
-    int i;
+    unsigned int i;
     for(i=1;i<frame->argc;i++) {
 	utf32* strname = frame->argv[i];
 	Name* prev = dictionaryRemove(ttm,strname);
@@ -1303,7 +1303,7 @@ static int
 ttm_ss0(TTM* ttm, Frame* frame)
 {
     Name* str;
-    int i,segcount,startseg,bodylen;
+    unsigned int i,segcount,startseg,bodylen;
     utf32* startp;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
@@ -1511,8 +1511,8 @@ ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointe
     utf32* f;
     utf32* result;
     utf32* arg;
-    int arglen;
-    int slen;
+    unsigned int arglen;
+    unsigned int slen;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1817,7 +1817,7 @@ ttm_dncl(TTM* ttm, Frame* frame) /* Define a negative class */
 static void
 ttm_ecl(TTM* ttm, Frame* frame) /* Erase a class */
 {
-    int i;
+    unsigned int i;
     for(i=1;i<frame->argc;i++) {
 	utf32* clname = frame->argv[i];
 	Charclass* prev = charclassRemove(ttm,clname);
@@ -1915,7 +1915,7 @@ ttm_ad(TTM* ttm, Frame* frame) /* Add */
     long long num;
     long long total;
     ERR err;
-    int i,count;
+    unsigned int i,count;
 
     total = 0;
     for(i=1;i<frame->argc;i++) {
@@ -1980,7 +1980,7 @@ ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
     long long num;
     long long total;
     ERR err;
-    int i,count;
+    unsigned int i,count;
 
     total = 1;
     for(i=1;i<frame->argc;i++) {
@@ -2231,7 +2231,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names in sorted or
 {
     int i,nnames,index,allnames;
     utf32** names;
-    unsigned long len;
+    unsigned int len;
     utf32* p;
 
     allnames = (frame->argc > 1 ? 1 : 0);
@@ -2397,7 +2397,7 @@ static void
 ttm_tf(TTM* ttm, Frame* frame) /* Turn Trace Off */
 {
     if(frame->argc > 1) {/* trace off specific*/
-	int i;
+	unsigned int i;
 	for(i=1;i<frame->argc;i++) {
 	    Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
 	    if(fcn == NULL) fail(ttm,ENONAME);	    
@@ -2420,7 +2420,7 @@ static void
 ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */
 {
     if(frame->argc > 1) {/* trace specific*/
-	int i;
+	unsigned int i;
 	for(i=1;i<frame->argc;i++) {
 	    Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
 	    if(fcn == NULL) fail(ttm,ENONAME);	    
@@ -2457,7 +2457,7 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
 {
     int i,nclasses,index;
     utf32** classes;
-    unsigned long len;
+    unsigned int len;
     utf32* p;
 
     /* First, figure out the number of classes */
@@ -2517,7 +2517,7 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
 static void
 ttm_lf(TTM* ttm, Frame* frame) /* Lock a function from being deleted */
 {
-    int i;
+    unsigned int i;
     for(i=1;i<frame->argc;i++) {
 	Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
 	if(fcn == NULL) fail(ttm,ENONAME);	    
@@ -2528,7 +2528,7 @@ ttm_lf(TTM* ttm, Frame* frame) /* Lock a function from being deleted */
 static void
 ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
 {
-    int i;
+    unsigned int i;
     for(i=1;i<frame->argc;i++) {
 	Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
 	if(fcn == NULL) fail(ttm,ENONAME);	    
@@ -2613,7 +2613,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
     utf32* q;
     utf32* p;
     utf32 c32;
-    int namelen,count,i;
+    unsigned int namelen,count,i;
 
     setBufferLength(ttm,result,result->alloc-1);
     q = result->content;
@@ -2634,7 +2634,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
 	    snprintf(info,sizeof(info),",%d,",str->minargs);
 	    count = toString32(q,info,TOEOS);
 	    q += count;
-	    if(str->minargs < 0)
+	    if(str->maxargs == MAXARGS)
 		*q++ = '*';
 	    else {
 		snprintf(info,sizeof(info),"%d",str->maxargs);
@@ -2688,7 +2688,7 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame) /* Misc. combined actions */
     utf32* q;
     utf32* p;
     utf32 c32;
-    int i,len;
+    unsigned int i,len;
     Buffer* result = ttm->result;
 
     q = result->content;
@@ -2758,8 +2758,8 @@ ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
 
 struct Builtin {
     char* name;
-    int minargs;
-    int maxargs;
+    unsigned int minargs;
+    unsigned int maxargs;
     char* sv;
     TTMFCN fcn;
 };
@@ -2769,7 +2769,7 @@ struct Builtin {
 /* Define a subset of the original TTM functions */
 
 /* Define some temporary macros */
-#define ARB -1
+#define ARB MAXARGS
 
 static struct Builtin builtin_orig[] = {
     /* Dictionary Operations */
@@ -3106,7 +3106,7 @@ toInt64(utf32* s, long long* lp)
     if(c == '-') {negative = -1; c=*p++;} else if(c == '+') {c=*p++;}
     if(c == NUL) return EDECIMAL; /* just a +|- */
     if(c == '0' && (*p == 'x' || *p == 'X')) { /* hex case */
-	unsigned long long ul = 0;
+	unsigned long ul = 0;
 	int i;
 	for(i=0;i<16;i++) {/* allow no more than 16 hex digits */
 	    c=*p++;
@@ -3167,7 +3167,7 @@ static void
 traceframe(TTM* ttm, Frame* frame, int traceargs)
 {
     char tag[4];
-    int i = 0;
+    unsigned int i = 0;
 
     tag[i++] = (char)ttm->sharpc;
     if(!frame->active)
@@ -3227,10 +3227,10 @@ Dump the stack
 static void
 dumpstack(TTM* ttm)
 {
-    int i;
-    for(i=ttm->stacknext-1;i>=0;i--) {
+    unsigned int i;
+    for(i=1;i<=ttm->stacknext;i++) {
 	Frame* frame;
-	frame = &ttm->stack[i];
+	frame = &ttm->stack[ttm->stacknext-i];
         trace1(ttm,i,1,!TRACING);
     }
     fflush(stderr);
@@ -3282,16 +3282,16 @@ dbgprint32(utf32* s, char quote)
 static int
 getOptionNameLength(char** list)
 {
-    int i;
+    unsigned int i;
     char** p;
     for(i=0,p=list;*p;i++,p++);
     return i;
 }
 
 static int
-pushOptionName(char* option, int max, char** list)
+pushOptionName(char* option, unsigned int max, char** list)
 {
-    int i;
+    unsigned int i;
     for(i=0;i<max;i++) {
 	if(list[i] == NULL) {
 	    list[i] = (char*)malloc(strlen(option)+1);
@@ -3347,7 +3347,7 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     FILE* f = NULL;
     int isstdin = 0;
     unsigned int i;
-    unsigned long buffersize = bb->alloc;
+    unsigned int buffersize = bb->alloc;
 
     if(strcmp(filename,"-") == 0) {
 	/* Read from stdinput */
@@ -3396,9 +3396,8 @@ readbalanced(TTM* ttm)
     Buffer* bb;
     utf32* content;
     utf32 c32;
-    int depth,i;
-
-    unsigned long buffersize;
+    unsigned int depth,i;
+    unsigned int buffersize;
 
     bb = ttm->buffer;
     resetBuffer(ttm,bb);
@@ -3463,7 +3462,7 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
 static long
 tagvalue(const char* p)
 {
-    unsigned long value;
+    unsigned int value;
     int c;
     if(p == NULL || p[0] == NUL)
 	return -1;
@@ -3680,7 +3679,7 @@ done:
 }
 
 /* Replacments for strcpy, strcmp ... */
-static int
+static unsigned int
 strlen32(utf32* s)
 {
     unsigned int len = 0;
@@ -3981,7 +3980,7 @@ fputc32(utf32 c32, FILE* f)
 static utf32
 fgetc32(FILE* f)
 {
-    unsigned int c;
+    int c;
     utf32 c32;
         
     c = fgetc(f);

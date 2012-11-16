@@ -6,7 +6,7 @@ clean::
 	rm -f ttm.exe ttm ttm.txt test.output tmp
 
 ttm.exe: ttm.c
-	gcc -Wall -Wdeclaration-after-statement -g -O0 -o ttm ttm.c
+	gcc -Wsign-compare -Wall -Wdeclaration-after-statement -g -O0 -o ttm ttm.c
 
 ttm.txt::
 	rm -f ttm.txt
