@@ -283,7 +283,7 @@ struct TTM {
     utf32 metac; /* read eof char */
     Buffer* buffer; /* contains the string being processed */
     Buffer* result; /* contains result strings from functions */
-    unsigned int stacknext; /* |stack| == (stacknext) */
+    int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
     int   isstdout;
@@ -337,8 +337,8 @@ struct Name {
     int minargs;
     int maxargs;
     int novalue; /* must always return no value */
-    unsigned int residual;
-    unsigned int maxsegmark; /* highest segment mark number
+    int residual;
+    int maxsegmark; /* highest segment mark number
                                 in use in this string */
     TTMFCN fcn; /* builtin == 1 */
     utf32* body; /* builtin == 0 */

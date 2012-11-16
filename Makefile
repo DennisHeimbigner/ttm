@@ -2,7 +2,7 @@
 
 all: ttm.exe
 
-clean:
+clean::
 	rm -f ttm.exe ttm ttm.txt test.output tmp
 
 ttm.exe: ttm.c
@@ -14,12 +14,10 @@ ttm.txt::
 
 TESTTTM=test.ttm
 TESTARGS=a b c
-TESTRFLAG=-r ./tmp
+TESTRFLAG=-r test.rs
 
 check:: ttm.exe
-	rm -f ./tmp ./test.output
-	echo "line1.line2" >>./tmp
-	echo "line3" >>./tmp
+	rm -f ./test.output
 	./ttm ${TESTRFLAG} ${TESTTTM} ${TESTARGS} >& ./test.output
 	diff -w ./test.baseline ./test.output
 
