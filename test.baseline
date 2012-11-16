@@ -10,15 +10,15 @@ comment,0,0,V residual=0 body=||
 [00] end: #<pf> => ""
 [00] begin: ##<psr;reading line1>
 reading line1
-ttm>[00] end: ##<psr> => "line1.line2"
+[00] end: ##<psr> => "line1.line2"
 [00] begin: ##<rs>
-ttm>[00] end: ##<rs> => "line3"
+[00] end: ##<rs> => "line3"
 [00] begin: #<cm;.>
 [00] end: #<cm> => ""
 [00] begin: ##<rs;reading line1>
-ttm>[00] end: ##<rs> => ""
+[00] end: ##<rs> => ""
 [00] begin: ##<rs;reading line3>
-ttm>[00] end: ##<rs> => ""
+[00] end: ##<rs> => ""
 [00] begin: #<cm;n>
 [00] end: #<cm> => ""
 [00] begin: #<comment;Need to test #<include>>

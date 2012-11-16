@@ -1,5 +1,3 @@
-TESTCMD=test.ttm a b c
-
 .PHONEY: check
 
 all: ttm.exe
@@ -14,10 +12,14 @@ ttm.txt::
 	rm -f ttm.txt
 	gcc -E -Wall -Wdeclaration-after-statement ttm.c > ttm.txt
 
+TESTTTM=test.ttm
+TESTARGS=a b c
+TESTRFLAG=-r ./tmp
+
 check:: ttm.exe
 	rm -f ./tmp ./test.output
 	echo "line1.line2" >>./tmp
 	echo "line3" >>./tmp
-	./ttm ${TESTCMD} <./tmp >& ./test.output
+	./ttm ${TESTRFLAG} ${TESTTTM} ${TESTARGS} >& ./test.output
 	diff -w ./test.baseline ./test.output
 

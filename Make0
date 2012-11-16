@@ -10,5 +10,13 @@ install::
 T1=t.ttm a b c
 q0:: ttm.exe
 	./ttm ${T1}
+
+#qq:: ttm.exe
+#	gdb --args ttm ${T1}
+
 qq:: ttm.exe
-	gdb --args ttm ${T1}
+	rm -f ./tmp ./test.output
+	echo "line1.line2" >>./tmp
+	echo "line3" >>./tmp
+	gdb --args ./ttm ${TESTRFLAG} ${TESTTTM} ${TESTARGS}
+

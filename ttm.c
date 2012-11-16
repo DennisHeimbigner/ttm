@@ -286,6 +286,9 @@ struct TTM {
     unsigned int stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
+    int   isstdout;
+    FILE* rsinput;
+    int   isstdin;
     /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
     Name* dictionary[HASHSIZE];
     Charclass* charclasses[HASHSIZE];
@@ -2171,16 +2174,18 @@ ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
 
 /**
 In order to avoid spoofing, the
-string 'ttm>' is output before reading.
+string 'ttm>' is output before reading
+if reading from stdin.
 */
 static void
 ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
 {
     int len;
     utf32 c;
-    fprintf(stdout,"ttm>");fflush(stdout);
+    if(ttm->isstdin)
+        {fprintf(stdout,"ttm>");fflush(stdout);}
     for(len=0;;len++) {
-	c=fgetc32(stdin);
+	c=fgetc32(ttm->rsinput);
 	if(c == EOF) break;
 	if(c == ttm->metac) break;
         setBufferLength(ttm,ttm->result,len+1);
@@ -3477,7 +3482,7 @@ tagvalue(const char* p)
 /**************************************************/
 /* Main() */
 
-static const char* options = "d:D:e:iI:o:VX:-";
+static const char* options = "d:D:e:iI:o:r:VX:-";
 
 int
 main(int argc, char** argv)
@@ -3489,9 +3494,12 @@ main(int argc, char** argv)
     char* debugargs = strdup("");
     int interactive = 0;
     char* outputfilename = NULL;
-    char* inputfilename = NULL;
+    char* inputfilename = NULL; /* This is the ttm file */
+    char* rsfilename = NULL; /* This is data for #<rs> */
     int isstdout = 1;
     FILE* outputfile = NULL;
+    int isstdin = 1;
+    FILE* rsfile = NULL;
     TTM* ttm = NULL;
     int c;
     char* p;
@@ -3538,9 +3546,6 @@ main(int argc, char** argv)
 	case 'e':
 	    pushOptionName(optarg,MAXEOPTIONS,eoptions);
 	    break;
-	case 'i':
-	    interactive = 1;
-	    break;
 	case 'I':
 	    if(optarg[strlen(optarg)-1] == '/')
 	        optarg[strlen(optarg)-1] = NUL;
@@ -3549,6 +3554,10 @@ main(int argc, char** argv)
 	case 'o':
 	    if(outputfilename == NULL)
 		outputfilename = strdup(optarg);
+	    break;
+	case 'r':
+	    interactive = 0;
+	    rsfilename = optarg;
 	    break;
 	case 'V':
 	    printf("ttm version: %s\n",VERSION);
@@ -3601,9 +3610,24 @@ main(int argc, char** argv)
 	isstdout = 0;
     }
 
+    if(rsfilename == NULL) {
+	rsfile = stdin;
+	isstdin = 1;
+    } else {
+	rsfile = fopen(rsfilename,"r");
+	if(rsfile == NULL) {
+	    fprintf(stderr,"-r file is not readable: %s\n",rsfilename);
+	    exit(1);
+	}	    
+	isstdin = 0;
+    }
+
     /* Create the ttm state */
     ttm = newTTM(buffersize,stacksize,execcount);
     ttm->output = outputfile;
+    ttm->isstdout = isstdout;
+    ttm->rsinput = rsfile;
+    ttm->isstdin = isstdin;    
 
     defineBuiltinFunctions(ttm);
     predefineNames(ttm);
@@ -3647,7 +3671,9 @@ done:
     exitcode = ttm->exitcode;
 
     /* cleanup */
-    if(!isstdout) fclose(outputfile);    
+    if(!ttm->isstdout) fclose(ttm->output);
+    if(!ttm->isstdin) fclose(ttm->rsinput);
+
     freeTTM(ttm);
 
     exit(exitcode);
