@@ -29,7 +29,7 @@ systems programming. It is derived, primarily, from
 GAP
 <ref name="GAP">Farber, D. J., 635 Assembly System - GAP. Bell Telephone Laboratories Computation Center (1964).</ref>
 and GPM
-<ref name="GPM">Struachey, C., A General Purpose Macro Generator. Comput J 8, 3(1965), pp. 225-241.</ref>.
+<ref name="GPM">Strachey, C., A General Purpose Macro Generator. Comput J 8, 3(1965), pp. 225-241.</ref>.
 
 Initially, TIM was planned as the macro processing portion
 of an assembler for the IBM System/360 and, as such, was

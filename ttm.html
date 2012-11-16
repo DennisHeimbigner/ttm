@@ -19,14 +19,16 @@ ttm
 [<i>arg...</i>]
 
 <h2>DESCRIPTION</h2
-The <b>ttm</b> macro processor
-scans the input file and executes any macro invocations encountered.
-If no file is specified or if file is '-', standard input is read.
-Note that in this latter case, all of standard input will be read
-up to EOF and then processing will commence.
-<p>
-Any arguments after the file name are provided to ttm using the
-<i>#&lt;argv;i&gt;</i> function.
+<b>TTM</b> (or <b>ttm</b>)
+is a string oriented, general purpose macro processing
+developed in 1968 by Steven H. Caine and E. Kent Gordon at the California Institute of Technology.
+
+The following description is taken from the original TTM reference manual[1].
+TTM Is a recursive, interpretive language designed primarily
+for string manipulation, text editing, macro definition and
+expansion, and other applications generally classified as
+systems programming. It is derived, primarily, from
+GAP [3] and GPM [4].
 
 <h2>OPTIONS</h2>
 Except where indicated, all flags may be repeated multiple times.
@@ -91,6 +93,157 @@ executed before the main file is executed.
 Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
 </dl>
 
+<h2>OVERALL OPERATION</h2>
+The <b>ttm</b> macro processor
+scans the input file and executes any macro invocations encountered.
+If no file is specified or if file is '-', standard input is read.
+Note that in this latter case, all of standard input will be read
+up to EOF and then processing will commence.
+<p>
+It is assumed that TTM is given a text file containing some combination
+of ordinary text and TTM function calls (i.e. invocations).
+The text is scanned character by character. Any ordinary text is passed
+to the output unchanged (except when escaped).
+If a TTM function is encountered, it is collected and executed.
+<p>
+Any arguments after the file name are provided to ttm using the
+<i>#&lt;argv;i&gt;</i> function.
+
+<h2>SYNTAX AND SEMANTICS</h2>
+The general form of a TTM function call looks like this.
+<pre>
+#&lt;functionname;arg1;arg2;...;argn&gt;
+</pre>
+where the functionname and the arguments are arbitrary character strings
+not characters of significance: '#', '&lt;', '&gt;', and ';'.
+The function is invoked with the specified arguments and the resulting
+text is inserted into the original text in place of the function call.
+If the function call was prefixed by a single '#' character, then scanning
+will resume just <u>before</u> the inserted text from the function call. If the
+function call was prefixed by two '#' characters, then scanning
+resumes just <u>after</u> the inserted text.
+<p>
+During the collection of a function call, additional function calls
+may be encountered, for example, this.
+<pre>
+#&lt;functionname;arg1;#&lt;f2;arg;...&gt;;...;argn&gt;
+</pre>
+The nested function call will be invoked when encountered and the result
+inserted into the text of the outer function call and scanning of
+the outer function call resumes at the place indicated by the number
+of '#' characters preceding the nested call.
+<p>
+If a function takes, for example, 2 arguments, any extras
+are ignored. For user defined functions, if too few arguments
+are provided, additional one are added with the value of the empty
+string ("").
+<p>
+As with other applicative programming languages,
+a TTM function may be recursive and may be defined as the result
+of the invocation of a sequence of other function calls.
+<p>
+Functions are either <i>built-in</i> or <i>user defined</i>.
+A large number of built-in
+functions exist and are defined in the TTM reference manual [1].
+
+<h3>Function definition</h3>
+User defined functions are created using the following two built-in
+functions.
+<ul>
+<li> #&lt;ds;name;text&gt;
+<li> #&lt;ss;name;text1;text2...;textn&gt;
+</ul>
+<p>
+The first function, <i>ds</i> for "define string",
+defines a named string in the TTM
+dictionary. The name is "name" and its value is "text".
+Invoking this named string will cause it's invocation to be replaced
+by the value (i.e. "text").
+<p>
+The second function, <i>ss</i> for "segment string",
+scans the text of a previously defined string
+looking for occurrences of its arguments: text1, text2, ... textn.
+When an occurrence is found, it is replaced with a <i>segment mark</i>.
+All occurrences of each argument are replaced by the same segment mark.
+<p>
+When a segmented string is invoked, each argument to the call
+is substituted for the corresponding segment mark.
+Consider this example.
+<pre>
+01 #&lt;ds;F;abcxxdefyy&gt;
+02 #&lt;ss;F;xx;yy&gt;
+03 #&lt;F;11;22&gt;
+</pre>
+The string F is defined (line 1) and its body "abcxxdefyy"
+is segmented on the two strings "xx" and "yy" (line2).
+When invoked (line 3), it will return the value "abc11def22".
+In effect, we have a user defined function F with two arguments.
+
+<h3>Escaping</h3>
+It is possible to escape one or more characters using either of two
+conventions.
+<ul>
+<li> &lt;...&gt; &ndash; escape multiple characters.
+<li> @ &ndash; escape a single character
+</ul>
+<p>
+If a string is enclosed in &lt;...&gt;, then it is scanned 
+but not interpreted by TTM. In the scanning process, the outer
+&lt; and &gt; brackets are removed. If there are nested occurrences
+of &lt;...&gt;, then they are scanned but the '&lt;' and '&gt;' are not removed.
+The brackets must balance: the number of '&lt;' characters
+must equal the number of '&gt;' characters.
+
+The '@' escape convention causes the interpreter to pass as-is the character
+after the '@'. The leading '@' is left if it within a &lt;...&gt;
+escape sequence, otherwise it is removed. One use is to
+allow unbalanced occurrences of '&lt;' or '&gt;' characters
+[Note: in the reference implementation, '@' was changed to '\'].
+
+<h2>Examples</h2>
+
+<h3>Example 1: Function Definition</h3>
+
+The most basic example involves defining
+a function that is useful for defining addtional functions.
+This "meta" function is called <i>def</i>.
+It is written as:
+<pre>
+#&lt;ds;def;&lt;##&lt;ds;name;&lt;text&gt;&gt;##&lt;ss;name;subs&gt;&gt;&gt;
+#&lt;ss;def;name;subs;text&gt;
+</pre>
+<p>
+We can, for example, use <i>def</i> to define the string XX as
+12345 and then segment XX on 34 by writing this.
+<pre>
+#&lt;def;XX;34;12345&gt;
+</pre>
+<p>
+The call
+<pre>
+#&lt;XX;0000&gt;
+</pre>
+will then produce the string "1200005".
+<p>
+The def function operates by invoking ds to define the function
+being defined &mdash; XX in our example &mdash; and then segmenting the body
+of XX by any specified arguments: "34" in this case. When XX is invoked,
+its argument is substituted for the segment mark.
+
+<h3>Example 2: Factorial</h3>
+The factorial function can be defined (using the above #&lt;def&gt; function)
+as follows.
+<pre>
+#&lt;def;n!;N;&lt;#&lt;lt;N;2;1;&lt;#&lt;mu;N;#&lt;n!;#&lt;su;N;1&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+</pre>
+Notice that the inner computation (#&lt;mu...) is escaped
+so it will only be evaluated after the #&lt;lt... function
+is executed and returns that nested computation as its result.
+<p>
+An example call would look like this.
+<code>#&lt;n!;3&gt;</code>
+and would return the string 6.
+
 <h2>MODIFICATIONS</h2>
 This ttm processor adheres closely to the specification in the
 ttm specification documents [1,2].
@@ -98,9 +251,10 @@ ttm specification documents [1,2].
 However, the following general changes to TTM should be noted.
 <ol>
 <p>
-<li> The escape character is changed from @ to \.
+<li> The escape character is changed from '@' to '\'.
 <p>
-<li> The meta character (end of input) is changed from ' to \n (i.e. linefeed).
+<li> The meta character (end of input) is changed from ''' (i.e. single quote)
+to '\n' (i.e. linefeed).
 <p>
 <li>
 Escape handling is slightly different and adheres more closely
@@ -128,25 +282,23 @@ Otherwise, strings may contain any legal utf-8 multi-byte character.
 This allows for inclusion of utf-8 codepoints, but only limited validation
 is performed to see if the string is truly utf-8.
 <p>
+Internally, all characters are represented as 32-bit UTF characters.
+This wastes some space, but makes processing simpler.
+<p>
 </ol>
 
 <h3>A Note on Segment Marks</h3> 
 In this implementation, segment (and creation) marks
-are represented as a two-byte sequence. The first is a unique
-character not legal in any legitimate utf-8 multi-byte sequence.
-The second character is the segment number.
-<p>
-As a consequence of this representation plus the support for utf-8
-multi-byte character sequences, walking a string using pointer
-arithmetic is usually not feasible. Rather, each character in turn
-must be examined to see if it is multi-byte. This almost certainly
-causes performance issues.
+are represented as a single 32-bit integer, where the value zero
+indicates a creation mark and any integer greater than zero
+indicates the n'th segment mark.
+The integer has bits set so that is is not a legal UTF character.
 <p>
 One more point about segment marks. It is possible using #&lt;gn&gt;, for
 example, to output a string with segment marks in it. The original
 documentation is silent on how such segment marks are to be treated.
-In this implementation, they are suppressed and will never appear
-outside of the body of a named string.
+In this implementation, they are included. If an attempt is made to print
+them, they are converted to the form '^n' where n is the segment mark.
 
 <h3>New Functions</h3>
 A number of new functions have been implemented and are describe below
@@ -374,38 +526,6 @@ happen if there are not enough characters available to return.
 In this implementation, whatever characters are available are returned,
 even if less than the number requested.
 
-<h2>BUGS</h2>
-
-Unknown.
-
-<h2>LICENSE</h2>
-
-This software and documents is released under the terms of
-the Apache License version 2.  For details of the license,
-see http://www.apache.org/licenses/LICENSE-2.0.
-
-<h2>VERSION</h2>
-1.0
-
-<h2>ACKNOWLEDGEMENTS</h2>
-
-The original ttm was designed and implemented
-by Steven Caine and Kent Gordon.
-(http://www.cfg.com/).
-
-<h2>REFERENCES</h2>
-<ol>
-
-<li> Caine, S.H. and Gordon, E.K., TTM: An Experimental
-Interpretive Language. California Institute of Technology,
-Willis H. Booth Computing Center, Programming Report No. 7, 1968.
-
-<li>Caine, S.H. and Gordon, E.K., TTM: A Macro Language for
-Batch Processing. California Institute of Technology, Willis
-H. Booth Computing Center, Programming Report No. 8 May, 1969.
-
-</ol>
-
 <h2>IMPLEMENTED FUNCTIONS</h2>
 The following functions from the original ttm
 are implemented.
@@ -481,9 +601,9 @@ are implemented.
 The following functions from the original ttm
 are not implemented.
 <table>
-<td>rcd,2,2,S<td>fm,1,*,S<td>tabs,1,8,S<td>scc,2,2,S
-<td>icc,1,1,S<td>outb,0,3,S<td>store,2,2,S<td>delete,1,1,S
-<td>copy,1,1,S<td>show,0,1,S<td>libs,2,2,S<td>break,0,1,S
+<tr><td>rcd,2,2,S<td>fm,1,*,S<td>tabs,1,8,S<td>scc,2,2,S
+<tr><td>icc,1,1,S<td>outb,0,3,S<td>store,2,2,S<td>delete,1,1,S
+<tr><td>copy,1,1,S<td>show,0,1,S<td>libs,2,2,S<td>break,0,1,S
 </table>
 <p>
 The following functions from the batch ttm
@@ -494,18 +614,65 @@ are not implemented.
 <td>ttmsw,2,2,S
 <td>cd,0,0,V
 <td>cdsw,2,2,S
-<td>for,0,0,V
+<tr><td>for,0,0,V
 <td>forsw,2,2,S
 <td>pk,0,0,V
 <td>pksw,2,2,S
-<td>ps,1,1,S
+<tr><td>ps,1,1,S
 <td>page,1,1,S
 <td>sp,1,1,S
 <td>fm,0,*,S
-<td>tabs,1,10,S
+<tr><td>tabs,1,10,S
 <td>scc,3,3,S
 <td>fmsw,2,2,S
 <td>des,1,1,S
 </table>
+
+<h2>BUGS</h2>
+
+Unknown.
+
+<h2>LICENSE</h2>
+
+This software and documents is released under the terms of
+the Apache License version 2.  For details of the license, see
+<a href="http://www.apache.org/licenses/LICENSE-2.0">
+http://www.apache.org/licenses/LICENSE-2.0.
+</a>
+
+<h2>VERSION</h2>
+1.0
+
+<h2>ACKNOWLEDGEMENTS</h2>
+
+The original ttm was designed and implemented
+by Steven H. Caine and E. Kent Gordon.
+(<a href="http://www.cfg.com/">http://www.cfg.com/</a>).
+
+<h2>REFERENCES</h2>
+<ol>
+<li> Caine, S.H. and Gordon, E.K.,
+<a href="https://github.com/Unidata/ttm/ttm_interpretive_language_pr_07.pdf">
+TTM: An Experimental Interpretive Language.</a>
+California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.
+<li> Caine, S.H. and Gordon, E.K.,
+<a href="https://github.com/Unidata/ttm/ttm_batch_processing_pr_08.pdf">TTM: A Macro Language for Batch Processing.</a>
+California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.
+<li> Farber, D. J., 635 Assembly System - GAP. Bell Telephone Laboratories Computation Center (1964).
+<li>Strachey, C., A General Purpose Macro Generator. Comput J 8, 3(1965), pp. 225-241.</ref>.
+
+</ol>
+
+<h2>SOURCE CODE</h2>
+<ul>
+<li><a href="https://github.com/Unidata/ttm">A reference implementation of TTM</a>.
+</ul>
+
+<h2>CHANGELOG</h2>
+<table>
+<tr><td>15 November 2012<td>&mdash;
+    <td>Version 1.0 release.
+</table>
+
 </body>
 </html>
