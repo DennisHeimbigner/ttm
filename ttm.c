@@ -3498,7 +3498,7 @@ tagvalue(const char* p)
 /**************************************************/
 /* Main() */
 
-static char* options = "d:D:e:iI:o:p:r:VX:-";
+static char* options = "d:D:e:f:iI:o:r:VX:-";
 
 int
 main(int argc, char** argv)
@@ -3510,7 +3510,7 @@ main(int argc, char** argv)
     char* debugargs = strdup("");
     int interactive = 0;
     char* outputfilename = NULL;
-    char* programfilename = NULL; /* This is the ttm file */
+    char* executefilename = NULL; /* This is the ttm file to execute */
     char* rsfilename = NULL; /* This is data for #<rs> */
     int isstdout = 1;
     FILE* outputfile = NULL;
@@ -3562,6 +3562,10 @@ main(int argc, char** argv)
         case 'e':
             pushOptionName(optarg,MAXEOPTIONS,eoptions);
             break;
+        case 'f':
+            if(executefilename == NULL)
+                executefilename = strdup(optarg);
+            break;
         case 'I':
             if(optarg[strlen(optarg)-1] == '/')
                 optarg[strlen(optarg)-1] = NUL;
@@ -3570,10 +3574,6 @@ main(int argc, char** argv)
         case 'o':
             if(outputfilename == NULL)
                 outputfilename = strdup(optarg);
-            break;
-        case 'p':
-            if(programfilename == NULL)
-                programfilename = strdup(optarg);
             break;
         case 'r':
             interactive = 0;
@@ -3658,9 +3658,9 @@ main(int argc, char** argv)
             goto done;
     }
 
-    /* Now execute the programfile, if any */
-    if(programfilename != NULL) {
-        readinput(ttm,programfilename,ttm->buffer);
+    /* Now execute the executefile, if any */
+    if(executefilename != NULL) {
+        readinput(ttm,executefilename,ttm->buffer);
         scan(ttm);
         if(ttm->flags & FLAG_EXIT)
             goto done;

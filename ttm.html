@@ -8,9 +8,11 @@ ttm
 [-d <i>string</i>]
 [-D <i>name=string</i>]
 [-e <i>string</i>]
+[-f <i>programfile</i>]
 [-i]
 [-I <i>directory</i>]
 [-o <i>file</i>]
+[-r <i>rsfile</i>]
 [-S <i>positive-integer</i>]
 [-V]
 [-X <i>tag=value</i>]
@@ -44,6 +46,11 @@ Exactly equivalent to -e #&lt;ds;name;string&gt;.
 <dd>
 Scan the string and execute any macro invocations. Any output
 left after execution is discarded.
+<p><dt><b>-f <i>inputfile</i></b><br>
+<dd>
+Specify the main ttm file to execute.
+Note that this is not the same as the file
+specified by the -r flag.
 <p><dt><b>-i</i></b><br>
 <dd>
 After executing any -D and -e options and executing any input file,
@@ -55,6 +62,12 @@ Append the directory to the include path.
 <dd>
 Send all output to the specified file. If not specified, then
 output is sent to standard output.
+<p><dt><b>-r <i>rsfile</i></b><br>
+<dd>
+Specify a file from which #&lt;rs&gt; will read its input.
+If not specified, stdin is assumed.
+Note that this is not the same as the file
+specified by the -f flag.
 <p><dt><b>-V</b><br>
 <dd>
 Output the version number of ttm and then exit.
@@ -82,12 +95,7 @@ do not eat up space.
 <p><dt><b>--</i></b><br>
 <dd>
 Signal the end of options and disable further option
-processing. Any arguments after the -- are treated as a file
-name followed by arguments.
-<p><dt><b><i>file</i></b><br>
-<dd>
-Specify the main file to execute. Any -D and -e arguments will be
-executed before the main file is executed.
+processing. Anythinf after the -- is treated as an argument.
 <p><dt><b><i>arg...</i></b><br>
 <dd>
 Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
@@ -95,7 +103,7 @@ Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
 
 <h2>OVERALL OPERATION</h2>
 The <b>ttm</b> macro processor
-scans the input file and executes any macro invocations encountered.
+scans the input/program file and executes any macro invocations encountered.
 If no file is specified or if file is '-', standard input is read.
 Note that in this latter case, all of standard input will be read
 up to EOF and then processing will commence.
@@ -630,7 +638,10 @@ are not implemented.
 
 <h2>BUGS</h2>
 
-Unknown.
+<ul>
+<li> The windows solution will build and run under Visual Studio C++ 2010,
+but the resulting ttm.exe fails when run standalone.
+</ul>
 
 <h2>LICENSE</h2>
 
