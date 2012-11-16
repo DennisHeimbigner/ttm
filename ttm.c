@@ -49,6 +49,7 @@ This is in lieu of the typical config.h.
 
 #ifdef MSWINDOWS
 #include <windows.h>  /* To get GetProcessTimes() */
+#include <time.h> /* to get ctime() */
 #else /*!MSWINDOWS*/
 #include <unistd.h> /* This defines getopt */
 #include <sys/times.h> /* to get times() */
@@ -66,8 +67,8 @@ This is in lieu of the typical config.h.
 
 /* Getopt */
 #ifdef MSWINDOWS
-static char* optarg;		/* global argument pointer */
-static int   optind = 0; 	/* global argv index */
+static char* optarg;            /* global argument pointer */
+static int   optind = 0;        /* global argv index */
 static int getopt(int argc, char **argv, char *optstring);
 #else /*!MSWINDOWS*/
 #include <unistd.h> /* This defines getopt */
@@ -98,10 +99,17 @@ typedef char char_t;
 
 typedef int utf32; /* 32-bit utf char type; signed is ok
                         because of limited # of utf characters
-		        namely <= 0x10FFFF = 1,114,111
-		     */
+                        namely <= 0x10FFFF = 1,114,111
+                     */
 /* Maximum codepoint size when using char_t */
 #define MAXCHARSIZE 4
+
+#ifndef MININT
+#define MININT -2147483647
+#endif
+#ifndef MAXINT
+#define MAXINT 2147483647
+#endif
 
 /**************************************************/
 static void
@@ -109,7 +117,7 @@ makespace(utf32* dst, utf32* src, unsigned int len)
 {
 #ifdef HAVE_MEMMOVE
     memmove((void*)dst,(void*)src,len*sizeof(utf32));
-#else	
+#else   
     src += len;
     dst += len;
     for(;len>0;len--) *{dst-- = *src--;}
@@ -175,47 +183,47 @@ Constants
 /**************************************************/
 /* Error Numbers */
 typedef enum ERR {
-ENOERR		=  0, /* No error; for completeness */
-ENONAME		=  1, /* Dictionary Name or Character Class Name Not Found */
-ENOPRIM		=  2, /* Primitives Not Allowed */
-EFEWPARMS	=  3, /* Too Few Parameters Given */
-EFORMAT		=  4, /* Incorrect Format */
-EQUOTIENT	=  5, /* Quotient Is Too Large */
-EDECIMAL	=  6, /* Decimal Integer Required */
-EMANYDIGITS	=  7, /* Too Many Digits */
-EMANYSEGMARKS	=  8, /* Too Many Segment Marks */
-EMEMORY		=  9, /* Dynamic Storage Overflow */
-EPARMROLL	= 10, /* Parm Roll Overflow */
-EINPUTROLL	= 11, /* Input Roll Overflow */
+ENOERR          =  0, /* No error; for completeness */
+ENONAME         =  1, /* Dictionary Name or Character Class Name Not Found */
+ENOPRIM         =  2, /* Primitives Not Allowed */
+EFEWPARMS       =  3, /* Too Few Parameters Given */
+EFORMAT         =  4, /* Incorrect Format */
+EQUOTIENT       =  5, /* Quotient Is Too Large */
+EDECIMAL        =  6, /* Decimal Integer Required */
+EMANYDIGITS     =  7, /* Too Many Digits */
+EMANYSEGMARKS   =  8, /* Too Many Segment Marks */
+EMEMORY         =  9, /* Dynamic Storage Overflow */
+EPARMROLL       = 10, /* Parm Roll Overflow */
+EINPUTROLL      = 11, /* Input Roll Overflow */
 #ifdef IMPLEMENTED
-EDUPLIBNAME	= 12, /* Name Already On Library */
-ELIBNAME	= 13, /* Name Not On Library */
-ELIBSPACE	= 14, /* No Space On Library */
-EINITIALS	= 15, /* Initials Not Allowed */
-EATTACH		= 16, /* Could Not Attach */
+EDUPLIBNAME     = 12, /* Name Already On Library */
+ELIBNAME        = 13, /* Name Not On Library */
+ELIBSPACE       = 14, /* No Space On Library */
+EINITIALS       = 15, /* Initials Not Allowed */
+EATTACH         = 16, /* Could Not Attach */
 #endif
-EIO		= 17, /* An I/O Error Occurred */
+EIO             = 17, /* An I/O Error Occurred */
 #ifdef IMPLEMENTED
-ETTM		= 18, /* A TTM Processing Error Occurred */
-ESTORAGE	= 19, /* Error In Storage Format */
+ETTM            = 18, /* A TTM Processing Error Occurred */
+ESTORAGE        = 19, /* Error In Storage Format */
 #endif
-EPOSITIVE	= 20, 
+EPOSITIVE       = 20, 
 /* Error messages new to this implementation */
-ESTACKOVERFLOW	= 30, /* Leave room */
-ESTACKUNDERFLOW	= 31, 
-EBUFFERSIZE	= 32, /* Buffer overflow */
-EMANYINCLUDES	= 33, /* Too many includes */
-EINCLUDE	= 34, /* Cannot read Include file */
-ERANGE		= 35, /* index out of legal range */
-EMANYPARMS	= 36, /* # parameters > MAXARGS */
-EEOS		= 37, /* Unexpected end of string */
-EASCII		= 38, /* ASCII characters only */
-ECHAR8		= 39, /* Illegal 8-bit character set value */
-EUTF32		= 40, /* Illegal utf-32 character set */
-ETTMCMD		= 41, /* Illegal #<ttm> command */
-ETIME		= 42, /* gettimeofday failed */
+ESTACKOVERFLOW  = 30, /* Leave room */
+ESTACKUNDERFLOW = 31, 
+EBUFFERSIZE     = 32, /* Buffer overflow */
+EMANYINCLUDES   = 33, /* Too many includes */
+EINCLUDE        = 34, /* Cannot read Include file */
+ERANGE          = 35, /* index out of legal range */
+EMANYPARMS      = 36, /* # parameters > MAXARGS */
+EEOS            = 37, /* Unexpected end of string */
+EASCII          = 38, /* ASCII characters only */
+ECHAR8          = 39, /* Illegal 8-bit character set value */
+EUTF32          = 40, /* Illegal utf-32 character set */
+ETTMCMD         = 41, /* Illegal #<ttm> command */
+ETIME           = 42, /* gettimeofday failed */
 /* Default case */
-EOTHER		= 99
+EOTHER          = 99
 } ERR;
 
 /**************************************************/
@@ -236,8 +244,8 @@ EOTHER		= 99
 #define isdec(c) (((c) >= '0' && (c) <= '9') ? 1 : 0)
 
 #define ishex(c) ((c >= '0' && c <= '9') \
-		  || (c >= 'a' && c <= 'f') \
-		  || (c >= 'A' && c <= 'F') ? 1 : 0)
+                  || (c >= 'a' && c <= 'f') \
+                  || (c >= 'A' && c <= 'F') ? 1 : 0)
 
 #define fromhex(c) \
     (c >= '0' && c <= '9' \
@@ -525,7 +533,7 @@ freeTTM(TTM* ttm)
     freeBuffer(ttm,ttm->buffer);
     freeBuffer(ttm,ttm->result);
     if(ttm->stack != NULL)
-	free(ttm->stack);
+        free(ttm->stack);
     free(ttm);
 }
 
@@ -551,7 +559,7 @@ static void
 freeBuffer(TTM* ttm, Buffer* bb)
 {
     if(bb->content != NULL)
-	free(bb->content);
+        free(bb->content);
     free(bb);
 }
 
@@ -563,8 +571,8 @@ expandBuffer(TTM* ttm, Buffer* bb, unsigned int len)
     if((bb->alloc - bb->length) < len) fail(ttm,EBUFFERSIZE);
     if(bb->active < bb->end) {
         /* make room for len characters by moving bb->active and up*/
-	unsigned int tomove = (bb->end - bb->active);
-	makespace(bb->active+len,bb->active,tomove);
+        unsigned int tomove = (bb->end - bb->active);
+        makespace(bb->active+len,bb->active,tomove);
     }
     bb->active += len;
     bb->length += len;
@@ -579,7 +587,7 @@ compressBuffer(TTM* ttm, Buffer* bb, unsigned int len)
 {
     assert(bb != NULL);
     if(len > 0 && bb->active < bb->end) {
-	memcpy32(bb->active,bb->active+len,len);	
+        memcpy32(bb->active,bb->active+len,len);        
     }    
     bb->length -= len;
     bb->end = bb->content+bb->length;
@@ -619,7 +627,7 @@ pushFrame(TTM* ttm)
 {
     Frame* frame;
     if(ttm->stacknext >= ttm->limits.stacksize)
-	fail(ttm,ESTACKOVERFLOW);
+        fail(ttm,ESTACKOVERFLOW);
     frame = &ttm->stack[ttm->stacknext];
     frame->argc = 0;
     frame->active = 0;
@@ -632,12 +640,12 @@ popFrame(TTM* ttm)
 {
     Frame* frame;
     if(ttm->stacknext == 0)
-	fail(ttm,ESTACKUNDERFLOW);
+        fail(ttm,ESTACKUNDERFLOW);
     ttm->stacknext--;
     if(ttm->stacknext == 0)
-	frame = NULL;
+        frame = NULL;
     else
-	frame = &ttm->stack[ttm->stacknext-1];    
+        frame = &ttm->stack[ttm->stacknext-1];    
     return frame;
 }
 
@@ -674,24 +682,24 @@ dictionaryInsert(TTM* ttm, Name* str)
 
     next = table[index];
     if(next == NULL) {
-	table[index] = str;
+        table[index] = str;
     } else {
-	Name* prev = NULL;
-	/* search chain for str */
+        Name* prev = NULL;
+        /* search chain for str */
         while(next != NULL) {
-	    if(strcmp32(str->name,next->name)==0)
-		break;
-	    prev = next;
-	    next = next->next;
-	}
-	if(next == NULL) {/* str not previously defined */
-	    prev->next = str;
-	} else {/* replace existing definition */
-	    Name* chain = next->next; /* save */
-	    freeName(ttm,next);
-	    prev->next = str;
-	    str->next = chain;
-	}
+            if(strcmp32(str->name,next->name)==0)
+                break;
+            prev = next;
+            next = next->next;
+        }
+        if(next == NULL) {/* str not previously defined */
+            prev->next = str;
+        } else {/* replace existing definition */
+            Name* chain = next->next; /* save */
+            freeName(ttm,next);
+            prev->next = str;
+            str->next = chain;
+        }
     }
 }
 
@@ -705,9 +713,9 @@ dictionaryLookup(TTM* ttm, utf32* name)
     index = (name[0] & 0x7F);
     f = table[index];
     while(f != NULL) {/* search chain for str */
-	if(strcmp32(name,f->name)==0)
-	    break;
-	f = f->next;
+        if(strcmp32(name,f->name)==0)
+            break;
+        f = f->next;
     }
     return f;
 }
@@ -725,15 +733,15 @@ dictionaryRemove(TTM* ttm, utf32* name)
     next = table[index];
     prev = NULL;
     while(next != NULL) {/* search chain for str */
-	if(!next->locked && strcmp32(name,next->name)==0) {
-	    if(prev == NULL)
-		table[index] = next->next;
-	    else
-		prev->next = next->next;
-	    break;
-	}
-	prev = next;
-	next = next->next;
+        if(!next->locked && strcmp32(name,next->name)==0) {
+            if(prev == NULL)
+                table[index] = next->next;
+            else
+                prev->next = next->next;
+            break;
+        }
+        prev = next;
+        next = next->next;
     }
     return next;
 }
@@ -770,24 +778,24 @@ charclassInsert(TTM* ttm, Charclass* cl)
     utf32 index = (cl->name[0] & 0x7F);
     next = table[index];
     if(next == NULL) {
-	table[index] = cl;
+        table[index] = cl;
     } else {
-	Charclass* prev = NULL;
-	/* search chain for cl */
+        Charclass* prev = NULL;
+        /* search chain for cl */
         while(next != NULL) {
-	    if(strcmp32(cl->name,next->name)==0)
-		break;
-	    prev = next;
-	    next = next->next;
-	}
-	if(next == NULL) {/* cl not previously defined */
-	    prev->next = cl;
-	} else {/* replace existing definition */
-	    Charclass* chain = next->next; /* save */
-	    freeCharclass(ttm,next);
-	    prev->next = cl;
-	    cl->next = chain;
-	}
+            if(strcmp32(cl->name,next->name)==0)
+                break;
+            prev = next;
+            next = next->next;
+        }
+        if(next == NULL) {/* cl not previously defined */
+            prev->next = cl;
+        } else {/* replace existing definition */
+            Charclass* chain = next->next; /* save */
+            freeCharclass(ttm,next);
+            prev->next = cl;
+            cl->next = chain;
+        }
     }
 }
 
@@ -799,9 +807,9 @@ charclassLookup(TTM* ttm, utf32* name)
     utf32 index = (name[0] & 0x7F);
     cl = table[index];
     while(cl != NULL) {/* search chain for cl */
-	if(strcmp32(name,cl->name)==0)
-	    break;
-	cl = cl->next;
+        if(strcmp32(name,cl->name)==0)
+            break;
+        cl = cl->next;
     }
     return cl;
 }
@@ -818,15 +826,15 @@ charclassRemove(TTM* ttm, utf32* name)
     next = table[index];
     prev = NULL;
     while(next != NULL) {/* search chain for cl */
-	if(strcmp32(name,next->name)==0) {
-	    if(prev == NULL)
-		table[index] = next->next;
-	    else
-		prev->next = next->next;
-	    break;
-	}
-	prev = next;
-	next = next->next;
+        if(strcmp32(name,next->name)==0) {
+            if(prev == NULL)
+                table[index] = next->next;
+            else
+                prev->next = next->next;
+            break;
+        }
+        prev = next;
+        next = next->next;
     }
     return next;
 }
@@ -852,54 +860,54 @@ scan(TTM* ttm)
     Buffer* bb = ttm->buffer;
 
     for(;;) {
-	c = *bb->active; /* NOTE that we do not bump here */
-	if(c == NUL32) { /* End of buffer */
-	    break;
-	} else if(isescape(c)) {
-	    bb->active++; /* skip the escape */
-	    *bb->passive++ = *bb->active++;
-	} else if(c == ttm->sharpc) {/* Start of call? */
-	    if(bb->active[1] == ttm->openc
-	       || (bb->active[1] == ttm->sharpc
+        c = *bb->active; /* NOTE that we do not bump here */
+        if(c == NUL32) { /* End of buffer */
+            break;
+        } else if(isescape(c)) {
+            bb->active++; /* skip the escape */
+            *bb->passive++ = *bb->active++;
+        } else if(c == ttm->sharpc) {/* Start of call? */
+            if(bb->active[1] == ttm->openc
+               || (bb->active[1] == ttm->sharpc
                     && bb->active[2] == ttm->openc)) {
-		/* It is a real call */
-		exec(ttm,bb);
-	        if(ttm->flags & FLAG_EXIT) goto exiting;
-	    } else {/* not an call; just pass the # along passively */
-	        *bb->passive++ = c;
-		bb->active++;
-	    }
-	} else if(c == ttm->openc) { /* Start of <...> escaping */
-	    /* skip the leading lbracket */
-	    int depth = 1;
-	    bb->active++;
-	    for(;;) {
-	        c = *(bb->active);
-		if(c == NUL32) fail(ttm,EEOS); /* Unexpected EOF */
-	        *bb->passive++ = c;
-	        bb->active++;
-	        if(isescape(c)) {
-	            *bb->passive++ = *bb->active++;
-	        } else if(c == ttm->openc) {
-	            depth++;
-		} else if(c == ttm->closec) {
-		    if(--depth == 0) {bb->passive--; break;} /* we are done */
-	        } /* else keep moving */
-	    }/*<...> for*/
-	} else { /* non-signficant character */
-	    *bb->passive++ = c;
-	    bb->active++;
-	}
+                /* It is a real call */
+                exec(ttm,bb);
+                if(ttm->flags & FLAG_EXIT) goto exiting;
+            } else {/* not an call; just pass the # along passively */
+                *bb->passive++ = c;
+                bb->active++;
+            }
+        } else if(c == ttm->openc) { /* Start of <...> escaping */
+            /* skip the leading lbracket */
+            int depth = 1;
+            bb->active++;
+            for(;;) {
+                c = *(bb->active);
+                if(c == NUL32) fail(ttm,EEOS); /* Unexpected EOF */
+                *bb->passive++ = c;
+                bb->active++;
+                if(isescape(c)) {
+                    *bb->passive++ = *bb->active++;
+                } else if(c == ttm->openc) {
+                    depth++;
+                } else if(c == ttm->closec) {
+                    if(--depth == 0) {bb->passive--; break;} /* we are done */
+                } /* else keep moving */
+            }/*<...> for*/
+        } else { /* non-signficant character */
+            *bb->passive++ = c;
+            bb->active++;
+        }
     } /*scan for*/
 
     /* When we get here, we are finished, so clean up */
     { 
-	unsigned int newlen;
-	/* reset the buffer length using bb->passive.*/
-	newlen = bb->passive - bb->content;
-	setBufferLength(ttm,bb,newlen);
-	/* reset bb->active */
-	bb->active = bb->passive;
+        unsigned int newlen;
+        /* reset the buffer length using bb->passive.*/
+        newlen = bb->passive - bb->content;
+        setBufferLength(ttm,bb,newlen);
+        /* reset bb->active */
+        bb->active = bb->passive;
     }
 exiting:
     return;
@@ -915,11 +923,11 @@ exec(TTM* ttm, Buffer* bb)
     frame = pushFrame(ttm);
     /* Skip to the start of the function name */
     if(bb->active[1] == ttm->openc) {
-	bb->active += 2;
-	frame->active = 1;
+        bb->active += 2;
+        frame->active = 1;
     } else {
-	bb->active += 3;
-	frame->active = 0;
+        bb->active += 3;
+        frame->active = 0;
     }
     /* Parse and store relevant pointers into frame. */
     savepassive = bb->passive;
@@ -934,17 +942,17 @@ exec(TTM* ttm, Buffer* bb)
     fcn = dictionaryLookup(ttm,frame->argv[0]);
     if(fcn == NULL) fail(ttm,ENONAME);
     if(fcn->minargs > (frame->argc - 1)) /* -1 to account for function name*/
-	fail(ttm,EFEWPARMS);
+        fail(ttm,EFEWPARMS);
     /* Reset the result buffer */
     resetBuffer(ttm,ttm->result);
     if(ttm->flags & FLAG_TRACE || fcn->trace)
-	trace(ttm,1,TRACING);
+        trace(ttm,1,TRACING);
     if(fcn->builtin) {
-	fcn->fcn(ttm,frame);
-	if(fcn->novalue) resetBuffer(ttm,ttm->result);
-	if(ttm->flags & FLAG_EXIT) goto exiting;
+        fcn->fcn(ttm,frame);
+        if(fcn->novalue) resetBuffer(ttm,ttm->result);
+        if(ttm->flags & FLAG_EXIT) goto exiting;
     } else /* invoke the pseudo function "call" */
-	call(ttm,frame,fcn->body);
+        call(ttm,frame,fcn->body);
 
 #ifdef DEBUG
 fprintf(stderr,"result: ");
@@ -953,29 +961,29 @@ fprintf(stderr,"\n");
 #endif
 
     if(ttm->flags & FLAG_TRACE || fcn->trace)
-	trace(ttm,0,TRACING);
+        trace(ttm,0,TRACING);
 
     /* Now, put the result into the buffer */
     if(!fcn->novalue && ttm->result->length > 0) {
-	utf32* insertpos;
-	unsigned int resultlen = ttm->result->length;
-	/*Compute the space avail between bb->passive and bb->active */
-	unsigned int avail = (bb->active - bb->passive); 
-	/* Compute amount we need to expand, if any */
-	if(avail < resultlen)
-	    expandBuffer(ttm,bb,(resultlen - avail));/*will change bb->active*/
-	/* We insert the result as follows:
-	   frame->passive => insert at bb->passive (and move bb->passive)
-	   frame->active => insert at bb->active - (ttm->result->length)
-	*/
-	if(frame->active) {
-	    insertpos = (bb->active - resultlen);
-	    bb->active = insertpos;	    
-	} else { /*frame->passive*/
-	    insertpos = bb->passive;
-	    bb->passive += resultlen;
-	}
-	memcpy32((void*)insertpos,ttm->result->content,ttm->result->length);
+        utf32* insertpos;
+        unsigned int resultlen = ttm->result->length;
+        /*Compute the space avail between bb->passive and bb->active */
+        unsigned int avail = (bb->active - bb->passive); 
+        /* Compute amount we need to expand, if any */
+        if(avail < resultlen)
+            expandBuffer(ttm,bb,(resultlen - avail));/*will change bb->active*/
+        /* We insert the result as follows:
+           frame->passive => insert at bb->passive (and move bb->passive)
+           frame->active => insert at bb->active - (ttm->result->length)
+        */
+        if(frame->active) {
+            insertpos = (bb->active - resultlen);
+            bb->active = insertpos;         
+        } else { /*frame->passive*/
+            insertpos = bb->passive;
+            bb->passive += resultlen;
+        }
+        memcpy32((void*)insertpos,ttm->result->content,ttm->result->length);
 #ifdef DEBUG
 fprintf(stderr,"context:\n\tpassive=");
 /* Since passive is not normally null terminated, we need to fake it */
@@ -1008,13 +1016,13 @@ parsecall(TTM* ttm, Frame* frame)
 
     done = 0;
     do {
-	utf32* arg = bb->passive;/* start of ith argument */
-	while(!done) {
+        utf32* arg = bb->passive;/* start of ith argument */
+        while(!done) {
             c = *bb->active; /* Note that we do not bump here */
             if(c == NUL32) fail(ttm,EEOS); /* Unexpected end of buffer */
             if(isescape(c)) {
-		bb->active++;
-		*bb->passive++ = *bb->active++;
+                bb->active++;
+                *bb->passive++ = *bb->active++;
             } else if(c == ttm->semic || c == ttm->closec) {
                 /* End of an argument */
                 *bb->passive++ = NUL; /* null terminate the argument */
@@ -1023,9 +1031,9 @@ fprintf(stderr,"parsecall: argv[%d]=",frame->argc);
 dbgprint32(arg,'|');
 fprintf(stderr,"\n");
 #endif
-		bb->active++; /* skip the semi or close */
+                bb->active++; /* skip the semi or close */
                 /* move to next arg */
-	        frame->argv[frame->argc++] = arg;
+                frame->argv[frame->argc++] = arg;
                 if(c == ttm->closec) done=1;
                 else if(frame->argc >= MAXARGS) fail(ttm,EMANYPARMS);
                 else arg = bb->passive;
@@ -1036,36 +1044,36 @@ fprintf(stderr,"\n");
                         && bb->active[2] == ttm->openc)) {
                     /* Recurse to compute inner call */
                     exec(ttm,bb);
-		    if(ttm->flags & FLAG_EXIT) goto exiting;
+                    if(ttm->flags & FLAG_EXIT) goto exiting;
                 }
             } else if(c == ttm->openc) {/* <...> nested brackets */
                 bb->active++; /* skip leading lbracket */
-		depth = 1;
+                depth = 1;
                 for(;;) {
                     c = *(bb->active);
                     if(c == NUL) fail(ttm,EEOS); /* Unexpected EOF */
                     if(isescape(c)) {
                         *bb->passive++ = (char)c;
-		        *bb->passive++ = *bb->active++;		
+                        *bb->passive++ = *bb->active++;         
                     } else if(c == ttm->openc) {
                         *bb->passive++ = (char)c;
                         bb->active++;
                         depth++;
                     } else if(c == ttm->closec) {
-			depth--;
-		        bb->active++;
+                        depth--;
+                        bb->active++;
                         if(depth == 0) break; /* we are done */
                         *bb->passive++ = (char)c;
                     } else {
-			*bb->passive++ = *bb->active++;
-		    }
+                        *bb->passive++ = *bb->active++;
+                    }
                 }/*<...> for*/
             } else {
                 /* keep moving */
-		*bb->passive++ = c;
-		bb->active++;		
+                *bb->passive++ = c;
+                bb->active++;           
             }
-	} /* collect argument for */
+        } /* collect argument for */
     } while(!done);
 exiting:
     return;
@@ -1087,15 +1095,15 @@ call(TTM* ttm, Frame* frame, utf32* body)
 
     /* Compute the size of the output */
     for(len=0,p=body;(c=*p++);) {
-	if(testMark(c,SEGMARK)) {
-	    unsigned int segindex = (unsigned int)(*p++);
-	    if(segindex < frame->argc)
-	        len += strlen32(frame->argv[segindex]);
-	    /* else treat as empty string */
-	} else if(c == CREATE) {
-	    len += CREATELEN;
-	} else
-	    len++;
+        if(testMark(c,SEGMARK)) {
+            unsigned int segindex = (unsigned int)(*p++);
+            if(segindex < frame->argc)
+                len += strlen32(frame->argv[segindex]);
+            /* else treat as empty string */
+        } else if(c == CREATE) {
+            len += CREATELEN;
+        } else
+            len++;
     }
     /* Compute the body using ttm->result  */
     resetBuffer(ttm,ttm->result);
@@ -1104,26 +1112,26 @@ call(TTM* ttm, Frame* frame, utf32* body)
     dst = result;
     dst[0] = NUL32; /* so we can use strcat */
     for(p=body;(c=*p++);) {
-	if(testMark(c,SEGMARK)) {
-	    unsigned int segindex = (unsigned int)(c & 0xFF);
-	    if(segindex < frame->argc) {
-		utf32* arg = frame->argv[segindex];
-	        strcpy32(dst,arg);
-		dst += strlen32(arg);
-	    } /* else treat as null string */
-	} else if (c == CREATE) {
-	    int len;
-	    char crformat[16];
-	    char crval[CREATELEN+1];
-	    /* Construct the format string on the fly */
-	    snprintf(crformat,sizeof(crformat),"%%0%dd",CREATELEN);
-	    /* Construct the cr value */
-	    ttm->crcounter++;
-	    snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
-	    len = toString32(dst,crval,TOEOS);
-	    dst += len;
-	} else
-	    *dst++ = (char)c;
+        if(testMark(c,SEGMARK)) {
+            unsigned int segindex = (unsigned int)(c & 0xFF);
+            if(segindex < frame->argc) {
+                utf32* arg = frame->argv[segindex];
+                strcpy32(dst,arg);
+                dst += strlen32(arg);
+            } /* else treat as null string */
+        } else if (c == CREATE) {
+            int len;
+            char crformat[16];
+            char crval[CREATELEN+1];
+            /* Construct the format string on the fly */
+            snprintf(crformat,sizeof(crformat),"%%0%dd",CREATELEN);
+            /* Construct the cr value */
+            ttm->crcounter++;
+            snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
+            len = toString32(dst,crval,TOEOS);
+            dst += len;
+        } else
+            *dst++ = (char)c;
     }
     *dst = NUL32;
     setBufferLength(ttm,ttm->result,(dst-result));
@@ -1140,28 +1148,28 @@ printstring(TTM* ttm, FILE* output, utf32* s32, int printall)
     if(slen == 0) return;
     prev = 0;
     while((c32=*s32++)) {
-	if(isescape(c32)) {
-	    c32 = *s32++;
-	    c32 = convertEscapeChar(c32);
-	}
-	if(c32 != 0) {
-	    if(printall || c32 == '\n' || !iscontrol(c32)) {
-		if(ismark(c32)) {
-		    char_t* p;
-		    char info[16+1];
-		    if(iscreate(c32))
-			strcpy(info,"^00");
-		    else /* segmark */
-			snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
-		    for(p=info;*p;p++) fputc32((utf32)*p,output);
-		} else
-		    fputc32(c32,output);
-	    }
-	}
-	prev = c32;
+        if(isescape(c32)) {
+            c32 = *s32++;
+            c32 = convertEscapeChar(c32);
+        }
+        if(c32 != 0) {
+            if(printall || c32 == '\n' || !iscontrol(c32)) {
+                if(ismark(c32)) {
+                    char_t* p;
+                    char info[16+1];
+                    if(iscreate(c32))
+                        strcpy(info,"^00");
+                    else /* segmark */
+                        snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
+                    for(p=info;*p;p++) fputc32((utf32)*p,output);
+                } else
+                    fputc32(c32,output);
+            }
+        }
+        prev = c32;
     }
     if(prev != '\n')
-	fputc32((utf32)'\n',output);
+        fputc32((utf32)'\n',output);
     fflush(output);
 }
 
@@ -1180,8 +1188,8 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     unsigned int aplen, bodylen;
 
     if(str == NULL) {/* Define the string */
-	ttm_ds(ttm,frame);
-	return;
+        ttm_ds(ttm,frame);
+        return;
     }
     if(str->builtin) fail(ttm,ENOPRIM);
     apstring = frame->argv[2];
@@ -1210,21 +1218,21 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
     Name* savenext;
 
     if(oldstr == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(newstr == NULL) {
-	/* create a new string object */
-	newstr = newName(ttm);
-	newstr->name = strdup32(newname);
-	dictionaryInsert(ttm,newstr);
+        /* create a new string object */
+        newstr = newName(ttm);
+        newstr->name = strdup32(newname);
+        dictionaryInsert(ttm,newstr);
     }
     savenext = newstr->next;
     savename = newstr->name;
     *newstr = *oldstr;
     /* Do fixup */
     if(newstr->body != NULL) {
-	newstr->next = savenext;
-	newstr->name = savename;
-	newstr->body = strdup32(newstr->body);
+        newstr->next = savenext;
+        newstr->name = savename;
+        newstr->body = strdup32(newstr->body);
     }
 }
 
@@ -1238,27 +1246,27 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     body = str->body;
     bodylen = strlen32(body);
     crstring = frame->argv[2];
     crlen = strlen32(crstring);
     if(crlen > 0) { /* search only if possible success */
-	utf32* p;
-	/* Search for occurrences of arg */
-	p = body + str->residual;
-	while(*p) {
-	    if(strncmp32(p,crstring,crlen) != 0)
-		{p++; continue;}
-	    /* we have a match, replace match by a create marker */
-	    *p = CREATE;
-	    /* compress out all but 1 char of crstring match */
-	    if(crlen > 1)
-		strcpy32(p+1,p+crlen);
-	}
+        utf32* p;
+        /* Search for occurrences of arg */
+        p = body + str->residual;
+        while(*p) {
+            if(strncmp32(p,crstring,crlen) != 0)
+                {p++; continue;}
+            /* we have a match, replace match by a create marker */
+            *p = CREATE;
+            /* compress out all but 1 char of crstring match */
+            if(crlen > 1)
+                strcpy32(p+1,p+crlen);
+        }
     }
 }
 
@@ -1267,20 +1275,20 @@ ttm_ds(TTM* ttm, Frame* frame)
 {
     Name* str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL) {
-	/* create a new string object */
-	str = newName(ttm);
-	str->name = strdup32(frame->argv[1]);
-	dictionaryInsert(ttm,str);
+        /* create a new string object */
+        str = newName(ttm);
+        str->name = strdup32(frame->argv[1]);
+        dictionaryInsert(ttm,str);
     } else {
-	/* reset as needed */
-	str->builtin = 0;
-	str->minargs = 0;
-	str->maxargs = 0;
-	str->residual = 0;
-	str->maxsegmark = 0;
-	str->fcn = NULL;
-	if(str->body != NULL) free(str->body);
-	str->body = NULL;
+        /* reset as needed */
+        str->builtin = 0;
+        str->minargs = 0;
+        str->maxargs = 0;
+        str->residual = 0;
+        str->maxsegmark = 0;
+        str->fcn = NULL;
+        if(str->body != NULL) free(str->body);
+        str->body = NULL;
     }
     str->body = strdup32(frame->argv[2]);
 }
@@ -1290,11 +1298,11 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 {
     unsigned int i;
     for(i=1;i<frame->argc;i++) {
-	utf32* strname = frame->argv[i];
-	Name* prev = dictionaryRemove(ttm,strname);
-	if(prev != NULL) {
-	    freeName(ttm,prev); /* reclaim the string */
-	}
+        utf32* strname = frame->argv[i];
+        Name* prev = dictionaryRemove(ttm,strname);
+        if(prev != NULL) {
+            freeName(ttm,prev); /* reclaim the string */
+        }
     }
 }
 
@@ -1308,40 +1316,40 @@ ttm_ss0(TTM* ttm, Frame* frame)
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     bodylen = strlen32(str->body);
     if(str->residual >= bodylen)
-	return 0; /* no substitution possible */
+        return 0; /* no substitution possible */
     segcount = 0;
     startseg = str->maxsegmark;
     startp = str->body + str->residual;
     for(i=2;i<frame->argc;i++) {
-	utf32* arg = frame->argv[i];
-	unsigned int arglen = strlen32(arg);
+        utf32* arg = frame->argv[i];
+        unsigned int arglen = strlen32(arg);
         if(arglen > 0) { /* search only if possible success */
-	    int found;
-	    utf32* p;
-	    /* Search for occurrences of arg */
-	    p = str->body + str->residual;
-	    found = 0;
-	    while(*p) {
-	        if(strncmp32(p,arg,arglen) != 0)
-		    {p++; continue;}
-		/* we have a match, replace match by a segment marker */
-		if(!found) {/* first match */
-		    startseg++;
-		    found++;
-		}
-		*p = (SEGMARK | startseg);
-		/* compress out all but 1 char of match */
-		if(arglen > 1)
-		    strcpy32(p+1,p+arglen);
-		segcount++;
-	    }
-	}
+            int found;
+            utf32* p;
+            /* Search for occurrences of arg */
+            p = str->body + str->residual;
+            found = 0;
+            while(*p) {
+                if(strncmp32(p,arg,arglen) != 0)
+                    {p++; continue;}
+                /* we have a match, replace match by a segment marker */
+                if(!found) {/* first match */
+                    startseg++;
+                    found++;
+                }
+                *p = (SEGMARK | startseg);
+                /* compress out all but 1 char of match */
+                if(arglen > 1)
+                    strcpy32(p+1,p+arglen);
+                segcount++;
+            }
+        }
     }
     str->maxsegmark = startseg;
     return segcount;
@@ -1374,15 +1382,15 @@ ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
     /* Check for pointing at trailing NUL */
     if(str->residual < strlen32(str->body)) {
-	utf32 c32 = *(str->body+str->residual);
-	*ttm->result->content = c32;
-	setBufferLength(ttm,ttm->result,1);
-	str->residual++;
+        utf32 c32 = *(str->body+str->residual);
+        *ttm->result->content = c32;
+        setBufferLength(ttm,ttm->result,1);
+        str->residual++;
     }
 }
 
@@ -1390,37 +1398,46 @@ static void
 ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
 {
     Name* str;
-    long long n;
+    long long ln;
+    unsigned n;
+    int isneg;
     ERR err;
-    int bodylen,avail,startn;
+    unsigned int bodylen,startn;
+    unsigned int avail;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     /* Get number of characters to extract */
-    err = toInt64(frame->argv[1],&n);
+    err = toInt64(frame->argv[1],&ln);
     if(err != ENOERR) fail(ttm,err);
-    if(n <= 0) fail(ttm,EPOSITIVE);
+    if(ln >= MAXINT || ln <= MININT) fail(ttm,ERANGE);
+    isneg = 0;
+    if(ln < 0) {isneg = 1; ln = -ln;}
+    n = (unsigned int)ln;
 
     /* See if we have enough space */
     bodylen = strlen32(str->body);
-    avail = bodylen - str->residual;
-    if(avail > 0 && avail < n) n = avail; /* return what is available */
-    if(n == 0) goto nullreturn;
-    
+    if(str->residual >= bodylen)
+	avail = 0;
+    else
+        avail = (bodylen - str->residual);
+   
+    if(n == 0 || avail == 0) goto nullreturn;
+    if(avail < n) n = avail; /* return what is available */
+
     /* Figure out the starting and ending pointers for the transfer */
-    if(n > 0) {
-	/* We want n characters starting at byteresidual */
-	startn = str->residual;
-    } else {/* n < 0 */
-	n = (- n);
-	/* We want n characters starting at endresidual - |n| */
-	startn = bodylen - n;
+    if(isneg) {/* n was originally negative */
+        /* We want n characters starting at bodylen - |n| */
+        startn = bodylen - n;
+	} else {
+        /* We want n characters starting at residual */
+        startn = str->residual;
     }
-	
+        
     /* ok, copy n characters from startn to endn into the return buffer */
     setBufferLength(ttm,ttm->result,n);
     strncpy32(ttm->result->content,str->body+startn,n);
@@ -1446,22 +1463,22 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     rp = str->body + str->residual;
     rp0 = rp;
     depth = 0;
     ttm->result->content[0] = NUL32; /* so we can strcat */
     for(;(c32=*rp);rp++) {
-	if(c32 == ttm->semic) {
-	    if(depth == 0) break; /* reached unnested semicolon*/
-	} else if(c32 == ttm->openc) {
-	    depth++;
-	} else if(c32 == ttm->closec) {
-	    depth--;
-	}
+        if(c32 == ttm->semic) {
+            if(depth == 0) break; /* reached unnested semicolon*/
+        } else if(c32 == ttm->openc) {
+            depth++;
+        } else if(c32 == ttm->closec) {
+            depth--;
+        }
     }
     delta = (rp - rp0);
     setBufferLength(ttm,ttm->result,delta);
@@ -1481,22 +1498,22 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     /* Locate the next segment mark */
     /* Unclear if create marks also qualify; assume yes */
     p0 = str->body + str->residual;
     p = p0;
     for(;(c32=*p);p++) {
-	if(c32 == NUL32 || testMark(c32,SEGMARK) || testMark(c32,CREATE))
-	    break;
+        if(c32 == NUL32 || testMark(c32,SEGMARK) || testMark(c32,CREATE))
+            break;
     }
     delta = (p - p0);
     if(delta > 0) {
         setBufferLength(ttm,ttm->result,delta);
-	strncpy32(ttm->result->content,p0,delta);
+        strncpy32(ttm->result->content,p0,delta);
     }
     /* set residual pointer correctly */
     str->residual += delta;
@@ -1516,9 +1533,9 @@ ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointe
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     arg = frame->argv[1];
     arglen = strlen32(arg);
@@ -1527,12 +1544,12 @@ ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointe
 
     /* check for initial string match */
     if(strncmp32(str->body+str->residual,arg,arglen)==0) {
-	result = t;
-	str->residual += arglen;
-	slen = strlen32(str->body);
-	if(str->residual > slen) str->residual = slen;
+        result = t;
+        str->residual += arglen;
+        slen = strlen32(str->body);
+        if(str->residual > slen) str->residual = slen;
     } else
-	result = f;
+        result = f;
     setBufferLength(ttm,ttm->result,strlen32(result));
     strcpy32(ttm->result->content,result);    
 }
@@ -1542,7 +1559,7 @@ ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */
 {
     Name* str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
         fail(ttm,ENOPRIM);
     str->residual = 0;
@@ -1562,9 +1579,9 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     arg = frame->argv[1];
     arglen = strlen32(arg);
@@ -1581,12 +1598,12 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
         setBufferLength(ttm,ttm->result,strlen32(f));
         strcpy32(ttm->result->content,f);    
     } else {
-	unsigned int len = (p - p0);
-	setBufferLength(ttm,ttm->result,len);
-	strncpy32(ttm->result->content,p0,len);
-	str->residual += (len + arglen);
-	bodylen = strlen32(str->body);
-	if(str->residual > bodylen) str->residual = bodylen;
+        unsigned int len = (p - p0);
+        setBufferLength(ttm,ttm->result,len);
+        strncpy32(ttm->result->content,p0,len);
+        str->residual += (len + arglen);
+        bodylen = strlen32(str->body);
+        if(str->residual > bodylen) str->residual = bodylen;
     }
 }
 
@@ -1600,7 +1617,7 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
         fail(ttm,ENOPRIM);
 
@@ -1611,7 +1628,7 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
     str->residual += (int)num;
     bodylen = strlen32(str->body);
     if(str->residual > bodylen)
-	str->residual = bodylen;
+        str->residual = bodylen;
 }
 
 static void
@@ -1625,7 +1642,7 @@ ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
         fail(ttm,ENOPRIM);
     bodylen = strlen32(str->body);
@@ -1651,12 +1668,12 @@ ttm_gn(TTM* ttm, Frame* frame) /* Give n characters from argument string*/
     err = toInt64(snum,&num);
     if(err != ENOERR) fail(ttm,err);
     if(num > 0) {
-	if(slen < num) num = slen;
-	startp = s;
+        if(slen < num) num = slen;
+        startp = s;
     } else if(num < 0) {
-	num = -num;
-	startp = s + num;
-	num = (slen - num);
+        num = -num;
+        startp = s + num;
+        num = (slen - num);
     }
     if(num != 0) {
         setBufferLength(ttm,ttm->result,(unsigned int)num);
@@ -1675,20 +1692,20 @@ ttm_zlc(TTM* ttm, Frame* frame) /* Zero-level commas */
     slen = strlen32(s);
     setBufferLength(ttm,ttm->result,slen); /* result will be same length */
     for(depth=0,q=ttm->result->content;(c=*s);s++) {
-	if(isescape(c)) {
-	    *q++ = c;
-	    *q++ = *s++; /* skip escaped character */
-	} else if(c == COMMA && depth == 0) {
-	    *q++ = ttm->semic;	
-	} else if(c == LPAREN) {
-	    depth++;
-	    *q++ = c;
-	} else if(c == RPAREN) {
-	    depth--;
-	    *q++ = c;
-	} else {
-	    *q++ = c;
-	}
+        if(isescape(c)) {
+            *q++ = c;
+            *q++ = *s++; /* skip escaped character */
+        } else if(c == COMMA && depth == 0) {
+            *q++ = ttm->semic;  
+        } else if(c == LPAREN) {
+            depth++;
+            *q++ = c;
+        } else if(c == RPAREN) {
+            depth--;
+            *q++ = c;
+        } else {
+            *q++ = c;
+        }
     }
     *q = NUL32; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(q - ttm->result->content));
@@ -1711,28 +1728,28 @@ ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses;
     q = ttm->result->content;
     p = s;
     for(depth=0;(c=*p);p++) {
-	if(isescape(c)) {
-	    *q++ = c;
-	    p++;
-	    *q++ = *p;
-	} else if(depth == 0 && c == COMMA) {
-	    if(p[1] != LPAREN) {*q++ = ttm->semic;}
-	} else if(c == LPAREN) {
-	    if(depth == 0 && p > s) {*q++ = ttm->semic;}
-	    if(depth > 0) *q++ = c;
-	    depth++;
-	} else if(c == RPAREN) {
-	    depth--;
-	    if(depth == 0 && p[1] == COMMA) {
-	    } else if(depth == 0 && p[1] == NUL32) {/* do nothing */
-	    } else if(depth == 0) {
-		*q++ = ttm->semic;
-	    } else {/* depth > 0 */
-		*q++ = c;
-	    }
-	} else {
-	    *q++ = c;	   
-	}
+        if(isescape(c)) {
+            *q++ = c;
+            p++;
+            *q++ = *p;
+        } else if(depth == 0 && c == COMMA) {
+            if(p[1] != LPAREN) {*q++ = ttm->semic;}
+        } else if(c == LPAREN) {
+            if(depth == 0 && p > s) {*q++ = ttm->semic;}
+            if(depth > 0) *q++ = c;
+            depth++;
+        } else if(c == RPAREN) {
+            depth--;
+            if(depth == 0 && p[1] == COMMA) {
+            } else if(depth == 0 && p[1] == NUL32) {/* do nothing */
+            } else if(depth == 0) {
+                *q++ = ttm->semic;
+            } else {/* depth > 0 */
+                *q++ = c;
+            }
+        } else {
+            *q++ = c;      
+        }
     }
     *q = NUL32; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(q-ttm->result->content));
@@ -1766,22 +1783,22 @@ ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
     int len;
 
     if(cl == NULL || str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     /* Starting at str->residual, locate first char not in class */
     start = str->body+str->residual;
     for(p=start;(c=*p);p++) {
-	if(cl->negative && charclassMatch(c,cl->characters)) break;
-	if(!cl->negative && !charclassMatch(c,cl->characters)) break;
+        if(cl->negative && charclassMatch(c,cl->characters)) break;
+        if(!cl->negative && !charclassMatch(c,cl->characters)) break;
     }
     len = (p - start);
     if(len > 0) {
-	setBufferLength(ttm,ttm->result,len);
-	strncpy32(ttm->result->content,start,len);
-	ttm->result->content[len] = NUL32;
-	str->residual += len;
+        setBufferLength(ttm,ttm->result,len);
+        strncpy32(ttm->result->content,start,len);
+        ttm->result->content[len] = NUL32;
+        str->residual += len;
     }
 }
 
@@ -1791,13 +1808,13 @@ ttm_dcl0(TTM* ttm, Frame* frame, int negative)
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     if(cl == NULL) {
-	/* create a new charclass object */
-	cl = newCharclass(ttm);
-	cl->name = strdup32(frame->argv[1]);
-	charclassInsert(ttm,cl);
+        /* create a new charclass object */
+        cl = newCharclass(ttm);
+        cl->name = strdup32(frame->argv[1]);
+        charclassInsert(ttm,cl);
     }
     if(cl->characters != NULL)
-	free(cl->characters);
+        free(cl->characters);
     cl->characters = strdup32(frame->argv[2]);
     cl->negative = negative;
 }
@@ -1819,11 +1836,11 @@ ttm_ecl(TTM* ttm, Frame* frame) /* Erase a class */
 {
     unsigned int i;
     for(i=1;i<frame->argc;i++) {
-	utf32* clname = frame->argv[i];
-	Charclass* prev = charclassRemove(ttm,clname);
-	if(prev != NULL) {
-	    freeCharclass(ttm,prev); /* reclaim the character class */
-	}
+        utf32* clname = frame->argv[i];
+        Charclass* prev = charclassRemove(ttm,clname);
+        if(prev != NULL) {
+            freeCharclass(ttm,prev); /* reclaim the character class */
+        }
     }
 }
 
@@ -1838,15 +1855,15 @@ ttm_scl(TTM* ttm, Frame* frame) /* Skip class */
     int len;
 
     if(cl == NULL || str == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
 
     /* Starting at str->residual, locate first char not in class */
     start = str->body+str->residual;
     for(p=start;(c=*p);p++) {
-	if(cl->negative && charclassMatch(c,cl->characters)) break;
-	if(!cl->negative && !charclassMatch(c,cl->characters)) break;
+        if(cl->negative && charclassMatch(c,cl->characters)) break;
+        if(!cl->negative && !charclassMatch(c,cl->characters)) break;
     }
     len = (p - start);
     str->residual += len;
@@ -1863,27 +1880,27 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
     utf32* f;
 
     if(cl == NULL)
-	fail(ttm,ENONAME);
+        fail(ttm,ENONAME);
     if(str->builtin)
-	fail(ttm,ENOPRIM);
+        fail(ttm,ENOPRIM);
     t = frame->argv[3];
     f = frame->argv[4];
     if(str == NULL)
-	retval = f;
+        retval = f;
     else {
         /* see if char at str->residual is in class */
-	utf32 c32 = *(str->body + str->residual);
+        utf32 c32 = *(str->body + str->residual);
         if(cl->negative && !charclassMatch(c32,cl->characters)) 
-	    retval = t;
+            retval = t;
         else if(!cl->negative && charclassMatch(c32,cl->characters))
-	    retval = t;
-	else
-	    retval = f;
+            retval = t;
+        else
+            retval = f;
     }
     retlen = strlen32(retval);
     if(retlen > 0) {
-	setBufferLength(ttm,ttm->result,retlen);
-	strcpy32(ttm->result->content,retval);
+        setBufferLength(ttm,ttm->result,retlen);
+        strcpy32(ttm->result->content,retval);
     }    
 }
 
@@ -1919,10 +1936,10 @@ ttm_ad(TTM* ttm, Frame* frame) /* Add */
 
     total = 0;
     for(i=1;i<frame->argc;i++) {
-	snum = frame->argv[i];    
+        snum = frame->argv[i];    
         err = toInt64(snum,&num);
         if(err != ENOERR) fail(ttm,err);
-	total += num;
+        total += num;
     }
     setBufferLength(ttm,ttm->result,MAXINTCHARS);
     count = int2string(ttm->result->content,total);
@@ -1984,10 +2001,10 @@ ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
 
     total = 1;
     for(i=1;i<frame->argc;i++) {
-	snum = frame->argv[i];    
+        snum = frame->argv[i];    
         err = toInt64(snum,&num);
         if(err != ENOERR) fail(ttm,err);
-	total *= num;
+        total *= num;
     }
     setBufferLength(ttm,ttm->result,MAXINTCHARS);
     count = int2string(ttm->result->content,total);
@@ -2166,9 +2183,9 @@ ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
     utf32* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
     FILE* target;
     if(stdxx != NULL && streq328(stdxx,"stderr"))
-	target=stderr;
+        target=stderr;
     else
-	target = stdout;
+        target = stdout;
     printstring(ttm,target,s,!PRINTALL);
 }
 
@@ -2185,11 +2202,11 @@ ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
     if(ttm->isstdin)
         {fprintf(stdout,"ttm>");fflush(stdout);}
     for(len=0;;len++) {
-	c=fgetc32(ttm->rsinput);
-	if(c == EOF) break;
-	if(c == ttm->metac) break;
+        c=fgetc32(ttm->rsinput);
+        if(c == EOF) break;
+        if(c == ttm->metac) break;
         setBufferLength(ttm,ttm->result,len+1);
-	ttm->result->content[len] = c;
+        ttm->result->content[len] = c;
     }
 }
 
@@ -2209,8 +2226,8 @@ ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */
 {
     utf32* smeta = frame->argv[1];
     if(strlen32(smeta) > 0) {
-	if(smeta[0] > 127) fail(ttm,EASCII);
-	ttm->metac = smeta[0];
+        if(smeta[0] > 127) fail(ttm,EASCII);
+        ttm->metac = smeta[0];
     }
 }
 
@@ -2219,9 +2236,9 @@ ttm_pf(TTM* ttm, Frame* frame) /* Flush stdout and/or stderr */
 {
     utf32* stdxx = (frame->argc == 1 ? NULL : frame->argv[1]);
     if(stdxx == NULL || streq328(stdxx,"stdout"))
-	fflush(stderr);
+        fflush(stderr);
     if(stdxx == NULL || streq328(stdxx,"stderr"))
-	fflush(stderr);
+        fflush(stderr);
 }
 
 /* Library Operations */
@@ -2239,59 +2256,59 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names in sorted or
     /* First, figure out the number of names and the total size */
     len = 0;
     for(nnames=0,i=0;i<HASHSIZE;i++) {
-	if(ttm->dictionary[i] != NULL) {
-	    Name* name = ttm->dictionary[i];
-	    while(name != NULL) {
-		if(allnames || !name->builtin) {
-		    len += strlen32(name->name);
-		    nnames++;
-		}
-	        name = name->next;
-	    }
-	}
+        if(ttm->dictionary[i] != NULL) {
+            Name* name = ttm->dictionary[i];
+            while(name != NULL) {
+                if(allnames || !name->builtin) {
+                    len += strlen32(name->name);
+                    nnames++;
+                }
+                name = name->next;
+            }
+        }
     }
 
     if(nnames == 0)
-	return;
+        return;
 
     /* Now collect all the names */
     names = (utf32**)malloc(sizeof(utf32*)*nnames);
     if(names == NULL) fail(ttm,EMEMORY);
     index = 0;
     for(i=0;i<HASHSIZE;i++) {
-	if(ttm->dictionary[i] != NULL) {
-	    Name* name = ttm->dictionary[i];
-	    while(name != NULL) {
-		if(allnames || !name->builtin) {
-		    names[index++] = name->name;		
-		}
-		name = name->next;
-	    }
-	}
+        if(ttm->dictionary[i] != NULL) {
+            Name* name = ttm->dictionary[i];
+            while(name != NULL) {
+                if(allnames || !name->builtin) {
+                    names[index++] = name->name;                
+                }
+                name = name->next;
+            }
+        }
     }
 
     /* Now bubble sort the set of names */
     for(;;) {
-	int swapped = 0;
-	for(i=1;i<nnames;i++) {
-	    /* test out of order */
-	    if(strcmp32(names[i-1],names[i]) > 0) {
-		/* swap them and remember something changed */
-		utf32* tmp = names[i-1];
-		names[i-1] = names[i];
-		names[i] = tmp;
-		swapped = 1;
-	    }
-	}
-	if(!swapped) break;
+        int swapped = 0;
+        for(i=1;i<nnames;i++) {
+            /* test out of order */
+            if(strcmp32(names[i-1],names[i]) > 0) {
+                /* swap them and remember something changed */
+                utf32* tmp = names[i-1];
+                names[i-1] = names[i];
+                names[i] = tmp;
+                swapped = 1;
+            }
+        }
+        if(!swapped) break;
     }
     /* Return the set of names separated by commas */    
     setBufferLength(ttm,ttm->result,len+(nnames-1));
     p = ttm->result->content;
     for(i=0;i<nnames;i++) {
-	if(i > 0) {*p++ = ',';}
-	strcpy32(p,names[i]);
-	p += strlen32(names[i]);
+        if(i > 0) {*p++ = ',';}
+        strcpy32(p,names[i]);
+        p += strlen32(names[i]);
     }
 }
 
@@ -2301,10 +2318,10 @@ ttm_exit(TTM* ttm, Frame* frame) /* Return from TTM */
     long long exitcode = 0;
     ttm->flags |= FLAG_EXIT;
     if(frame->argc > 1) {
-	ERR err = toInt64(frame->argv[1],&exitcode);
-	if(err != ENOERR) exitcode = 1;
-	else if(exitcode < 0) exitcode = - exitcode;
-    }	
+        ERR err = toInt64(frame->argv[1],&exitcode);
+        if(err != ENOERR) exitcode = 1;
+        else if(exitcode < 0) exitcode = - exitcode;
+    }   
     ttm->exitcode = (int)exitcode;
 }
 
@@ -2349,7 +2366,7 @@ ttm_time(TTM* ttm, Frame* frame) /* Obtain time of day */
     long long time;
 
     if(timeofday(&tv) < 0)
-	fail(ttm,ETIME);
+        fail(ttm,ETIME);
     time = (long long)tv.tv_sec;
     time *= 1000000; /* convert to microseconds */
     time += tv.tv_usec;
@@ -2397,21 +2414,21 @@ static void
 ttm_tf(TTM* ttm, Frame* frame) /* Turn Trace Off */
 {
     if(frame->argc > 1) {/* trace off specific*/
-	unsigned int i;
-	for(i=1;i<frame->argc;i++) {
-	    Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn == NULL) fail(ttm,ENONAME);	    
-	    fcn->trace = 0;
-	}
+        unsigned int i;
+        for(i=1;i<frame->argc;i++) {
+            Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+            if(fcn == NULL) fail(ttm,ENONAME);      
+            fcn->trace = 0;
+        }
     } else { /* turn off all tracing */
-	int i;
-	for(i=0;i<HASHSIZE;i++) {
-	    Name* name = ttm->dictionary[i];
-	    while(name != NULL) {
-		name->trace = 0;
-	        name = name->next;
-	    }
-	}
+        int i;
+        for(i=0;i<HASHSIZE;i++) {
+            Name* name = ttm->dictionary[i];
+            while(name != NULL) {
+                name->trace = 0;
+                name = name->next;
+            }
+        }
         ttm->flags &= ~(FLAG_TRACE);
     }
 }
@@ -2420,14 +2437,14 @@ static void
 ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */
 {
     if(frame->argc > 1) {/* trace specific*/
-	unsigned int i;
-	for(i=1;i<frame->argc;i++) {
-	    Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn == NULL) fail(ttm,ENONAME);	    
-	    fcn->trace = 1;
-	}
+        unsigned int i;
+        for(i=1;i<frame->argc;i++) {
+            Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+            if(fcn == NULL) fail(ttm,ENONAME);      
+            fcn->trace = 1;
+        }
     } else 
-	ttm->flags |= (FLAG_TRACE); /*trace all*/
+        ttm->flags |= (FLAG_TRACE); /*trace all*/
 }
 
 /* Functions new to this implementation */
@@ -2444,7 +2461,7 @@ ttm_argv(TTM* ttm, Frame* frame)
     err = toInt64(frame->argv[1],&index);
     if(err != ENOERR) fail(ttm,err);
     if(index < 0 || index >= getOptionNameLength(argoptions))
-	fail(ttm,ERANGE);
+        fail(ttm,ERANGE);
     arg = argoptions[index];
     arglen = strlen(arg);
     setBufferLength(ttm,ttm->result,arglen);/*temp*/
@@ -2462,55 +2479,55 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
 
     /* First, figure out the number of classes */
     for(nclasses=0,i=0;i<HASHSIZE;i++) {
-	if(ttm->charclasses[i] != NULL) {
-	    Charclass* charclass = ttm->charclasses[i];
-	    while(charclass != NULL) {
-		nclasses++;
-		charclass = charclass->next;
-	    }
-	}
+        if(ttm->charclasses[i] != NULL) {
+            Charclass* charclass = ttm->charclasses[i];
+            while(charclass != NULL) {
+                nclasses++;
+                charclass = charclass->next;
+            }
+        }
     }
 
     if(nclasses == 0)
-	return;
+        return;
 
     /* Now collect all the class and their total size */
     classes = (utf32**)malloc(sizeof(utf32*)*nclasses);
     if(classes == NULL) fail(ttm,EMEMORY);
     for(len=0,index=0,i=0;i<HASHSIZE;i++) {
-	if(ttm->charclasses[i] != NULL) {
-	    Charclass* charclass = ttm->charclasses[i];
-	    while(charclass != NULL) {
-		classes[index++] = charclass->name;
-		len += strlen32(charclass->name);
-		charclass = charclass->next;
-	    }
-	}
+        if(ttm->charclasses[i] != NULL) {
+            Charclass* charclass = ttm->charclasses[i];
+            while(charclass != NULL) {
+                classes[index++] = charclass->name;
+                len += strlen32(charclass->name);
+                charclass = charclass->next;
+            }
+        }
     }
 
     /* Now bubble sort the set of classes */
     for(;;) {
-	int swapped = 0;
-	for(i=1;i<nclasses;i++) {
-	    /* test out of order */
-	    if(strcmp32(classes[i-1],classes[i]) > 0) {
-		/* swap them and remember something changed */
-		utf32* tmp = classes[i-1];
-		classes[i-1] = classes[i];
-		classes[i] = tmp;
-		swapped = 1;
-	    }
-	}
-	if(!swapped) break;
+        int swapped = 0;
+        for(i=1;i<nclasses;i++) {
+            /* test out of order */
+            if(strcmp32(classes[i-1],classes[i]) > 0) {
+                /* swap them and remember something changed */
+                utf32* tmp = classes[i-1];
+                classes[i-1] = classes[i];
+                classes[i] = tmp;
+                swapped = 1;
+            }
+        }
+        if(!swapped) break;
     }
 
     /* Return the set of classes separated by commas */    
     setBufferLength(ttm,ttm->result,len+(nclasses-1));
     p = ttm->result->content;
     for(i=0;i<nclasses;i++) {
-	if(i > 0) {*p++ = ',';}
-	strcpy32(p,classes[i]);
-	p += strlen32(classes[i]);
+        if(i > 0) {*p++ = ',';}
+        strcpy32(p,classes[i]);
+        p += strlen32(classes[i]);
     }
 }
 
@@ -2519,8 +2536,8 @@ ttm_lf(TTM* ttm, Frame* frame) /* Lock a function from being deleted */
 {
     unsigned int i;
     for(i=1;i<frame->argc;i++) {
-	Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	if(fcn == NULL) fail(ttm,ENONAME);	    
+        Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+        if(fcn == NULL) fail(ttm,ENONAME);          
         fcn->locked = 1;
     }
 }
@@ -2530,8 +2547,8 @@ ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
 {
     unsigned int i;
     for(i=1;i<frame->argc;i++) {
-	Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	if(fcn == NULL) fail(ttm,ENONAME);	    
+        Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+        if(fcn == NULL) fail(ttm,ENONAME);          
         fcn->locked = 0;
     }
 }
@@ -2559,10 +2576,10 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     suffix32 = frame->argv[1];
     suffixlen = strlen32(suffix32);
     if(suffixlen == 0)
-	fail(ttm,EINCLUDE);
+        fail(ttm,EINCLUDE);
     if(suffix32[0] == '/' || suffix32[0] == '\\') {
-	suffix32++;
-	suffixlen--;
+        suffix32++;
+        suffixlen--;
     }
     /* convert */
     count = toString8((char_t*)suffix,suffix32,suffixlen);
@@ -2570,14 +2587,14 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     suffix[count] = NUL;
     /* access thru the -I list */
     for(path=includes;*path;) {
-	strcpy(filename,*path);
-	strcat(filename,"/");
-	strcat(filename,suffix);
-	finclude = fopen(filename,"r");
+        strcpy(filename,*path);
+        strcat(filename,"/");
+        strcat(filename,suffix);
+        finclude = fopen(filename,"r");
         if(finclude != NULL) break;
     }
     if(finclude == NULL)
-	fail(ttm,EINCLUDE);
+        fail(ttm,EINCLUDE);
     readfile(ttm,finclude,bb);
 }
 
@@ -2621,53 +2638,53 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
     for(i=3;i<frame->argc;i++) {
         str = dictionaryLookup(ttm,frame->argv[i]);
         if(str == NULL) { /* not defined*/
-	    strcpy32(q,frame->argv[i]);
-	    q += strlen32(frame->argv[i]);
-	    count = toString32(q,"-,-,-",TOEOS);
-	    *q++ = '\n';
-	    continue;	    
-	}
+            strcpy32(q,frame->argv[i]);
+            q += strlen32(frame->argv[i]);
+            count = toString32(q,"-,-,-",TOEOS);
+            *q++ = '\n';
+            continue;       
+        }
         namelen = strlen32(str->name);
-	strcpy32(q,str->name);
-	q += namelen;
-	if(str->builtin) {
-	    snprintf(info,sizeof(info),",%d,",str->minargs);
-	    count = toString32(q,info,TOEOS);
-	    q += count;
-	    if(str->maxargs == MAXARGS)
-		*q++ = '*';
-	    else {
-		snprintf(info,sizeof(info),"%d",str->maxargs);
-		count = toString32(q,info,TOEOS);
-		q += count;
-	    }
-	    *q++ = ',';
-	    *q++ = (str->novalue?'S':'V');
-	} else {
-	    snprintf(info,sizeof(info),",0,%d,V",str->maxsegmark);
-	    count = toString32(q,info,TOEOS);
-	    q += count;
-	}
-	if(!str->builtin) {
-	    snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
-	    count = toString32(q,info,TOEOS);
-	    q += count;
-	    /* Walk the body checking for segment and creation marks */
-	    p=str->body;
-	    while((c32=*p++)) {
-		if(ismark(c32)) {
-		    if(iscreate(c32))
-			strcpy(info,"^00");
-		    else /* segmark */
-			snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
-		    count = toString32(q,info,TOEOS);
-		    q += count;
-		} else
-		    *q++ = c32;
-	    }
-	    *q++ = '|';
-	}
-	*q++ = '\n';
+        strcpy32(q,str->name);
+        q += namelen;
+        if(str->builtin) {
+            snprintf(info,sizeof(info),",%d,",str->minargs);
+            count = toString32(q,info,TOEOS);
+            q += count;
+            if(str->maxargs == MAXARGS)
+                *q++ = '*';
+            else {
+                snprintf(info,sizeof(info),"%d",str->maxargs);
+                count = toString32(q,info,TOEOS);
+                q += count;
+            }
+            *q++ = ',';
+            *q++ = (str->novalue?'S':'V');
+        } else {
+            snprintf(info,sizeof(info),",0,%d,V",str->maxsegmark);
+            count = toString32(q,info,TOEOS);
+            q += count;
+        }
+        if(!str->builtin) {
+            snprintf(info,sizeof(info)," residual=%u body=|",str->residual);
+            count = toString32(q,info,TOEOS);
+            q += count;
+            /* Walk the body checking for segment and creation marks */
+            p=str->body;
+            while((c32=*p++)) {
+                if(ismark(c32)) {
+                    if(iscreate(c32))
+                        strcpy(info,"^00");
+                    else /* segmark */
+                        snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
+                    count = toString32(q,info,TOEOS);
+                    q += count;
+                } else
+                    *q++ = c32;
+            }
+            *q++ = '|';
+        }
+        *q++ = '\n';
     }
     setBufferLength(ttm,result,(q - result->content));
 #ifdef DEBUG
@@ -2708,7 +2725,7 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame) /* Misc. combined actions */
                 *q++ = '\\';
             *q++ = c32;
         }
-	*q++ = '\n';
+        *q++ = '\n';
     }
     setBufferLength(ttm,result,(q - result->content));
 #ifdef DEBUG
@@ -2734,18 +2751,18 @@ ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
     discrim[count] = NUL;
 
     if(frame->argc >= 3 && strcmp("meta",discrim)==0) {
-	ttm_ttm_meta(ttm,frame);
+        ttm_ttm_meta(ttm,frame);
     } else if(frame->argc >= 4 && strcmp("info",discrim)==0) {
         count = toString8(discrim,frame->argv[2],TOEOS);
         discrim[count] = NUL;
         if(strcmp("name",discrim)==0) {
-	    ttm_ttm_info_name(ttm,frame);
+            ttm_ttm_info_name(ttm,frame);
         } else if(strcmp("class",discrim)==0) {
-	    ttm_ttm_info_class(ttm,frame);
-	} else
-	    fail(ttm,ETTMCMD);
+            ttm_ttm_info_class(ttm,frame);
+        } else
+            fail(ttm,ETTMCMD);
     } else {
-	fail(ttm,ETTMCMD);
+        fail(ttm,ETTMCMD);
     }
 
 }
@@ -2910,7 +2927,7 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     function->minargs = bin->minargs;
     function->maxargs = bin->maxargs;
     if(strcmp(bin->sv,"S")==0)
-	function->novalue = 1;
+        function->novalue = 1;
     function->fcn = bin->fcn;
     /* Convert name to utf32 */
     function->name = strdup32(binname);
@@ -2922,9 +2939,9 @@ defineBuiltinFunctions(TTM* ttm)
 {
     struct Builtin* bin;
     for(bin=builtin_orig;bin->name != NULL;bin++)
-	defineBuiltinFunction1(ttm,bin);
+        defineBuiltinFunction1(ttm,bin);
     for(bin=builtin_new;bin->name != NULL;bin++)
-	defineBuiltinFunction1(ttm,bin);
+        defineBuiltinFunction1(ttm,bin);
 }
 
 /**************************************************/
@@ -2952,21 +2969,21 @@ predefineNames(TTM* ttm)
     ttm->flags &= ~FLAG_TRACE;
 
     for(pre=predefines;pre->name != NULL;pre++) {
-	bodylen = strlen(pre->body);
-	resetBuffer(ttm,ttm->buffer);
-	setBufferLength(ttm,ttm->buffer,bodylen); /* temp */
-	count = toString32(ttm->buffer->content,pre->body,bodylen);	
-	setBufferLength(ttm,ttm->buffer,count);
-	scan(ttm);
-	resetBuffer(ttm,ttm->buffer); /* throw away any result */
-	/* Validate */
-	if(strlen(pre->name) >= sizeof(name32)/sizeof(utf32))
-	    fatal(ttm,"Predefined Name name is too long");
-	count = toString32(name32,pre->name,TOEOS);
-	name32[count] = NUL32;
+        bodylen = strlen(pre->body);
+        resetBuffer(ttm,ttm->buffer);
+        setBufferLength(ttm,ttm->buffer,bodylen); /* temp */
+        count = toString32(ttm->buffer->content,pre->body,bodylen);     
+        setBufferLength(ttm,ttm->buffer,count);
+        scan(ttm);
+        resetBuffer(ttm,ttm->buffer); /* throw away any result */
+        /* Validate */
+        if(strlen(pre->name) >= sizeof(name32)/sizeof(utf32))
+            fatal(ttm,"Predefined Name name is too long");
+        count = toString32(name32,pre->name,TOEOS);
+        name32[count] = NUL32;
         fcn = dictionaryLookup(ttm,name32);
         if(fcn == NULL) fatal(ttm,"Could not define a predefined name");
-	fcn->locked = 1; /* do not allow predefines to be deleted */
+        fcn->locked = 1; /* do not allow predefines to be deleted */
     }
     ttm->flags = saveflags;
 
@@ -2988,20 +3005,20 @@ fatal(TTM* ttm, const char* msg)
 {
     fprintf(stderr,"Fatal error: %s\n",msg);
     if(ttm != NULL) {
-	/* Dump the frame stack */
-	dumpstack(ttm);
+        /* Dump the frame stack */
+        dumpstack(ttm);
         /* Dump passive and active strings*/
-	fprintf(stderr,"context: ");
+        fprintf(stderr,"context: ");
         /* Since passive is not normally null terminated, we need to fake it */
-	{
-	    utf32 save = *ttm->buffer->passive;
-	    *ttm->buffer->passive = NUL32;
-	    dbgprint32(ttm->buffer->content,'|');
-	    *ttm->buffer->passive = save;
-	}
-	fprintf(stderr," ... ");
-	dbgprint32(ttm->buffer->active,'|');
-	fprintf(stderr,"\n");
+        {
+            utf32 save = *ttm->buffer->passive;
+            *ttm->buffer->passive = NUL32;
+            dbgprint32(ttm->buffer->content,'|');
+            *ttm->buffer->passive = save;
+        }
+        fprintf(stderr," ... ");
+        dbgprint32(ttm->buffer->active,'|');
+        fprintf(stderr,"\n");
     }
     fflush(stderr);
     exit(1);
@@ -3106,39 +3123,39 @@ toInt64(utf32* s, long long* lp)
     if(c == '-') {negative = -1; c=*p++;} else if(c == '+') {c=*p++;}
     if(c == NUL) return EDECIMAL; /* just a +|- */
     if(c == '0' && (*p == 'x' || *p == 'X')) { /* hex case */
-	unsigned long ul = 0;
-	int i;
-	for(i=0;i<16;i++) {/* allow no more than 16 hex digits */
-	    c=*p++;
-	    if(!ishex(c)) break;
-	    ul = (ul<<8) | fromhex(c);
-	}
-	if(i==0)
-	    return EDECIMAL; /* it was just "0x" */
-	if(i == 16) /* too big */
-	    return EMANYDIGITS;
-	if(lp) {*lp = *(long long*)&ul;} /* return as signed value */
-	return ENOERR;
+        unsigned long ul = 0;
+        int i;
+        for(i=0;i<16;i++) {/* allow no more than 16 hex digits */
+            c=*p++;
+            if(!ishex(c)) break;
+            ul = (ul<<8) | fromhex(c);
+        }
+        if(i==0)
+            return EDECIMAL; /* it was just "0x" */
+        if(i == 16) /* too big */
+            return EMANYDIGITS;
+        if(lp) {*lp = *(long long*)&ul;} /* return as signed value */
+        return ENOERR;
     } else if(c >= '0' && c <= '9') { /* decimal */
-	unsigned long long ul;
-	ul = (c - '0');
-	while((c=*p++)) {
-	    int digit;
-	    if(c < '0' || c > '9') break;
-	    digit = (c-'0');
-	    ul = (ul * 10) + digit;
-	    if((ul & 0x8000000000000000ULL) != 0) {
-		/* Sign bit was set => overflow */
-		return EMANYDIGITS;
-	    }
-	}      
-	if(lp) {
-	    /* convert back to signed */
-	    long long l;
-	    l = *(long long*)&ul;
-	    l *= negative;
-	    *lp = l;
-	}
+        unsigned long long ul;
+        ul = (c - '0');
+        while((c=*p++)) {
+            int digit;
+            if(c < '0' || c > '9') break;
+            digit = (c-'0');
+            ul = (ul * 10) + digit;
+            if((ul & 0x8000000000000000ULL) != 0) {
+                /* Sign bit was set => overflow */
+                return EMANYDIGITS;
+            }
+        }      
+        if(lp) {
+            /* convert back to signed */
+            long long l;
+            l = *(long long*)&ul;
+            l *= negative;
+            *lp = l;
+        }
         return ENOERR;
     } /* else illegal */
     return EDECIMAL;
@@ -3171,16 +3188,16 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
 
     tag[i++] = (char)ttm->sharpc;
     if(!frame->active)
-	tag[i++] = (char)ttm->sharpc;
+        tag[i++] = (char)ttm->sharpc;
     tag[i++] = (char)ttm->openc;
     tag[i] = NUL;
     fprintf(stderr,"%s",tag);
     dbgprint32(frame->argv[0],NUL);
     if(traceargs) {
-	for(i=1;i<frame->argc;i++) {
-	    fputc32(ttm->semic,stderr);
-	    dbgprint32(frame->argv[i],NUL);
-	}
+        for(i=1;i<frame->argc;i++) {
+            fputc32(ttm->semic,stderr);
+            dbgprint32(frame->argv[i],NUL);
+        }
     }
     fputc32(ttm->closec,stderr);
     fflush(stderr);
@@ -3192,9 +3209,9 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
     Frame* frame;
 
     if(tracing && ttm->stacknext == 0) {
-	fprintf(stderr,"trace: no frame to trace\n");
-	return;
-    }	
+        fprintf(stderr,"trace: no frame to trace\n");
+        return;
+    }   
 
     frame = &ttm->stack[depth];
     fprintf(stderr,"[%02d] ",depth);
@@ -3203,8 +3220,8 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
     traceframe(ttm,frame,entering);
     /* Dump the contents of result if !entering */
     if(!entering) {
-	fprintf(stderr," => ");
-	dbgprint32(ttm->result->content,'"');
+        fprintf(stderr," => ");
+        dbgprint32(ttm->result->content,'"');
     } 
     fprintf(stderr,"\n");
 }
@@ -3229,8 +3246,8 @@ dumpstack(TTM* ttm)
 {
     unsigned int i;
     for(i=1;i<=ttm->stacknext;i++) {
-	Frame* frame;
-	frame = &ttm->stack[ttm->stacknext-i];
+        Frame* frame;
+        frame = &ttm->stack[ttm->stacknext-i];
         trace1(ttm,i,1,!TRACING);
     }
     fflush(stderr);
@@ -3241,38 +3258,38 @@ dbgprint32(utf32* s, char quote)
 {
     utf32 c;
     if(quote != NUL)
-	fputc(quote,stderr);
+        fputc(quote,stderr);
     while((c=*s++)) {
-	if(ismark(c)) {
-	    char_t* p;
-	    char info[16+1];
-	    if(iscreate(c))
-		strcpy(info,"^00");
-	    else /* segmark */
-		snprintf(info,sizeof(info),"^%02d",(int)(c & 0xFF));
-	    for(p=info;*p;p++) fputc(*p,stderr);
-	} else if(iscontrol(c)) {
-	    fputc32('\\',stderr);
-	    switch (c) {
-	    case '\r': fputc('r',stderr); break;
-	    case '\n': fputc('n',stderr); break;
-	    case '\t': fputc('t',stderr); break;
-	    case '\b': fputc('b',stderr); break;
-	    case '\f': fputc('f',stderr); break;
-	    default: {
-		/* dump as a decimal character */
-		char digits[4];
-		snprintf(digits,sizeof(digits),"%d",(int)c);
-		fprintf(stderr,"%s",digits);
-		} break;
-	    }
-	} else {
-	    if(c == quote) fputc('\\',stderr);
-	    fputc32(c,stderr);
-	}
+        if(ismark(c)) {
+            char_t* p;
+            char info[16+1];
+            if(iscreate(c))
+                strcpy(info,"^00");
+            else /* segmark */
+                snprintf(info,sizeof(info),"^%02d",(int)(c & 0xFF));
+            for(p=info;*p;p++) fputc(*p,stderr);
+        } else if(iscontrol(c)) {
+            fputc32('\\',stderr);
+            switch (c) {
+            case '\r': fputc('r',stderr); break;
+            case '\n': fputc('n',stderr); break;
+            case '\t': fputc('t',stderr); break;
+            case '\b': fputc('b',stderr); break;
+            case '\f': fputc('f',stderr); break;
+            default: {
+                /* dump as a decimal character */
+                char digits[4];
+                snprintf(digits,sizeof(digits),"%d",(int)c);
+                fprintf(stderr,"%s",digits);
+                } break;
+            }
+        } else {
+            if(c == quote) fputc('\\',stderr);
+            fputc32(c,stderr);
+        }
     }
     if(quote != NUL)
-	fputc(quote,stderr);
+        fputc(quote,stderr);
     fflush(stderr);
 }
 
@@ -3293,11 +3310,11 @@ pushOptionName(char* option, unsigned int max, char** list)
 {
     unsigned int i;
     for(i=0;i<max;i++) {
-	if(list[i] == NULL) {
-	    list[i] = (char*)malloc(strlen(option)+1);
-	    strcpy(list[i],option);
-	    return 1;
-	}
+        if(list[i] == NULL) {
+            list[i] = (char*)malloc(strlen(option)+1);
+            strcpy(list[i],option);
+            return 1;
+        }
     }
     return 0;
 }
@@ -3314,8 +3331,8 @@ static void
 usage(const char* msg)
 {
     if(msg != NULL)
-	fprintf(stderr,"%s\n",msg);
-    fprintf(stderr,"ttm [-B integer] [-d string] [-D name=string] [-e string] [-i] [-I directory] [-o file] [-V] [--] [file] [arg...]\n");
+        fprintf(stderr,"%s\n",msg);
+    fprintf(stderr,"ttm [-B integer] [-d string] [-D name=string] [-e string] [-i] [-I directory] [-o file] [-p programfile] [-r rsfile] [-V] [--] [arg...]\n");
     fprintf(stderr,"\tOptions may be repeated\n");
     if(msg != NULL) exit(1); else exit(0);
 }
@@ -3332,7 +3349,7 @@ convertDtoE(const char* def)
     strcat(macro,def);
     sep = strchr(macro,'=');
     if(sep != NULL)
-	*sep++ = ';';
+        *sep++ = ';';
     else
         strcat(macro,";");
     strcat(macro,">");
@@ -3350,15 +3367,15 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     unsigned int buffersize = bb->alloc;
 
     if(strcmp(filename,"-") == 0) {
-	/* Read from stdinput */
-	isstdin = 1;
-	f = stdin;	
+        /* Read from stdinput */
+        isstdin = 1;
+        f = stdin;      
     } else {
-	f = fopen(filename,"r");
-	if(f == NULL) {
-	    fprintf(stderr,"Cannot read file: %s\n",filename);
-	    exit(1);
-	}
+        f = fopen(filename,"r");
+        if(f == NULL) {
+            fprintf(stderr,"Cannot read file: %s\n",filename);
+            exit(1);
+        }
     }
     
     resetBuffer(ttm,bb);
@@ -3366,14 +3383,14 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
 
     /* Read char_t character by character until EOF */
     for(i=0;i<buffersize-1;i++) {
-	utf32 c32;
-	c32 = fgetc32(f);
-	if(c32 == EOF) break;		
-	if(c32 == ttm->escapec) {
-	    *content++ = c32;
-	    c32 = fgetc32(f);
-	}
-	*content++ = c32;
+        utf32 c32;
+        c32 = fgetc32(f);
+        if(c32 == EOF) break;           
+        if(c32 == ttm->escapec) {
+            *content++ = c32;
+            c32 = fgetc32(f);
+        }
+        *content++ = c32;
     }
     setBufferLength(ttm,bb,i);
     if(!isstdin) fclose(f);
@@ -3407,19 +3424,19 @@ readbalanced(TTM* ttm)
     /* Read character by character until EOF; take escapes and open/close
        into account; keep outer <...> */
     for(depth=0,i=0;i<buffersize-1;i++) {
-	c32 = fgetc32(stdin);
-	if(c32 == EOF) break;
-	if(c32 == ttm->escapec) {
-	    *content++ = c32;
-	    c32 = fgetc32(stdin);
-	}
-	*content++ = c32;
-	if(c32 == ttm->openc) {
-	    depth++;
-	} else if(c32 == ttm->closec) {
-	    depth--;
-	    if(depth == 0) break;
-	}
+        c32 = fgetc32(stdin);
+        if(c32 == EOF) break;
+        if(c32 == ttm->escapec) {
+            *content++ = c32;
+            c32 = fgetc32(stdin);
+        }
+        *content++ = c32;
+        if(c32 == ttm->openc) {
+            depth++;
+        } else if(c32 == ttm->closec) {
+            depth--;
+            if(depth == 0) break;
+        }
     }
     /* skip to end of line */
     while(c32 != EOF && c32 != '\n') {c32 = fgetc32(stdin);}
@@ -3448,10 +3465,10 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
     count32 = 0;
     p = bb->content;
     for(;;) {
-	utf32 c = fgetc32(file);
+        utf32 c = fgetc32(file);
         if(ferror(file)) fail(ttm,EIO);
-	if(c == EOF) break;
-	*p++ = c;
+        if(c == EOF) break;
+        *p++ = c;
     }        
     *p = NUL32;
     count32 = (p - bb->content);
@@ -3465,7 +3482,7 @@ tagvalue(const char* p)
     unsigned int value;
     int c;
     if(p == NULL || p[0] == NUL)
-	return -1;
+        return -1;
     value = atol(p);
     c = p[strlen(p)-1];
     switch (c) {
@@ -3481,7 +3498,7 @@ tagvalue(const char* p)
 /**************************************************/
 /* Main() */
 
-static const char* options = "d:D:e:iI:o:r:VX:-";
+static char* options = "d:D:e:iI:o:p:r:VX:-";
 
 int
 main(int argc, char** argv)
@@ -3493,7 +3510,7 @@ main(int argc, char** argv)
     char* debugargs = strdup("");
     int interactive = 0;
     char* outputfilename = NULL;
-    char* inputfilename = NULL; /* This is the ttm file */
+    char* programfilename = NULL; /* This is the ttm file */
     char* rsfilename = NULL; /* This is data for #<rs> */
     int isstdout = 1;
     FILE* outputfile = NULL;
@@ -3504,7 +3521,7 @@ main(int argc, char** argv)
     char* p;
 
     if(argc == 1)
-	usage(NULL);
+        usage(NULL);
 
     initglobals();
 
@@ -3512,113 +3529,109 @@ main(int argc, char** argv)
     pushOptionName(argv[0],MAXARGS,argoptions);
 
     while ((c = getopt(argc, argv, options)) != EOF) {
-	switch(c) {
-	case 'X':
-	    if(optarg == NULL) usage("Illegal -X tag");
-	    p = optarg;
-	    c = *p++;
-	    if(*p++ != '=') usage("Missing -X tag value");
-	    switch (c) {
-	    case 'b':
-		if(buffersize == 0 && (buffersize = tagvalue(p)) < 0)
-		    usage("Illegal buffersize");
-		break;
-	    case 's':
-		if(stacksize == 0 && (stacksize = tagvalue(p)) < 0)
-		    usage("Illegal stacksize");
-		break;
-	    case 'x':
-		if(execcount == 0 && (execcount = tagvalue(p)) < 0)
-		    usage("Illegal execcount");
-		break;
-	    default: usage("Illegal -X option");
-	    }
+        switch(c) {
+        case 'X':
+            if(optarg == NULL) usage("Illegal -X tag");
+            p = optarg;
+            c = *p++;
+            if(*p++ != '=') usage("Missing -X tag value");
+            switch (c) {
+            case 'b':
+                if(buffersize == 0 && (buffersize = tagvalue(p)) < 0)
+                    usage("Illegal buffersize");
+                break;
+            case 's':
+                if(stacksize == 0 && (stacksize = tagvalue(p)) < 0)
+                    usage("Illegal stacksize");
+                break;
+            case 'x':
+                if(execcount == 0 && (execcount = tagvalue(p)) < 0)
+                    usage("Illegal execcount");
+                break;
+            default: usage("Illegal -X option");
+            }
 
-	case 'd':
-	    if(debugargs == NULL)
-	        debugargs = strdup(optarg);
-	    break;
-	case 'D':
-	    /* Convert the -D to a -e */
-	    convertDtoE(optarg);
-	    break;
-	case 'e':
-	    pushOptionName(optarg,MAXEOPTIONS,eoptions);
-	    break;
-	case 'I':
-	    if(optarg[strlen(optarg)-1] == '/')
-	        optarg[strlen(optarg)-1] = NUL;
-	    pushOptionName(optarg,MAXINCLUDES,includes);
-	    break;
-	case 'o':
-	    if(outputfilename == NULL)
-		outputfilename = strdup(optarg);
-	    break;
-	case 'r':
-	    interactive = 0;
-	    rsfilename = optarg;
-	    break;
-	case 'V':
-	    printf("ttm version: %s\n",VERSION);
-	    exit(0);
-	    break;
-	case '-':
-	    break;
-	case '?':
-	default:
-	    usage("Illegal option");
-	}
+        case 'd':
+            if(debugargs == NULL)
+                debugargs = strdup(optarg);
+            break;
+        case 'D':
+            /* Convert the -D to a -e */
+            convertDtoE(optarg);
+            break;
+        case 'e':
+            pushOptionName(optarg,MAXEOPTIONS,eoptions);
+            break;
+        case 'I':
+            if(optarg[strlen(optarg)-1] == '/')
+                optarg[strlen(optarg)-1] = NUL;
+            pushOptionName(optarg,MAXINCLUDES,includes);
+            break;
+        case 'o':
+            if(outputfilename == NULL)
+                outputfilename = strdup(optarg);
+            break;
+        case 'p':
+            if(programfilename == NULL)
+                programfilename = strdup(optarg);
+            break;
+        case 'r':
+            interactive = 0;
+            rsfilename = strdup(optarg);
+            break;
+        case 'V':
+            printf("ttm version: %s\n",VERSION);
+            exit(0);
+            break;
+        case '-':
+            break;
+        case '?':
+        default:
+            usage("Illegal option");
+        }
     }
 
-    /* Extract the file to execute and its args, if any */
+    /* Collect any args for #<arg> */
     if(optind < argc) {
-	inputfilename = strdup(argv[optind++]);
-	if(strcmp("-",inputfilename) == 0) {/* reading from stdin */	
-	    /* Complain if interactive and input file name is - */
-	    if(interactive) {
-		fprintf(stderr,"Interactive illegal if input is from stdin\n");
-		exit(1);
-	    }
-	}
         for(;optind < argc;optind++)
-	    pushOptionName(argv[optind],MAXARGS,argoptions);
+            pushOptionName(argv[optind],MAXARGS,argoptions);
     }
 
     /* Complain if interactive and output file name specified */
     if(outputfilename != NULL && interactive) {
-	fprintf(stderr,"Interactive is illegal if output file specified\n");
-	exit(1);
+        fprintf(stderr,"Interactive is illegal if output file specified\n");
+        exit(1);
     }
 
     if(buffersize < MINBUFFERSIZE)
-	buffersize = MINBUFFERSIZE;	    
+        buffersize = MINBUFFERSIZE;         
     if(stacksize < MINSTACKSIZE)
-	stacksize = MINSTACKSIZE;	    
+        stacksize = MINSTACKSIZE;           
     if(execcount < MINEXECCOUNT)
-	execcount = MINEXECCOUNT;	    
+        execcount = MINEXECCOUNT;           
 
     if(outputfilename == NULL) {
-	outputfile = stdout;
-	isstdout = 1;
+        outputfile = stdout;
+        isstdout = 1;
     } else {
-	outputfile = fopen(outputfilename,"w");
-	if(outputfile == NULL) {
-	    fprintf(stderr,"Output file is not writable: %s\n",outputfilename);
-	    exit(1);
-	}	    
-	isstdout = 0;
+        outputfile = fopen(outputfilename,"w");
+        if(outputfile == NULL) {
+            fprintf(stderr,"Output file is not writable: %s\n",outputfilename);
+            exit(1);
+        }           
+        isstdout = 0;
     }
 
     if(rsfilename == NULL) {
-	rsfile = stdin;
-	isstdin = 1;
+        rsfile = stdin;
+        isstdin = 1;
     } else {
-	rsfile = fopen(rsfilename,"r");
-	if(rsfile == NULL) {
-	    fprintf(stderr,"-r file is not readable: %s\n",rsfilename);
-	    exit(1);
-	}	    
-	isstdin = 0;
+        rsfile = fopen(rsfilename,"r");
+        if(rsfile == NULL) {
+            fprintf(stderr,"-r file is not readable: %s\n",rsfilename);
+            exit(1);
+        }           
+        isstdin = 0;
     }
 
     /* Create the ttm state */
@@ -3633,34 +3646,34 @@ main(int argc, char** argv)
 
     /* Execute the -e strings in turn */
     for(i=0;eoptions[i]!=NULL;i++) {
-	char* eopt = eoptions[i];
-	int count,elen = strlen(eopt);
+        char* eopt = eoptions[i];
+        int count,elen = strlen(eopt);
 
-	resetBuffer(ttm,ttm->buffer);
-	setBufferLength(ttm,ttm->buffer,elen); /* temp */
-	count = toString32(ttm->buffer->content,eopt,elen);	
-	setBufferLength(ttm,ttm->buffer,count);
-	scan(ttm);
-	if(ttm->flags & FLAG_EXIT)
-	    goto done;
+        resetBuffer(ttm,ttm->buffer);
+        setBufferLength(ttm,ttm->buffer,elen); /* temp */
+        count = toString32(ttm->buffer->content,eopt,elen);     
+        setBufferLength(ttm,ttm->buffer,count);
+        scan(ttm);
+        if(ttm->flags & FLAG_EXIT)
+            goto done;
     }
 
-    /* Now execute the inputfile, if any */
-    if(inputfilename != NULL) {
-        readinput(ttm,inputfilename,ttm->buffer);
+    /* Now execute the programfile, if any */
+    if(programfilename != NULL) {
+        readinput(ttm,programfilename,ttm->buffer);
         scan(ttm);
-	if(ttm->flags & FLAG_EXIT)
-	    goto done;
+        if(ttm->flags & FLAG_EXIT)
+            goto done;
     }    
 
     /* If interactive, start read-eval loop */
     if(interactive) {
-	for(;;) {
-	    if(!readbalanced(ttm)) break;
+        for(;;) {
+            if(!readbalanced(ttm)) break;
             scan(ttm);
-	    if(ttm->flags & FLAG_EXIT)
-	        goto done;
-	}
+            if(ttm->flags & FLAG_EXIT)
+                goto done;
+        }
     }
 
 done:
@@ -3684,7 +3697,7 @@ strlen32(utf32* s)
 {
     unsigned int len = 0;
     while(*s++)
-	len++;
+        len++;
     return len;
 }
 
@@ -3721,7 +3734,7 @@ strdup32(utf32* src)
     len = strlen32(src);
     dup = (utf32*)malloc((1+len)*sizeof(utf32));
     if(dup != NULL) {
-	utf32* dst = dup;
+        utf32* dst = dup;
         while((*dst++ = *src++));
     }
     return dup;
@@ -3745,9 +3758,9 @@ strncmp32(utf32* s1, utf32* s2, unsigned int len)
     utf32 c2=0;
     if(len == 0) return 0; /* null strings always equal */
     for(;len>0;len--) {/* compare thru the last character*/
-	c1 = *s1++;
-	c2 = *s2++;
-	if(c1 != c2) break; /* mismatch before length characters tested*/
+        c1 = *s1++;
+        c2 = *s2++;
+        if(c1 != c2) break; /* mismatch before length characters tested*/
     }
     /* Look at the last char to decide */
     if(c1 == c2) return 0; /* completely identical */
@@ -3774,11 +3787,11 @@ streq328(utf32* s32, char_t* s8)
     int count;
         
     while(*s8 && *s32) {
-	count = toChar32(&c32,s8);
-	if(count < 0) fail(NOTTM,ECHAR8);
-	if(c32 != *s32) break;
-	s8 += count;
-	s32++;
+        count = toChar32(&c32,s8);
+        if(count < 0) fail(NOTTM,ECHAR8);
+        if(c32 != *s32) break;
+        s8 += count;
+        s32++;
     }
     if(*s8 && *s32) return 1; /* equal */
     return 0;
@@ -3802,12 +3815,12 @@ toString8(char_t* dst, utf32* src, int len)
     p32 = src;
     q8 = dst;
     for(i=0;i<len;i++) {
-	int count;
-	utf32 c=*p32++;
-	if(c == NUL32) break;
-	count = toChar8(q8,c);
-	if(count == 0) return -1;
-	q8 += count;
+        int count;
+        utf32 c=*p32++;
+        if(c == NUL32) break;
+        count = toChar8(q8,c);
+        if(count == 0) return -1;
+        q8 += count;
     }
     return (q8 - dst);
 }
@@ -3830,12 +3843,12 @@ toString32(utf32* dst, char_t* src, int len)
     p8 = src;
     q32 = dst;
     for(count=0,i=0;i<len;i+=count) {
-	char_t c = *p8;
-	if(c == NUL) break;
-	count = toChar32(q32, p8);
-	if(count == 0) return -1;
-	q32++;
-	p8 += count;
+        char_t c = *p8;
+        if(c == NUL) break;
+        count = toChar32(q32, p8);
+        if(count == 0) return -1;
+        q32++;
+        p8 += count;
     }
     return (q32 - dst);
 }
@@ -3852,7 +3865,7 @@ toChar8(char_t* dst, utf32 codepoint)
     unsigned char uchar;
     /* assert |dst| >= MAXCHARSIZE+1 */
     if(codepoint <= 0x7F) {
-	uchar = (unsigned char)codepoint;
+        uchar = (unsigned char)codepoint;
        *p++ = (char)uchar;
     } else if(codepoint <= 0x7FF) {
        uchar = (unsigned char) 0xC0 | (codepoint >> 6);
@@ -3879,7 +3892,7 @@ toChar8(char_t* dst, utf32 codepoint)
        *p++ = (char)uchar;
      }
      else
-	return -1; /*invalid*/
+        return -1; /*invalid*/
     *p = NUL; /* make sure it is nul terminated. */
     return (p - dst);
 }
@@ -3907,16 +3920,16 @@ toChar32(utf32* codepointp, char_t* src)
     /* Process the 1st char in the char_t codepoint */
     bytes[0] = (c0 & mask[charsize]);
     for(i=1;i<charsize;i++) {
-	unsigned char c;
-	p++;
-	c = *p;
-	bytes[i] = (c & 0x3F);
+        unsigned char c;
+        p++;
+        c = *p;
+        bytes[i] = (c & 0x3F);
     }
     codepoint = (bytes[0]);
     for(i=1;i<charsize;i++) {
-	unsigned char c = bytes[i];
-	codepoint <<= 6;
-	codepoint |= (c & 0x3F);
+        unsigned char c = bytes[i];
+        codepoint <<= 6;
+        codepoint |= (c & 0x3F);
     }
     if(codepointp) *codepointp = codepoint;
     return 1;    
@@ -3986,20 +3999,20 @@ fgetc32(FILE* f)
     c = fgetc(f);
     if(c == EOF) return EOF;
     if(ismultibyte(c)) {
-	char_t c8[MAXCHARSIZE+1];
-	int count,i;
-	count = utf8count(c);
-	i=0; c8[i++] = (char_t)c;
-	while(--count > 0) {
-	    c=fgetc(f);
-	    if(c == EOF) fail(NOTTM,EEOS);
-	    c8[i++] = (char_t)c;
-	}
-	c8[i] = NUL;
-	count = toChar32(&c32,c8);
-	if(count < 0) fail(NOTTM,ECHAR8);
+        char_t c8[MAXCHARSIZE+1];
+        int count,i;
+        count = utf8count(c);
+        i=0; c8[i++] = (char_t)c;
+        while(--count > 0) {
+            c=fgetc(f);
+            if(c == EOF) fail(NOTTM,EEOS);
+            c8[i++] = (char_t)c;
+        }
+        c8[i] = NUL;
+        count = toChar32(&c32,c8);
+        if(count < 0) fail(NOTTM,ECHAR8);
     } else
-	c32 = c;
+        c32 = c;
     return c32;
 }
 #endif /*!ISO_8859*/
@@ -4039,7 +4052,7 @@ getRunTime(void)
     FILETIME ftCreation,ftExit,ftKernel,ftUser;
 
     GetProcessTimes(GetCurrentProcess(),
-		    &ftCreation, &ftExit, &ftKernel, &ftUser);
+                    &ftCreation, &ftExit, &ftKernel, &ftUser);
 
     runtime = ftUser.dwHighDateTime;
     runtime = runtime << 32;
@@ -4063,28 +4076,28 @@ timeofday(struct timeval *tv)
     unsigned long long tmpres = 0;
  
     if(NULL != tv) {
-	GetSystemTimeAsFileTime(&ft);
+        GetSystemTimeAsFileTime(&ft);
 
-	/*
-	The GetSystemTimeAsFileTime returns the number of 100 nanosecond 
-	intervals since Jan 1, 1601 in a structure. Copy the high bits to 
-	the 64 bit tmpres, shift it left by 32 then or in the low 32 bits.
-	*/
-	tmpres |= ft.dwHighDateTime;
-	tmpres <<= 32;
-	tmpres |= ft.dwLowDateTime;
+        /*
+        The GetSystemTimeAsFileTime returns the number of 100 nanosecond 
+        intervals since Jan 1, 1601 in a structure. Copy the high bits to 
+        the 64 bit tmpres, shift it left by 32 then or in the low 32 bits.
+        */
+        tmpres |= ft.dwHighDateTime;
+        tmpres <<= 32;
+        tmpres |= ft.dwLowDateTime;
  
-	/* Convert to microseconds by dividing by 10 */
-	tmpres /= 10;
+        /* Convert to microseconds by dividing by 10 */
+        tmpres /= 10;
  
-	/* The Unix epoch starts on Jan 1 1970.  Need to subtract the difference 
-	   in seconds from Jan 1 1601.*/
-	tmpres -= DELTA_EPOCH_IN_MICROSECS;
+        /* The Unix epoch starts on Jan 1 1970.  Need to subtract the difference 
+           in seconds from Jan 1 1601.*/
+        tmpres -= DELTA_EPOCH_IN_MICROSECS;
  
-	/* Finally change microseconds to seconds and place in the seconds value.
-	   The modulus picks up the microseconds. */
-	tv->tv_sec = (long)(tmpres / 1000000UL);
-	tv->tv_usec = (long)(tmpres % 1000000UL);
+        /* Finally change microseconds to seconds and place in the seconds value.
+           The modulus picks up the microseconds. */
+        tv->tv_sec = (long)(tmpres / 1000000UL);
+        tv->tv_usec = (long)(tmpres % 1000000UL);
     }
     return 0;
 }
@@ -4151,7 +4164,7 @@ getopt(int argc, char **argv, char *optstring)
         if(optind == 0)
             optind++;
         if(optind >= argc
-	    || argv[optind][0] != ('-')
+            || argv[optind][0] != ('-')
             || argv[optind][1] == ('\0')) {
             optarg = NULL;
             if(optind < argc)

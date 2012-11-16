@@ -12,12 +12,12 @@ ttm.txt::
 	rm -f ttm.txt
 	gcc -E -Wall -Wdeclaration-after-statement ttm.c > ttm.txt
 
-TESTTTM=test.ttm
+TESTPROG=test.ttm
 TESTARGS=a b c
 TESTRFLAG=-r test.rs
 
 check:: ttm.exe
 	rm -f ./test.output
-	./ttm ${TESTRFLAG} ${TESTTTM} ${TESTARGS} >& ./test.output
+	./ttm ${TESTRFLAG} -p ${TESTPROG} ${TESTARGS} >& ./test.output
 	diff -w ./test.baseline ./test.output
 
