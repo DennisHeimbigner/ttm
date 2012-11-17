@@ -15,8 +15,4 @@ q0:: ttm.exe
 #	gdb --args ttm ${T1}
 
 qq:: ttm.exe
-	rm -f ./tmp ./test.output
-	echo "line1.line2" >>./tmp
-	echo "line3" >>./tmp
-	gdb --args ./ttm ${TESTRFLAG} ${TESTTTM} ${TESTARGS}
-
+	gdb --args ${TESTCMD}
