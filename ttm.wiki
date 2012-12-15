@@ -1,4 +1,3 @@
-{{uppercase|TTM}}
 {{Infobox programming language
 | name                   = TTM
 | logo                   = 
@@ -8,7 +7,7 @@
 | developer              = 
 | latest_release_version = 1.0
 | latest_release_date    = {{use dmy dates|date=15 November 2012}}
-| implementations        = [[https://github.com/Unidata/ttm|Unidata TTM]]
+| implementations        = [https://github.com/Unidata/ttm Unidata TTM]
 | typing                 = 
 | influenced_by          = [[TRAC_programming_language|TRAC]]
 | operating_system       = 
@@ -42,7 +41,7 @@ power possessed by earlier general macro assemblers but with
 the unfortunate syntactic and semantic difficulties removed
 <ref>Eastwood, D.E. and Mcllroy, M.D., Macro Compiler Modification of SAP. Bell Telephone Laboratories Computation Center, 1959.</ref>
 <ref>McClure, R.M., Description of CODAPT Assembler, 1960.</ref>
-<ref>Caine, S.H., Reference Manual for CIT 7090/7040 Experimental Macro Assembly Program (XMAP). California Institute of Technology, Willis H. Booth Computing Center (1964).</ref?
+<ref>Caine, S.H., Reference Manual for CIT 7090/7040 Experimental Macro Assembly Program (XMAP). California Institute of Technology, Willis H. Booth Computing Center (1964).</ref>
 <ref>Mcllroy, M.D., Macro Instruction Extensions of Compiler Languages. CACM 3, No. 4 (1960), 214-220.</ref>.
 
 During the development of TTM, it became apparent that
@@ -61,23 +60,26 @@ various language processors.
 </div>
 
 ==Syntax and Semantics==
-It is assumed that TTM is given a text file containing some combination
+The [https://github.com/Unidata/ttm reference implementation]
+assumes that TTM is given a text file containing some combination
 of ordinary text and TTM function calls (i.e. invocations).
 The text is scanned character by character. Any ordinary text is passed
-to the output unchanged (except for [[#Escaping text]]).
+to the output unchanged (except for [[#Escaping|escapes]]).
 If a TTM function is encountered, it is collected and executed.
-The general form of a TTM function call looks like this.
+The general form of a TTM function call looks like this
 <pre>
 #<functionname;arg1;arg2;...;argn>
 </pre>
 where the functionname and the arguments are arbitrary character strings
-not characters of significance: '#', '<', '>', and ';'.
+not containing characters of significance: '#', '<', '>', and ';'.
 The function is invoked with the specified arguments and the resulting
 text is inserted into the original text in place of the function call.
 If the function call was prefixed by a single '#' character, then scanning
-will resume just ''before'' the inserted text from the function call. If the
-function call was prefixed by two '#' characters, then scanning
-resumes just ''after'' the inserted text.
+will resume just ''before'' the inserted text from the function call.
+This is called ''active'' invocation.
+If the function call was prefixed by two '#' characters, then scanning
+resumes just ''after'' the inserted text. This is called ''passive''
+invocation
 
 During the collection of a function call, additional function calls
 may be encountered, for example, this.
@@ -92,14 +94,15 @@ of '#' characters preceding the nested call.
 If a function takes, for example, 2 arguments, any extras
 are ignored. For user defined functions, if too few arguments
 are provided, additional one are added with the value of the empty
-string ("").
+string (""). A function may have a maximum of 62 arguments.
 
 As with other
 [[Applicative Programming|applicative programming languages]],
 a TTM function may be recursive and may be defined as the result
 of the invocation of a sequence of other function calls.
 
-Functions are either ''built-in'' or user defined. A large number of built-in
+Functions are either ''built-in'' or ''user defined''.
+A large number of built-in
 functions exist and are defined in the TTM reference manual
 <ref name="interactive"/>
 
@@ -124,9 +127,9 @@ When a segmented string is invoked, each argument to the call
 is substituted for the corresponding segment mark.
 Consider this example.
 <pre>
-01 #<ds;F;abcxxdefyy>
-02 #<ss;F;xx;yy>
-03 #<F;11;22>
+[01] #<ds;F;abcxxdefyy>
+[02] #<ss;F;xx;yy>
+[03] #<F;11;22>
 </pre>
 The string F is defined (line 1) and its body "abcxxdefyy"
 is segmented on the two strings "xx" and "yy" (line2).
@@ -156,7 +159,7 @@ allow unbalanced occurrences of '<' or '>' characters.
 ===Example 1: Function Definition===
 
 The most basic example involves defining
-a function that is useful for defining add tional functions.
+a function that is useful for defining addtional functions.
 This "meta" function is called <i>def</i>.
 It is written as:
 <pre>
@@ -164,7 +167,7 @@ It is written as:
 #<ss;def;name;subs;text>
 </pre>
 
-We can, for example, use def to define the string XX as
+We can, for example, use ''def'' to define the string XX as
 12345 and then segment XX on 34 by writing this.
 <pre>
 #<def;XX;34;12345>
@@ -176,13 +179,16 @@ The call
 </pre>
 will then produce the string "1200005".
 
-The def function operates by invoking ds to define the function
-being defined &mdash; XX in our example &mdash; and then segmenting the body
-of XX by any specified arguments: "34" in this case. When XX is invoked,
+The ''def'' function operates by invoking ''ds'' to define the function
+name and initial text in the '''TTM''' dictionary
+&mdash; XX in our example.
+Then the text of the dictionary entry of XX is segmented
+with respect to any specified arguments: "34" in this case.
+When XX is invoked,
 its argument is substituted for the segment mark.
 
 ===Example 2: Factorial===
-The factorial function can be defined (using the above ##<def> function)
+The factorial function can be defined (using the above ''##<def>'' function)
 as follows.
 <pre>
 #<def;n!;N;<#<lt;N;2;1;<#<mu;N;#<n!;#<su;N;1>>>>>>>
@@ -211,9 +217,9 @@ The exact relationship between TTM and TRAC is unknown. The TTM documentation in
 * Mcllroy, M.D., Using SAP Macro Instructions to Manipulate Symbolic Expressions. Bell Telephone Laboratories Computation Center (1960).
 
 ==External links==
-* [https://github.com/Unidata/ttm] A reference implementation of TTM] on [[github]].
-* [https://github.com/Unidata/ttm/ttm_interpretive_language_pr_07.pdf|Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.]
-* [https://github.com/Unidata/ttm/ttm_batch_processing_pr_08.pdf|Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.]
+* [https://github.com/Unidata/ttm https://github.com/Unidata/ttm A reference implementation of TTM] on [[github]].
+* [https://github.com/Unidata/ttm/ttm_interpretive_language_pr_07.pdf Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.]
+* [https://github.com/Unidata/ttm/ttm_batch_processing_pr_08.pdf Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.]
 
 {{use dmy dates|date=15 November 2012}}
 
