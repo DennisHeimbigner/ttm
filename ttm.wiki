@@ -1,3 +1,5 @@
+
+{{Tone|date=December 2012}}
 {{Infobox programming language
 | name                   = TTM
 | logo                   = 
@@ -6,7 +8,7 @@
 | designer               = Steven M. Caine and E. Kent Gordon
 | developer              = 
 | latest_release_version = 1.0
-| latest_release_date    = {{use dmy dates|date=15 November 2012}}
+| latest_release_date    = {{use dmy dates|date=November 2012}}
 | implementations        = [https://github.com/Unidata/ttm Unidata TTM]
 | typing                 = 
 | influenced_by          = [[TRAC_programming_language|TRAC]]
@@ -16,95 +18,46 @@
 }}
 '''TTM''' is a string oriented, general purpose macro processing [[programming language]] developed in 1968 by Steven Caine and E. Kent Gordon at the [[California Institute of Technology]].
 
-The following description is taken from the original TTM reference manual
-<ref name="interactive">Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.</ref>
-and the subsequent batch processing extension
-<ref>Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.</ref>.
-<div style="margin-left:20pt; margin-right:60pt;">
-TTM Is a recursive, interpretive language designed primarily
-for string manipulation, text editing, macro definition and
-expansion, and other applications generally classified as
-systems programming. It is derived, primarily, from
-GAP
-<ref name="GAP">Farber, D. J., 635 Assembly System - GAP. Bell Telephone Laboratories Computation Center (1964).</ref>
-and GPM
-<ref name="GPM">Strachey, C., A General Purpose Macro Generator. Comput J 8, 3(1965), pp. 225-241.</ref>.
+==Description==
 
-Initially, TIM was planned as the macro processing portion
-of an assembler for the IBM System/360 and, as such, was
-designed to overcome the restrictions and inconsistencies
-which existed in the standard assemblers for that system
-<ref>IBM, System/360 Assembler Language, C28-6514-4, (1967).</ref>
-<ref>Caine, S.H. et al., Report of the Systems Objectives and Requirements Committee, SHARE, 1965, pp. 29-40.</ref>.
-In addition, it was designed to have all of the
-power possessed by earlier general macro assemblers but with
-the unfortunate syntactic and semantic difficulties removed
-<ref>Eastwood, D.E. and Mcllroy, M.D., Macro Compiler Modification of SAP. Bell Telephone Laboratories Computation Center, 1959.</ref>
-<ref>McClure, R.M., Description of CODAPT Assembler, 1960.</ref>
-<ref>Caine, S.H., Reference Manual for CIT 7090/7040 Experimental Macro Assembly Program (XMAP). California Institute of Technology, Willis H. Booth Computing Center (1964).</ref>
-<ref>Mcllroy, M.D., Macro Instruction Extensions of Compiler Languages. CACM 3, No. 4 (1960), 214-220.</ref>.
+The following description is taken from the original TTM reference manual <ref name="interactive">Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.</ref> and the subsequent batch processing extension <ref>Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.</ref>.
 
-During the development of TTM, it became apparent that
-applications other than assembler macro processing were
-possible. These include data editing, text manipulation,
-expression compiling, and macro processing for language
-processors other than assemblers.
+TTM Is a recursive, interpretive language designed primarily for string manipulation, text editing, macro definition and expansion, and other applications generally classified as systems programming. It is derived, primarily, from GAP<ref name="GAP">Farber, D. J., 635 Assembly System - GAP. Bell Telephone Laboratories Computation Center (1964).</ref> and GPM<ref name="GPM">Strachey, C., A General Purpose Macro Generator. Comput J 8, 3(1965), pp. 225-241.</ref>
 
-The initial version of TTM was implemented to run in a
-conversational manner under the Caltech Basic Time Sharing
-System for the IBM System/360-50
-<ref>Caine, S.H., et al., An Operating Environment for Programming Research. California Institute of Technology, Willis H. Booth Computing Center Programming Report No. 1, 1967.</ref>.
-Other versions have been written to run in the batch processing environment
-of OS/360 and to operate in front of or in conjunction with
-various language processors.
-</div>
+Initially, TIM was planned as the macro processing portion of an assembler for the IBM System/360 and, as such, was designed to overcome the restrictions and inconsistencies which existed in the standard assemblers for that system<ref>IBM, System/360 Assembler Language, C28-6514-4, (1967).</ref> <ref>Caine, S.H. et al., Report of the Systems Objectives and Requirements Committee, SHARE, 1965, pp. 29-40.</ref>.
+
+In addition, it was designed to have all of the power possessed by earlier general macro assemblers but with the unfortunate syntactic and semantic difficulties removed <ref>Eastwood, D.E. and Mcllroy, M.D., Macro Compiler Modification of SAP. Bell Telephone Laboratories omputation Center, 1959.</ref> <ref>McClure, R.M., Description of CODAPT Assembler, 1960.</ref> <ref>Caine, S.H., Reference Manual for CIT 7090/7040 Experimental Macro Assembly Program (XMAP). California Institute of Technology, Willis H. Booth Computing Center (1964).</ref> <ref>Mcllroy, M.D., Macro Instruction Extensions of Compiler Languages. CACM 3, No. 4 (1960), 214-220.</ref>.
+
+During the development of TTM, it became apparent that applications other than assembler macro processing were possible. These include data editing, text manipulation, expression compiling, and macro processing for language processors other than assemblers.
+
+The initial version of TTM was implemented to run in a conversational manner under the Caltech Basic Time Sharing System for the IBM System/360-50 <ref>Caine, S.H., et al., An Operating Environment for Programming Research. California Institute of Technology, Willis H. Booth Computing Center Programming Report No. 1, 1967.</ref>. Other versions have been written to run in the batch processing environment of OS/360 and to operate in front of or in conjunction with various language processors.
 
 ==Syntax and Semantics==
-The [https://github.com/Unidata/ttm reference implementation]
-assumes that TTM is given a text file containing some combination
-of ordinary text and TTM function calls (i.e. invocations).
-The text is scanned character by character. Any ordinary text is passed
-to the output unchanged (except for [[#Escaping|escapes]]).
+The reference implementation assumes that TTM is given a text file containing some combination of ordinary text and TTM function calls (i.e. invocations). The text is scanned character by character. Any ordinary text is passed to the output unchanged (except for [[#Escaping|escapes]]).
 If a TTM function is encountered, it is collected and executed.
+
 The general form of a TTM function call looks like this
 <pre>
 #<functionname;arg1;arg2;...;argn>
 </pre>
-where the functionname and the arguments are arbitrary character strings
-not containing characters of significance: '#', '<', '>', and ';'.
-The function is invoked with the specified arguments and the resulting
-text is inserted into the original text in place of the function call.
-If the function call was prefixed by a single '#' character, then scanning
-will resume just ''before'' the inserted text from the function call.
-This is called ''active'' invocation.
-If the function call was prefixed by two '#' characters, then scanning
-resumes just ''after'' the inserted text. This is called ''passive''
-invocation
+where the function name and the arguments are arbitrary character strings not containing characters of significance: '#', '<', '>', and ';'. The function is invoked with the specified arguments and the resulting text is inserted into the original text in place of the function call.
+If the function call was prefixed by a single '#' character, then scanning will resume just ''before'' the inserted text from the function call.
 
-During the collection of a function call, additional function calls
-may be encountered, for example, this.
+This is called ''active'' invocation.
+
+If the function call was prefixed by two '#' characters, then scanning resumes just ''after'' the inserted text. This is called ''passive'' invocation.
+
+During the collection of a function call, additional function calls may be encountered, for example, this.
 <pre>
 #<functionname;arg1;#<f2;arg;...>;...;argn>
 </pre>
-The nested function call will be invoked when encountered and the result
-inserted into the text of the outer function call and scanning of
-the outer function call resumes at the place indicated by the number
-of '#' characters preceding the nested call.
+The nested function call will be invoked when encountered and the result inserted into the text of the outer function call and scanning of the outer function call resumes at the place indicated by the number of '#' characters preceding the nested call.
 
-If a function takes, for example, 2 arguments, any extras
-are ignored. For user defined functions, if too few arguments
-are provided, additional one are added with the value of the empty
-string (""). A function may have a maximum of 62 arguments.
+If a function takes, for example, 2 arguments, any extras are ignored. For user defined functions, if too few arguments are provided, additional one are added with the value of the empty string (""). A function may have a maximum of 62 arguments.
 
-As with other
-[[Applicative Programming|applicative programming languages]],
-a TTM function may be recursive and may be defined as the result
-of the invocation of a sequence of other function calls.
+As with other [[applicative programming language|applicative programming languages]], a TTM function may be recursive and may be defined as the result of the invocation of a sequence of other function calls.
 
-Functions are either ''built-in'' or ''user defined''.
-A large number of built-in
-functions exist and are defined in the TTM reference manual
-<ref name="interactive"/>
+Functions are either ''built-in'' or ''user defined''. A large number of built-in functions exist and are defined in the TTM reference manual <ref name="interactive"/>
 
 ===Function definition===
 User defined functions are created using the following two built-in
@@ -112,29 +65,17 @@ functions.
 * #<ds;name;text>
 * #<ss;name;text1;text2...;textn>
 
-The first function, ds for "define string", defines a named string in the TTM
-dictionary. The name is "name" and its value is "text".
-Invoking this named string will cause it's invocation to be replaced
-by the value (i.e. "text").
+The first function, ds for "define string", defines a named string in the TTM dictionary. The name is "name" and its value is "text". Invoking this named string will cause it's invocation to be replaced by the value (i.e. "text").
 
-The second function, ss for "segment string",
-scans the text of a previously defined string
-looking for occurrences of its arguments: text1, text2, ... textn.
-When an occurrence is found, it is replaced with a <i>segment mark</i>.
-All occurrences of each argument are replaced by the same segment mark.
+The second function, ss for "segment string", scans the text of a previously defined string looking for occurrences of its arguments: text1, text2, ... textn. When an occurrence is found, it is replaced with a <i>segment mark</i>. All occurrences of each argument are replaced by the same segment mark.
 
-When a segmented string is invoked, each argument to the call
-is substituted for the corresponding segment mark.
-Consider this example.
+When a segmented string is invoked, each argument to the call is substituted for the corresponding segment mark. Consider this example.
 <pre>
 [01] #<ds;F;abcxxdefyy>
 [02] #<ss;F;xx;yy>
 [03] #<F;11;22>
 </pre>
-The string F is defined (line 1) and its body "abcxxdefyy"
-is segmented on the two strings "xx" and "yy" (line2).
-When invoked (line 3), it will return the value "abc11def22".
-In effect, we have a user defined function F with two arguments.
+The string F is defined (line 1) and its body "abcxxdefyy" is segmented on the two strings "xx" and "yy" (line2). When invoked (line 3), it will return the value "abc11def22". In effect, we have a user defined function F with two arguments.
 
 ===Escaping===
 It is possible to escape one or more characters using either of two
@@ -142,16 +83,9 @@ conventions.
 # <...> &ndash; escape multiple characters.
 # @ &ndash; escape a single character
 
-If a string is enclosed in <...>, then it is scanned 
-but not interpreted by TTM. In the scanning process, the outer
-< and > brackets are removed. If there are nested occurrences
-of <...>, then they are scanned but the < and > are not removed.
-The brackets must balance: the number of '<' characters
-must equal the number of '>' characters.
+If a string is enclosed in <...>, then it is scanned but not interpreted by TTM. In the scanning process, the outer < and > brackets are removed. If there are nested occurrences of <...>, then they are scanned but the < and > are not removed. The brackets must balance: the number of '<' characters must equal the number of '>' characters.
 
-The '@' escape convention causes the interpreter to pass as-is the character
-after the '@'. The leading '@' is left if it within a <...>
-escape sequence, otherwise it is removed. One use is to
+The '@' escape convention causes the interpreter to pass as-is the character after the '@'. The leading '@' is left if it within a <...> escape sequence, otherwise it is removed. One use is to
 allow unbalanced occurrences of '<' or '>' characters.
 
 ==Examples==
@@ -179,13 +113,11 @@ The call
 </pre>
 will then produce the string "1200005".
 
-The ''def'' function operates by invoking ''ds'' to define the function
-name and initial text in the '''TTM''' dictionary
-&mdash; XX in our example.
-Then the text of the dictionary entry of XX is segmented
-with respect to any specified arguments: "34" in this case.
-When XX is invoked,
-its argument is substituted for the segment mark.
+The ''def'' function operates by invoking ''ds'' to define the function name and initial text in the '''TTM''' dictionary &mdash; XX in our example.
+
+Then the text of the dictionary entry of XX is segmented with respect to any specified arguments: "34" in this case.
+
+When XX is invoked, its argument is substituted for the segment mark.
 
 ===Example 2: Factorial===
 The factorial function can be defined (using the above ''##<def>'' function)
@@ -204,7 +136,8 @@ An example call would look like this.
 and would return the string 6.
 
 ==See also==
-* [[TRAC_programming_language|TRAC]]
+* [[TRAC programming language]]
+
 The exact relationship between TTM and TRAC is unknown. The TTM documentation indicates that it was derived from GAP<ref name="GAP"/> and GPM<ref name="GPM"/>. In any case, the description of the characteristics of TRAC also apply to TTM. However, by removing the syntactic distinction between built-in and user-defined function, TTM would appear to be a much cleaner language.
 
 == Notes ==
@@ -217,15 +150,11 @@ The exact relationship between TTM and TRAC is unknown. The TTM documentation in
 * Mcllroy, M.D., Using SAP Macro Instructions to Manipulate Symbolic Expressions. Bell Telephone Laboratories Computation Center (1960).
 
 ==External links==
-* [https://github.com/Unidata/ttm https://github.com/Unidata/ttm A reference implementation of TTM] on [[github]].
-* [https://github.com/Unidata/ttm/ttm_interpretive_language_pr_07.pdf Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.]
-* [https://github.com/Unidata/ttm/ttm_batch_processing_pr_08.pdf Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.]
+* [https://github.com/Unidata/ttm Reference implementation for the TTM programming language] on [[GitHub]].
+* [https://github.com/Unidata/ttm/raw/master/ttm_interpretive_language_pr_07.pdf Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.]
+* [https://github.com/Unidata/ttm/raw/master/ttm_batch_processing_pr_08.pdf Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.]
 
-{{use dmy dates|date=15 November 2012}}
+{{use dmy dates|date=November 2012}}
 
-{{DEFAULTSORT:TTM (Computer Language)}}
 [[Category:Macro programming languages]]
-
-[[es:TTM (lenguaje de programación)]]
-[[fr:TTTM (langage de programmation)]]
 
