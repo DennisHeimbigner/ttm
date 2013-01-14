@@ -22,9 +22,6 @@ This is in lieu of the typical config.h.
 /* Define if the equivalent of the standard Unix memove() is available */
 #define HAVE_MEMMOVE 
 
-/* Use ISO-8859-1 Character set for input/output */
-#undef ISO_8859 
-
 /**************************************************/
 
 /* It is not clear what the correct Windows CPP Tag should be.
@@ -82,6 +79,10 @@ static int timeofday(struct timeval *tv);
 
 /**************************************************/
 /* UTF and char Definitions */
+
+/* Use ISO-8859-1 Character set for input/output */
+#undef ISO_8859 
+
 
 /**
 We use the standard "char" type for input/output,
@@ -154,7 +155,7 @@ Constants
 #define RBRACKET ']'
 
 #ifdef ISO_8859
-#define MAXCHAR8859 ((char_t)255)i
+#define MAXCHAR8859 ((char_t)255)
 #endif
 
 #define MINBUFFERSIZE (1<<20)
@@ -3399,7 +3400,8 @@ usage(const char* msg)
 {
     if(msg != NULL)
         fprintf(stderr,"%s\n",msg);
-    fprintf(stderr,"ttm [-B integer] [-d string] [-D name=string] [-e string] [-i] [-I directory] [-o file] [-p programfile] [-r rsfile] [-V] [--] [arg...]\n");
+	fprintf(stderr,"%s\n",
+"usage: ttm [-d string][-D name=string][-e string][-f|-p programfile][-i][-I directory][-o file][-r rsfile][-V][-X tag=value][--][arg...]");
     fprintf(stderr,"\tOptions may be repeated\n");
     if(msg != NULL) exit(1); else exit(0);
 }
@@ -3565,7 +3567,7 @@ tagvalue(const char* p)
 /**************************************************/
 /* Main() */
 
-static char* options = "d:D:e:f:iI:o:r:VX:-";
+static char* options = "d:D:e:f:iI:o:p:r:VX:-";
 
 int
 main(int argc, char** argv)
@@ -3629,6 +3631,7 @@ main(int argc, char** argv)
         case 'e':
             pushOptionName(optarg,MAXEOPTIONS,eoptions);
             break;
+        case 'p':
         case 'f':
             if(executefilename == NULL)
                 executefilename = strdup(optarg);
