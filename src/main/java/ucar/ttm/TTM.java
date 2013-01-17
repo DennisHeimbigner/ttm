@@ -8,6 +8,7 @@ package ucar.ttm;
 import java.io.*;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.text.SimpleDateFormat;
 
 /**
 The critical problem for a Java
@@ -35,7 +36,7 @@ existing Java char and Character types.
 
 Note also that it is assumed that all C string constants
 in this file are restricted to US-ASCII, which is a subset
-of both UTF-8 and ISO-8859-1.
+of both UTF-8.
 
 Use is also made of the UTF-16 so-called "private-use" characters
 -- see "http://en.wikipedia.org/wiki/Private_Use_(Unicode)" --
@@ -44,6 +45,12 @@ to encode segment and creation marks.
 Note also that it would be theoretically possible to use
 Java reflection to dynamically load new ttm builtin functions.
 
+----------------------------------------
+Differences (vis-a-vis C implementation)
+----------------------------------------
+1. ISO8859 is not supported.
+2. Command line options may not be repeated
+   (due to using the Java -D flag).
 */
 
 public class TTM
@@ -52,32 +59,28 @@ public class TTM
 //////////////////////////////////////////////////
 // Constants
 
+static final String ARGV0 = "TTM"; //pretend
+
 static final String VERSION = "1.0";
 
-static final boolean DEBUG = true;
-static final boolean USE_ISO8859 = false;
+static final boolean DEBUG = false;
 
-// Two supported character sets
 static final Charset UTF8 = Charset.forName("UTF-8");
-static final Charset ISO8859 = Charset.forName("ISO-8859-1");
 
 static final Calendar CALENDAR = Calendar.getInstance();
 
-// Use ISO-8859-1 Character set for input/output
-static boolean ISO_8859 = false;
-
 // Assign special meaning to some otherwise illegal utf-16 character values
-
 static final char SEGMARK = '\uE000';
 static final char CREATE  = '\uF000';
 
+// Limits
 static final int MAXMARKS = 62;
 static final int MAXARGS = 63;
 static final int ARB = MAXARGS;
-static final int MAXINCLUDES = 1024;
 static final int MAXEOPTIONS = 1024;
 static final int MAXINTCHARS = 32;
 
+// Character mnemonics
 static final char NUL = '\u0000';
 static final char COMMA = ',';
 static final char LPAREN = '(';
@@ -87,8 +90,6 @@ static final char RBRACKET = ']';
 static final char EOS = NUL;
 
 static final int EOF = -1;
-
-static final int MAXCHAR8859 = 255;
 
 // The following are enforced mostly in order
 // to prevent run-away computations.
@@ -104,12 +105,11 @@ static final int CREATELEN = 4; //# of digits for a create mark
 
 static final int HASHSIZE = 128;
 
-// Mnemonics
+// Other Mnemonics
 static final boolean NESTED = true;
 static final boolean KEEPESCAPE = true;
 static final boolean TOSTRING = true;
 static final boolean TRACING = true;
-static final boolean PRINTALL = true;
 
 // TTM Flags */
 static final int FLAG_EXIT = 1;
@@ -143,12 +143,12 @@ EIO(17),            // An I/O Error Occurred
 ETTM            = 18,     // A TTM Processing Error Occurred
 ESTORAGE        = 19,     // Error In Storage Format
 #endif*/
-EPOSITIVE(20),      //Integer value must be greater than zero
+ENOTNEGATIVE(20),      //Integer value must be greater than or equal to zero
 // Error messages new to this implementation
 ESTACKOVERFLOW(30),
 ESTACKUNDERFLOW(31),
 EBUFFERSIZE(32),    // Buffer overflow
-EMANYINCLUDES(33),  // Too many includes
+EMANYINCLUDES(33),  // Too many includes (obsolete)
 EINCLUDE(34),       // Cannot read Include file
 ERANGE(35),         // index out of legal range
 EMANYPARMS(36),     // #parameters > MAXARGS
@@ -170,7 +170,9 @@ ERR(int i) {this.code = i;}
 // Macros to set/clear/test these marks
 static int setMark(int w, int mark) {return (w | mark);}
 static int clearMark(int w, int mark) {return (w & ~mark);}
-static boolean testMark(int w, int mark) {return (w & mark) != 0;}
+static boolean testMark(int w, int mark) {
+    return ((w & 0xFF00)== mark);
+}
 
 boolean isescape(char c) {return ((c) == this.escapec);}
 
@@ -213,7 +215,7 @@ static class Limits {
 
 /**
 Java does not have functions as first class
-object, so use anonymous classes to simulate.
+objects, so use anonymous classes to simulate.
 */
 static interface TTMFCN
 {
@@ -298,6 +300,9 @@ static class Charclass {
 //////////////////////////////////////////////////
 // Class variables
 
+// Class -Ddebug flags
+static boolean testing = false; // true=>make stderr and stdout same
+
 //////////////////////////////////////////////////
 // Class methods
 
@@ -318,8 +323,6 @@ Stack<Frame> stack;
 Map<String,Name> dictionary;
 Map<String,Charclass> charclasses;
 
-Charset charset;
-
 // Get the startup time to determine xtime
 long starttime;
 
@@ -327,11 +330,11 @@ PrintWriter stdout;
 PrintWriter stderr;
 Reader stdin;
 
+
 //////////////////////////////////////////////////
 // Command line values
 
 Limits limits;
-List<String> includes = new ArrayList<String>();
 List<String> argv = new ArrayList<String>();
 
 PrintWriter output;
@@ -355,22 +358,25 @@ public TTM()
     this.stack = new Stack<Frame>();
     this.dictionary = new HashMap<String,Name>();
     this.charclasses = new HashMap<String,Charclass>();
-    this.charset = (USE_ISO8859?ISO8859:UTF8);
     this.starttime = System.nanoTime();
-    this.stdout = new PrintWriter(new OutputStreamWriter(System.out,this.charset));
-    this.stderr = new PrintWriter(new OutputStreamWriter(System.err,this.charset));
-    this.stdin = new InputStreamReader(System.in,this.charset);
+    this.stdout = new PrintWriter(
+                      new OutputStreamWriter(System.out,UTF8),true);
+    if(testing)
+	this.stderr = stdout;
+    else
+        this.stderr = new PrintWriter(new OutputStreamWriter(System.err,UTF8),true);
+    this.stdin = new InputStreamReader(System.in,UTF8);
     if(DEBUG)
         this.flags |= FLAG_TRACE;
     setLimits(DFALTBUFFERSIZE,DFALTSTACKSIZE,DFALTEXECCOUNT);
-    this.includes = new ArrayList<String>();
     this.argv = new ArrayList<String>();
     this.output = this.stdout;
     this.isstdout = true;
     this.rsinput = this.stdin;
     this.isstdin = true;
     defineBuiltinFunctions();
-    predefineNames();
+    startupcommands();
+    lockup();
 }
 
 //////////////////////////////////////////////////
@@ -398,9 +404,6 @@ public void setLimits(long buffersize, long stacksize, long execcount)
     setLimits(limits);
 }
 
-public List<String> getIncludes() {return this.includes;}
-public void addInclude(String include)
-    {if(!includes.contains(include)) this.includes.add(include);}
 public List<String> getArgv() {return this.argv;}
 
 public void addArgv(String arg)
@@ -420,7 +423,6 @@ public boolean isstdin() {return this.isstdin;}
 // Misc.
 public int getExitcode() {return this.exitcode;}
 public int getFlags() {return this.flags;}
-public Charset getCharset() {return this.charset;}
 public PrintWriter getStdout() {return this.stdout;}
 public PrintWriter getStderr() {return this.stderr;}
 public Reader getStdin() {return this.stdin;}
@@ -452,7 +454,7 @@ evalloop()
         result = scan(text.toString());
 	if(testFlag(FLAG_EXIT) || eof)
 	    break;
-	printstring(this.output,result,PRINTALL);
+	printstring(this.output,result);
     }
 }
 
@@ -576,7 +578,8 @@ exec(Active active, StringBuilder passive)
     if(frame.argv[0].length()==0) fail(ERR.ENONAME);
 
     // Locate the function to execute
-    fcn = dictionary.get(frame.argv[0]);
+    String fcnname = frame.argv[0];
+    fcn = dictionary.get(fcnname);
     if(fcn == null) fail(ERR.ENONAME);
     if(fcn.minargs > (frame.argc - 1)) // -1 to account for function name
         fail(ERR.EFEWPARMS);
@@ -590,9 +593,9 @@ exec(Active active, StringBuilder passive)
         call(frame,fcn.body);
     }
 if(DEBUG) {
-System.err.printf("result: ");
+stderr.printf("result: ");
 dbgprint(frame.result,'|');
-System.err.printf("\n");
+stderr.printf("\n");
 }
     if((flags & FLAG_TRACE) != 0 || fcn.trace)
         trace(false,TRACING);
@@ -636,15 +639,16 @@ parsecall(Frame frame, Active active)
                 // End of an argument; capture the argument
                 String arg = tmp.toString();
 if(DEBUG) {
-System.err.printf("parsecall: argv[%d]=",frame.argc);
+stderr.printf("parsecall: argv[%d]=",frame.argc);
 dbgprint(arg,'|');
-System.err.printf("\n");
+stderr.printf("\n");
 }
                 active.skip(); // skip the semi or close
                 // move to next arg
                 frame.argv[frame.argc++] = arg;
                 if(c == closec) done=true;
                 else if(frame.argc >= MAXARGS) fail(ERR.EMANYPARMS);
+                tmp.setLength(0);
             } else if(c == sharpc) {
                 // check for call within call
                 if(active.peek(1) == openc
@@ -722,13 +726,22 @@ call(Frame frame, String body)
 //////////////////////////////////////////////////
 // Built-in Support Procedures
 
+/**
+Print a string to the specified output.
+If a segment mark or create mark is encountered,
+it is output in a special readable form.
+
+@param output  the stream to which the string is printed
+@param s the string to output
+*/
+
 void
-printstring(PrintWriter output, String s, boolean printall)
+printstring(PrintWriter output, String s)
 {
     int slen = s.length();
     if(s == null || slen == 0) return;
     s = s + EOS;
-    char prev = EOS;
+
     for(int i=0;i<slen;i++) {
 	char c = s.charAt(i);   
         if(isescape(c)) {
@@ -737,24 +750,20 @@ printstring(PrintWriter output, String s, boolean printall)
             c = convertEscapeChar(c);
         }
         if(c != EOS) {
-            if(printall || c == '\n' || !iscontrol(c)) {
-                if(ismark(c)) {
-		    String smark;
-                    if(iscreate(c))
-                        smark = "^00";
-                    else // segmark
-			smark = String.format("^%02d",(int)(c & 0xFF));
-		    fputs(smark,output);
-                } else
-                    fputc(c,output);
-            }
+	    if(ismark(c)) {
+		String smark;
+                if(iscreate(c))
+                    smark = "^00";
+                else {// segmark
+                    int mark = ((int)c) & 0xFF;
+		    smark = String.format("^%02d",mark);
+                }
+		fputs(smark,output);
+            } else
+                fputc(c,output);
         }
-        prev = c;
     }
-    if(prev != '\n')
-        fputc('\n',output);
     output.flush();
-
 }
 
 //////////////////////////////////////////////////
@@ -800,7 +809,7 @@ invoke(Frame frame, StringBuilder result) // Copy a function
         dictionary.put(newstr.name,newstr);
     }
     
-    newstr.name = oldstr.name;
+    newstr.name = newname;
     newstr.trace = oldstr.trace;
     newstr.locked = oldstr.locked;
     newstr.builtin = oldstr.builtin;
@@ -848,6 +857,7 @@ final TTMFCN ttm_ds = new TTMFCN() {
 public void
 invoke(Frame frame, StringBuilder result)
 {
+    String fname = frame.argv[1];
     Name str = dictionary.get(frame.argv[1]);
     if(str == null) {
         // create a new string object
@@ -914,8 +924,9 @@ ttm_ss0(Frame frame)
                 }
                 p = q + arg.length();
                 // we have a match, replace match by a segment marker
+                char mark = (char)(SEGMARK | startseg);
                 body = body.substring(0,q)
-                   + (SEGMARK | startseg)
+                   + mark
                    + body.substring(p,body.length());
                 segcount++;
             }
@@ -977,29 +988,24 @@ invoke(Frame frame, StringBuilder result) // Call n characters
 
     // Get number of characters to extract
     int n = (int)toInt64(frame.argv[1]);
-    boolean isneg = (n < 0);
-    if(isneg) n = -n;
+    if(n < 0) fail(ERR.ENOTNEGATIVE);
 
     // See if we have enough space
     int bodylen = str.body.length();
-    int avail = 0;
+    int avail;
     if(str.residual < bodylen)
         avail = (bodylen - str.residual);
+    else
+        avail = 0;
 
     if(n == 0 || avail == 0) return;
     if(avail < n) n = avail; // return what is available
 
-    // Figure out the starting and ending pointers for the transfer
-    int startn;
-    if(isneg) {// n was originally negative
-        // We want n characters starting at bodylen - |n|
-        startn = bodylen - (int)n;
-        } else {
-        // We want n characters starting at residual
-        startn = str.residual;
-    }
-    // ok, copy n characters from startn to endn into the return buffer
-    result.append(str.body.substring(startn,n));
+    // We want n characters starting at residual
+    int startn = str.residual;
+
+    // ok, copy n characters from startn into the return buffer
+    result.append(str.body.substring(startn,startn+n));
     // increment residual
     str.residual += n;
     return;
@@ -1017,13 +1023,12 @@ invoke(Frame frame, StringBuilder result) // Call parameter
         fail(ERR.ENOPRIM);
 
     int bodylen = str.body.length();
-    int rp = str.residual;
-    int rp0 = rp;
+    int rp0 = str.residual;
+    int rp = rp0;
     int depth = 0;
     char c = 0;
-    for(;rp < bodylen;rp++) {
-        c=str.body.charAt(rp);
-        if(c == EOS) break;
+    String body = str.body + EOS; // avoid need to count
+    for(;(c=body.charAt(rp))!=EOS;rp++) {
         if(c == semic) {
             if(depth == 0) break; // reached unnested semicolon
         } else if(c == openc) {
@@ -1131,7 +1136,7 @@ invoke(Frame frame, StringBuilder result) // Character scan
         // beginning of the first occurrence of arg
         result.append(str.body.substring(p0,q));
         if(q == p0) {
-            str.residual = q + arglen;
+            str.residual += arglen;
             if(str.residual > str.body.length())
                 str.residual = str.body.length();
         }
@@ -1153,7 +1158,7 @@ invoke(Frame frame, StringBuilder result) // Skip n characters
 
     // Get number of characters to skip
     long n = toInt64(frame.argv[1]);
-    if(n < 0) fail(ERR.EPOSITIVE);
+    if(n < 0) fail(ERR.ENOTNEGATIVE);
 
     str.residual += n;
     int bodylen = str.body.length();
@@ -1241,7 +1246,7 @@ invoke(Frame frame, StringBuilder result) // Zero-level commas and parentheses;
     // A(B) and A,B will both give A;B and (A),(B),C will give A;B;C
     String s = frame.argv[1];
     int slen = (s).length();
-    s += EOS;
+    s += EOS; // so we do not always have to check the length
     int depth = 0;
     for(int i=0;i<slen;i++) {
         char c = s.charAt(i);
@@ -1252,7 +1257,7 @@ invoke(Frame frame, StringBuilder result) // Zero-level commas and parentheses;
         } else if(depth == 0 && c == COMMA) {
             if(s.charAt(i+1) != LPAREN) {result.append(semic);}
         } else if(c == LPAREN) {
-            if(depth == 0 && i > slen) {result.append(semic);}
+            if(depth == 0 && i > 0) {result.append(semic);}
             if(depth > 0) result.append(c);
             depth++;
         } else if(c == RPAREN) {
@@ -1300,8 +1305,8 @@ invoke(Frame frame, StringBuilder result) // Call class
     int p = startp;
     for(;p<endp;p++) {
         char c = str.body.charAt(p);
-        if(cl.negative && (cl.characters.indexOf(c) >= 0)) break;
-        else if(!cl.negative && (cl.characters.indexOf(c) < 0)) break;
+        if(cl.negative && (cl.characters.indexOf(c) >= 0)) break;  // not in class
+        else if(!cl.negative && (cl.characters.indexOf(c) < 0)) break; // not in class
     }
     int len = (p - startp);
     if(len > 0) {
@@ -1370,8 +1375,8 @@ invoke(Frame frame, StringBuilder result) // Skip class
     int p = startp;
     for(;p<endp;p++) {
         char c = str.body.charAt(p);
-        if(cl.negative && (cl.characters.indexOf(c) >= 0)) break;
-        else if(!cl.negative && (cl.characters.indexOf(c) < 0)) break;
+        if(cl.negative && (cl.characters.indexOf(c) >= 0)) break; // not in class
+        else if(!cl.negative && (cl.characters.indexOf(c) < 0)) break; // not in class
     }
     int len = (p - startp);
     str.residual += len;
@@ -1399,9 +1404,9 @@ invoke(Frame frame, StringBuilder result) // Test class
         char c = EOS;
         if(str.residual < str.body.length())
             c = str.body.charAt(str.residual);
-        if(cl.negative && (cl.characters.indexOf(c) >= 0))
+        if(cl.negative && (cl.characters.indexOf(c) < 0))
             retval = t;
-        else if(!cl.negative && (cl.characters.indexOf(c) < 0))
+        else if(!cl.negative && (cl.characters.indexOf(c) >= 0))
             retval = t;
         else
             retval = f;
@@ -1484,7 +1489,7 @@ invoke(Frame frame, StringBuilder result) // Substract
     String slhs = frame.argv[1];
     String srhs = frame.argv[2];
     long lhs = toInt64(slhs);
-    long rhs = toInt64(slhs);
+    long rhs = toInt64(srhs);
     lhs = (lhs - rhs);
     result.append(String.format("%d",lhs));
 }
@@ -1570,13 +1575,6 @@ invoke(Frame frame, StringBuilder result) // ? Compare logical less-than
 
 // Peripheral Input/Output Operations
 
-/**
-In order to a void spoofing,
-the string to be output is
-modified to remove all control
-characters except '\n', and a final
-'\n' is forced.
-*/
 final TTMFCN ttm_ps = new TTMFCN() {
 public void
 invoke(Frame frame, StringBuilder result) // Print a Name
@@ -1588,21 +1586,14 @@ invoke(Frame frame, StringBuilder result) // Print a Name
         target = stderr;
     else
         target = stdout;
-    printstring(target,s,!PRINTALL);
+    printstring(target,s);
 }
 }; //ttm_ps
 
-/**
-In order to avoid spoofing, the
-string 'ttm>' is output before reading
-if reading from stdin.
-*/
 final TTMFCN ttm_rs = new TTMFCN() {
 public void
 invoke(Frame frame, StringBuilder result) // Read a Name
 {
-    if(isstdin)
-        {stdout.print("ttm>");stdout.flush();}
     for(;;) {
         int c=fgetc(rsinput);
         if(c == EOF) break;
@@ -1616,9 +1607,11 @@ final TTMFCN ttm_psr = new TTMFCN() {
 public void
 invoke(Frame frame, StringBuilder result) // Print Name and Read
 {
-    // force output to go to stdout
     int argc = frame.argc;
+/*
+    // force output to go to stdout
     if(argc > 2) frame.argc = 2;
+*/
     ttm_ps.invoke(frame,result);
     ttm_rs.invoke(frame,result);
     frame.argc = argc;
@@ -1666,9 +1659,14 @@ invoke(Frame frame, StringBuilder result) // Obtain all Name instance names in s
     Object[] names = dictionary.keySet().toArray();
     Arrays.sort(names);
     // Return the set of names separated by commas
-     for(int i=0;i<names.length;i++) {
-        if(i > 0) result.append(',');
-        result.append((String)names[i]);
+    boolean first = true;
+    for(int i=0;i<names.length;i++) {
+         Name entry = dictionary.get((String)names[i]);
+         if(allnames || !entry.builtin) {
+            if(!first) result.append(',');
+            result.append((String)names[i]);
+             first = false;
+         }
     }
 }
 }; //ttm_names
@@ -1736,7 +1734,11 @@ invoke(Frame frame, StringBuilder result) // Convert ##<time> to printable strin
     String stod = frame.argv[1];
     long tod = toInt64(stod);
     tod = tod*10; // need milliseconds
-    result.append(new Date(tod).toString());
+    Date today = new Date(tod);
+    SimpleDateFormat format =  // Emulate C ctime()
+	new SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy");
+    String date = format.format(today);
+    result.append(date);
 }
 }; //ttm_ctime
 
@@ -1777,7 +1779,10 @@ invoke(Frame frame, StringBuilder result) // Turn Trace On
 
 // Functions new to this implementation
 
-// Get ith command line argument; zero is command
+/**
+Get ith command line argument; as with C,
+argv[0] is the invoking command (faked)
+*/
 final TTMFCN ttm_argv = new TTMFCN() {
 public void
 invoke(Frame frame, StringBuilder result)
@@ -1789,6 +1794,19 @@ invoke(Frame frame, StringBuilder result)
     result.append(arg);
 }
 }; //ttm_argv
+
+/**
+Get count of command line arguments; as with C,
+argv[0] is the invoking command (faked)
+*/
+final TTMFCN ttm_argc = new TTMFCN() {
+public void
+invoke(Frame frame, StringBuilder result)
+{
+    int argc = argv.size();
+    result.append(String.format("%d",argc));
+}
+}; //ttm_argc
 
 final TTMFCN ttm_classes = new TTMFCN() {
 public void
@@ -1837,41 +1855,18 @@ invoke(Frame frame, StringBuilder result) // Un-Lock a function from being delet
 }
 }; //ttm_uf
 
-/**
-For security reasons, we impose the constraint
-that the file name must only be accessible
-through one of the include paths.
-This has the possibly undesirable consequence
-that if the user used #<include>, then the user
-must also specify a -I on the command line.
-*/
 final TTMFCN ttm_include = new TTMFCN() {
 public void
 invoke(Frame frame, StringBuilder result)  // Include text of a file
 {
-    String suffix = frame.argv[1];
-    int suffixlen = suffix.length();
-    if(suffixlen == 0)
-        fail(ERR.EINCLUDE);
-    if(suffix.charAt(0) == '/' || suffix.charAt(0) == '\\') {
-        suffix = suffix.substring(1);
-        suffixlen--;
-    }
-    // convert
-    // search the -I list
-    File fi = null;
-    String filename = null;
-    for(String path: includes) {
-        filename = path;
-        filename += "/";
-        filename += suffix;
-        fi = new File(filename);
-        if(fi.canRead()) break;
-    }
-    if(fi == null)
+    String filename = frame.argv[1];
+    if(filename.length() == 0)
+	fail(ERR.EINCLUDE);
+    File fi = new File(filename);
+    if(!fi.canRead())
         fail(ERR.EINCLUDE);
     try {
-        String text = readfile(filename,charset);
+        String text = readfile(filename);
         result.append(text);
     } catch (IOException ioe) {
         fail(ERR.EIO);
@@ -1926,15 +1921,17 @@ ttm_ttm_info_name(Frame frame, StringBuilder result)
             result.append(String.format(",0,%d,V",str.maxsegmark));
         }
         if(!str.builtin) {
-            result.append(String.format(" residual=%u body=|",str.residual));
+            result.append(String.format(" residual=%d body=|",str.residual));
             // Walk the body checking for segment and creation marks
             for(int p=0;p<str.body.length();p++) {
                 char c = str.body.charAt(p);
                 if(ismark(c)) {
                     if(iscreate(c))
                         result.append("^00");
-                    else // segmark
-                        result.append(String.format("^%02d",(int)(c & 0xFF)));
+                    else {// segmark
+                        int mark = ((int)c) & 0XFF;
+                        result.append(String.format("^%02d",mark));
+                    }
                 } else
                     result.append(c);
             }
@@ -1943,7 +1940,7 @@ ttm_ttm_info_name(Frame frame, StringBuilder result)
         result.append('\n');
     }
 if(DEBUG) {
-    System.err.print("info.name: ");
+    stderr.print("info.name: ");
     dbgprint(result.toString(),'"');
 }
 }
@@ -1969,10 +1966,10 @@ ttm_ttm_info_class(Frame frame, StringBuilder result) // Misc. combined actions
         result.append('\n');
     }
 if(DEBUG) {
-    System.err.printf("info.class: ");
+    stderr.printf("info.class: ");
     dbgprint(result.toString(),'"');
-    System.err.printf("\n");
-    System.err.flush();
+    stderr.printf("\n");
+    stderr.flush();
 }
 }
 
@@ -2140,6 +2137,7 @@ Builtin[] builtin_orig = new Builtin[] {
 // Functions new to this implementation
 Builtin[] builtin_new = new Builtin[]{
     new Builtin("argv",1,1,"V",ttm_argv), // Get ith command line argument
+    new Builtin("argc",0,0,"V",ttm_argc), // Get no. of command line arguments
     new Builtin("classes",0,0,"V",ttm_classes), // Obtain character class Names
     new Builtin("ctime",1,1,"V",ttm_ctime), // Convert time to printable string
     new Builtin("include",1,1,"S",ttm_include), // Include text of a file
@@ -2180,35 +2178,43 @@ defineBuiltinFunctions()
 
 //////////////////////////////////////////////////
 
-// Predefined strings
-static class Predefined {
-    String name;
-    String body;
-    public Predefined(String n, String b) {name=n;body=b;}
+/**
+Startup commands: execute before
+any other commands.
+Beware that only the defaults instance variables are defined.
+*/
+
+static String[] startup_commands = {
+"#<ds;comment;>",
+"#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>#<ss;def;name;subs;text>"
 };
 
-// Predefined Strings
-Predefined[] predefines = new Predefined[] {
-    new Predefined("comment","#<ds;comment;>"),
-    new Predefined("def","#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>#<ss;def;name;subs;text>"),
-};
-
+/**
+Execute the commands in the set of startup_commands.
+*/
 void
-predefineNames()
+startupcommands()
 {
     int saveflags = flags;
     flags &= ~FLAG_TRACE;
 
-    for(Predefined pre: predefines) {
-        Name fcn = dictionary.get(pre.name);
-        if(fcn != null) fail("Predefined name already defined");
-        fcn = new Name();
-        fcn.name = pre.name;
-        fcn.builtin = false;
-        fcn.body = pre.body;
-        fcn.locked = true; // do not allow predefines to be deleted
+    for(String cmd: startup_commands) {
+	scan(cmd);
     }
     flags = saveflags;
+}
+
+//////////////////////////////////////////////////
+/**
+Lock all functions that are currently in the dictionary
+*/
+void
+lockup()
+{
+    for(String key: dictionary.keySet()) {
+	Name name = dictionary.get(key);
+	name.locked = true;
+    }
 }
 
 //////////////////////////////////////////////////
@@ -2232,13 +2238,14 @@ void
 fail(String msg)
         throws Fatal
 {
-    System.err.printf("Fatal error: %s\n",msg);
+    System.out.flush();
+    stderr.printf("Fatal error: %s\n",msg);
     if(this.stack != null) {
         // Dump the frame stack
         dumpstack();
-        System.err.printf("\n");
+        stderr.printf("\n");
     }
-    System.err.flush();
+    stderr.flush();
     throw new Fatal(msg);
 }
 
@@ -2271,7 +2278,7 @@ errstring(ERR err)
     case ETTM: msg="A TTM Processing Error Occurred"; break;
     case ESTORAGE: msg="Error In Storage Format"; break;
 #endif*/
-    case EPOSITIVE: msg="Only unsigned decimal integers"; break;
+    case ENOTNEGATIVE: msg="Only unsigned decimal integers"; break;
     // messages new to this implementation
     case ESTACKOVERFLOW: msg="Stack overflow"; break;
     case ESTACKUNDERFLOW: msg="Stack Underflow"; break;
@@ -2298,10 +2305,27 @@ errstring(ERR err)
 void
 dumpnames()
 {
-    for(String name: dictionary.keySet()) {
-        Name entry = dictionary.get(name);
-        System.err.println(entry.name);
+    // First, figure out the number of names and the total size
+    int len = dictionary.size();
+    if(len == 0)
+        return;
+
+    // Now collect all the names
+    Object[] names = dictionary.keySet().toArray();
+    Arrays.sort(names);
+    // Return the set of names one per line
+    for(int i=0;i<names.length;i++) {
+        stderr.println((String)names[i]);
     }
+    stderr.flush();
+}
+
+void
+dumpframe(Frame frame)
+{
+    traceframe(frame,true);
+    stderr.println("");
+    stderr.flush();
 }
 
 //////////////////////////////////////////////////
@@ -2346,26 +2370,27 @@ Print a given single frame
 @param includeargs true if frame arguments should be printed
 */
 void
-printframe(Frame frame, boolean includeargs)
+traceframe(Frame frame, boolean includeargs)
 {
     String tag = "";
     if(frame.argc == 0) {
-        System.err.println("#<empty frame>");
+        stderr.print("#<empty frame>");
+	stderr.flush();
         return;
     }
     tag += sharpc;
     if(!frame.active)
         tag += sharpc;
     tag += openc;
-    System.err.print(tag + frame.argv[0]);
+    stderr.print(tag + frame.argv[0]);
     if(includeargs) {
         for(int i=1;i<frame.argc;i++) {
-            System.err.print(""+semic);
-            System.err.print(frame.argv[i]);
+            stderr.print(""+semic);
+            dbgprint(frame.argv[i],NUL);
         }
     }
-    System.err.println(closec);
-    System.err.flush();
+    stderr.print(closec);
+    stderr.flush();
 }
 
 /**
@@ -2381,10 +2406,20 @@ trace1(int depth, boolean entering, boolean tracing)
 {
     if(depth < 0) fail(ERR.ESTACKUNDERFLOW);
     Frame frame = stack.get(depth);
-    System.err.printf("[%02d] ",depth);
+    stderr.printf("[%02d] ",depth);
     if(tracing)
-        System.err.printf("%s: ",(entering?"begin":"end"));
-    printframe(frame,entering);
+        stderr.printf("%s: ",(entering?"begin":"end"));
+    traceframe(frame,entering);
+    // Dump the contents of result if !entering
+    if(!entering) {
+        stderr.print(" => ");
+        if(frame.result != null)
+            dbgprint(frame.result.toString(),'"');
+	else
+	    dbgprint("",'"');
+    } 
+    stderr.println("");
+    stderr.flush();
 }
 
 /**
@@ -2411,7 +2446,7 @@ dumpstack()
     for(int i=0;i<stack.size();i++) {
         trace1(i,false,!TRACING);
     }
-    System.err.flush();
+    stderr.flush();
 }
 
 void
@@ -2421,25 +2456,27 @@ dbgprintc(char c, char quote)
         String info = null;
         if(iscreate(c))
             info="^00";
-        else // segmark
-            info = String.format("^%02d",(int)(c & 0xFF));
-        System.err.print(info);
+        else { // segmark
+            int index = ((int)c) & 0xFF;
+            info = String.format("^%02d",index);
+        }
+        stderr.print(info);
     } else if(iscontrol(c)) {
-        System.err.print('\\');
+        stderr.print('\\');
         switch (c) {
-        case '\r': System.err.print('r'); break;
-        case '\n': System.err.print('n'); break;
-        case '\t': System.err.print('t'); break;
-        case '\b': System.err.print('b'); break;
-        case '\f': System.err.print('f'); break;
+        case '\r': stderr.print('r'); break;
+        case '\n': stderr.print('n'); break;
+        case '\t': stderr.print('t'); break;
+        case '\b': stderr.print('b'); break;
+        case '\f': stderr.print('f'); break;
         default: {
             // dump as a decimal character
-            System.err.printf("\\%d",(int)c);
+            stderr.printf("\\%d",(int)c);
             } break;
         }
     } else {
-        if(c == quote) System.err.print('\\');
-        System.err.print(c);
+        if(c == quote) stderr.print('\\');
+        stderr.print(c);
     }
 }
 
@@ -2461,7 +2498,7 @@ dbgprint(String s, char quote)
     }
     if(quote != NUL)
         dbgprintc(quote,NUL);
-    System.err.flush();
+    stderr.flush();
 }
 
 //////////////////////////////////////////////////
@@ -2515,7 +2552,6 @@ readbalanced(StringBuilder buffer)
 
 /**
 Output a single character to file f
-using whatever charset with which f was initialized
 
 @param c character to output
 @param f the outputstream
@@ -2535,7 +2571,6 @@ fputc(char c, Writer f)
 
 /**
 Output a string to file f
-using whatever charset with which f was initialized
 
 @param s  string to output
 @param f the outputstream
@@ -2552,7 +2587,6 @@ fputs(String s, Writer f)
 
 /**
 Read a single character from file f
-using whatever charset with which f was initialized
 
 @param f the inputstream
 
@@ -2588,23 +2622,20 @@ usage(final String msg)
 "usage: java"
 + "[-Ddebug=string]"
 + "[-Dexec=string]"
-+ "[-Dinput=file|-Dprogram=file]"
-+ "[-Dinteractive]"
-+ "[-Dinclude(s)=directory]"
++ "[-Dprogram=file]"
 + "[-Doutput=file]"
-+ "[-Drsfile=file]"
++ "[-Dinput=file]"
++ "[-Dinteractive]"
 + "[-Dversion]"
-+ "[-DX=tag:value...]"
++ "[-DX=tag:value,...]"
 + " -jar jar [arg...]\n");
     if(msg != null) System.exit(1); else System.exit(0);
 }
 
 /**
 Read the contents of a file assuming
-it has a specified charset.
 
 @param filename file to read, '-' => stdin.
-@param charset the assumed charset for the file
 
 @return The contents of the file as a string
 
@@ -2612,24 +2643,19 @@ it has a specified charset.
 */
 
 static String
-readfile(String filename, Charset charset)
+readfile(String filename)
     throws IOException
 {
     InputStream input = null;
-    boolean isstdin = ("-".equals(filename));
-
-    if(isstdin)
-        input = System.in;
-    else
-        input = new FileInputStream(filename);
-    InputStreamReader rdr = new InputStreamReader(input,charset);
+    input = new FileInputStream(filename);
+    InputStreamReader rdr = new InputStreamReader(input,UTF8);
 
     int c = 0;
     StringBuilder buf = new StringBuilder();
     while((c=rdr.read()) >= 0) {
         buf.append((char)c);
     }
-    if(!isstdin) input.close();
+    input.close();
     return buf.toString();
 }
 
@@ -2672,18 +2698,12 @@ Initialize and start the TTM instance
 static public void
 main(String[] argv)
 {
-    // Create the interpreter
-    TTM ttm = new TTM();
-
     // Get the -D flags from command line
-    String debugargs = System.getProperty("debug");
     String execcmd = System.getProperty("exec");
-    String executefilename = System.getProperty("input");
-    if(executefilename == null)
-	executefilename = System.getProperty("program");
+    String executefilename = System.getProperty("program");
     String outputfilename = System.getProperty("output");
+    String inputfilename = System.getProperty("input");
     boolean interactive = (System.getProperty("interactive") != null);
-    String rsfilename = System.getProperty("rsfile");
 
     String version = System.getProperty("version");
     if(version != null) {
@@ -2693,33 +2713,36 @@ main(String[] argv)
 
     // Complain if interactive and output file name specified
     if(outputfilename != null && interactive) {
-        System.err.printf("Interactive is illegal if output file specified\n");
-        System.exit(1);
+        usage("Interactive is illegal if output file specified");
     }
 
-    String value =  System.getProperty("include");
-    if(value == null) value = System.getProperty("includes");
-    if(value != null) {
-        String[] paths = value.split("[ \t]*,[ \t]*");
-        for(String path: paths) {
-            if(path.length() > 0)
-                ttm.addInclude(path);
+    // Process the -Ddebug flags
+    String debugflags = System.getProperty("debug");
+    if(debugflags != null) { // -Ddebug=<debugflags>
+	for(int i=0;i<debugflags.length();i++) {
+	    char c = debugflags.charAt(i);
+	    switch (c) {
+	    case 'T': TTM.testing = true; break;
+            default:
+                usage("Illegal -Ddebug option: "+c);
+            }
         }
     }
 
-    value = System.getProperty("X");
-    if(value != null) { // -DX=<value>
-	long buffersize = 0;
-	long stacksize = 0;
-	long execcount = 0;
-        String[] pieces = value.split("[ \t]*,[ \t]*");
+
+    long buffersize = 0;
+    long stacksize = 0;
+    long execcount = 0;
+    String xoption = System.getProperty("X");
+    if(xoption != null) { // -DX=<xoption>
+        String[] pieces = xoption.split("[ \t]*,[ \t]*");
         for(String piece: pieces) {
             String[] tagparts = piece.split("[ \t]*:[ \t]*");
             long size = -1;
             if(tagparts.length != 2
                 || tagparts[0].length() == 0
                 || (size=tagvalue(tagparts[1])) <= 0)
-                usage("Illegal -X option: "+piece);
+                usage("Illegal -DX option: "+piece);
             switch (tagparts[0].charAt(0)) {
             case 'b':
                 buffersize = size;
@@ -2731,13 +2754,19 @@ main(String[] argv)
                 execcount = size;
                 break;
             default:
-                usage("Illegal -X option: "+piece);
+                usage("Illegal -DX option: "+piece);
             }
         }
-	ttm.setLimits(buffersize,stacksize,execcount);
     }
 
+    // Create the interpreter
+    TTM ttm = new TTM();
+
+    // set any X and debug flags
+    ttm.setLimits(buffersize,stacksize,execcount);
+
     // Collect any args for #<arg>
+    ttm.addArgv(ARGV0); // pretend
     for(String arg: argv)
         ttm.addArgv(arg);
 
@@ -2746,33 +2775,32 @@ main(String[] argv)
     } else {
         File f = new File(outputfilename);      
         if(!f.canWrite()) {
-            System.err.printf("Output file is not writable: %s\n",outputfilename);
-            System.exit(1);
+            usage("Output file is not writable: "+outputfilename);
         }
-	    try {
-            ttm.setOutput(new PrintWriter(f,"UTF-8"),false);
+        try {
+            ttm.setOutput(
+		new PrintWriter(new OutputStreamWriter(
+				    new FileOutputStream(f),UTF8),true),
+                false);
         }  catch (FileNotFoundException fnf) {
             usage("File not found: "+f);
-        }  catch (UnsupportedEncodingException  uee) {
-            usage("Internal error");
         }
     }
 
-    if(rsfilename == null) {
+    if(inputfilename == null) {
 	ttm.setInput(ttm.getStdin(),true);
     } else {
-        File f = new File(rsfilename);
+        File f = new File(inputfilename);
         if(!f.canRead()) {
-            System.err.printf("-Drsfile file is not readable: %s\n",rsfilename);
-            System.exit(1);
+            usage("-Dinput file is not readable: "+inputfilename);
         }
         try {
-            ttm.setInput(new InputStreamReader(new FileInputStream(f), "UTF-8"), false);
+            ttm.setInput(
+		new InputStreamReader(new FileInputStream(f), UTF8),
+                false);
         }  catch (FileNotFoundException fnf) {
             usage("File not found: "+f);
-        }  catch (UnsupportedEncodingException  uee) {
-            usage("Internal error");
-        }
+	}
     }
 
     boolean stop = false;
@@ -2786,9 +2814,10 @@ main(String[] argv)
     // Now execute the executefile, if any
     if(!stop && executefilename != null) {
         try {
-            String text = readfile(executefilename,ttm.getCharset());
-            ttm.scan(text);
+            String text = readfile(executefilename);
+            String result = ttm.scan(text);
             if(ttm.testFlag(FLAG_EXIT)) stop = true;
+            ttm.printstring(ttm.stdout,result);
         } catch (IOException ioe) {
             usage("Cannot read -f file: "+ioe.getMessage());
         }

@@ -16,3 +16,13 @@ q0:: ttm.exe
 
 qq:: ttm.exe
 	gdb --args ${TESTCMD}
+
+
+TESTARGS=a b c
+TESTINPUT=-f test.rs
+gdb:: ttm.exe
+	gdb --args ./ttm -p t.ttm ${TESTINPUT} ${TESTARGS}
+
+split:: ttm.exe
+	rm -f ./test.output ./test.error
+	./ttm -p t.ttm ${TESTINPUT} ${TESTARGS} > ./test.output 2> ./test.error

@@ -83,7 +83,6 @@ static int timeofday(struct timeval *tv);
 /* Use ISO-8859-1 Character set for input/output */
 #undef ISO_8859 
 
-
 /**
 We use the standard "char" type for input/output,
 but also assume that this type may point to
@@ -158,9 +157,9 @@ Constants
 #define MAXCHAR8859 ((char_t)255)
 #endif
 
-#define MINBUFFERSIZE (1<<20)
-#define MINSTACKSIZE 64
-#define MINEXECCOUNT (1<<16)
+#define DFALTBUFFERSIZE (1<<20)
+#define DFALTSTACKSIZE 64
+#define DFALTEXECCOUNT (1<<20)
 
 #define CONTEXTLEN 20
 
@@ -174,7 +173,6 @@ Constants
 #define TOSTRING 1
 #define NOTTM NULL
 #define TRACING 1
-#define PRINTALL 1
 #define TOEOS (0x7fffffff)
 
 #ifdef DEBUG
@@ -214,12 +212,12 @@ EIO             = 17, /* An I/O Error Occurred */
 ETTM            = 18, /* A TTM Processing Error Occurred */
 ESTORAGE        = 19, /* Error In Storage Format */
 #endif
-EPOSITIVE       = 20, 
+ENOTNEGATIVE    = 20, 
 /* Error messages new to this implementation */
 ESTACKOVERFLOW  = 30, /* Leave room */
 ESTACKUNDERFLOW = 31, 
 EBUFFERSIZE     = 32, /* Buffer overflow */
-EMANYINCLUDES   = 33, /* Too many includes */
+EMANYINCLUDES   = 33, /* Too many includes (obsolete)*/
 EINCLUDE        = 34, /* Cannot read Include file */
 ERANGE          = 35, /* index out of legal range */
 EMANYPARMS      = 36, /* # parameters > MAXARGS */
@@ -229,6 +227,7 @@ ECHAR8          = 39, /* Illegal 8-bit character set value */
 EUTF32          = 40, /* Illegal utf-32 character set */
 ETTMCMD         = 41, /* Illegal #<ttm> command */
 ETIME           = 42, /* gettimeofday failed */
+EEXECCOUNT	= 43, /* too many execution calls */
 /* Default case */
 EOTHER          = 99
 } ERR;
@@ -320,7 +319,7 @@ struct TTM {
     Frame* stack;    
     FILE* output;    
     int   isstdout;
-    FILE* rsinput;
+    FILE* input;
     int   isstdin;
     /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
     struct HashTable dictionary;
@@ -417,7 +416,7 @@ static void scan(TTM*);
 static void exec(TTM*, Buffer* bb);
 static void parsecall(TTM*, Frame*);
 static void call(TTM*, Frame*, utf32* body);
-static void printstring(TTM*, FILE* output, utf32* s32, int printall);
+static void printstring(TTM*, FILE* output, utf32* s32);
 static void ttm_ap(TTM*, Frame*);
 static void ttm_cf(TTM*, Frame*);
 static void ttm_cr(TTM*, Frame*);
@@ -474,6 +473,7 @@ static void ttm_ctime(TTM*, Frame*);
 static void ttm_tf(TTM*, Frame*);
 static void ttm_tn(TTM*, Frame*);
 static void ttm_argv(TTM*, Frame*);
+static void ttm_argc(TTM*, Frame*);
 static void ttm_include(TTM*, Frame*);
 static void ttm_lf(TTM*, Frame*);
 static void ttm_uf(TTM*, Frame*);
@@ -485,6 +485,7 @@ static ERR toInt64(utf32* s, long long* lp);
 static utf32 convertEscapeChar(utf32 c);
 static void trace(TTM*, int entering, int tracing);
 static void trace1(TTM*, int depth, int entering, int tracing);
+static void traceframe(TTM* ttm, Frame* frame, int traceargs);
 static void dumpstack(TTM*);
 static void dbgprint32(utf32* s, char quote);
 static void dbgprint32c(utf32 c, char quote);
@@ -492,7 +493,6 @@ static int getOptionNameLength(char** list);
 static int pushOptionName(char* option, unsigned int max, char** list);
 static void initglobals();
 static void usage(const char*);
-static void convertDtoE(const char* def);
 static void readinput(TTM*, const char* filename,Buffer* bb);
 static int readbalanced(TTM*);
 static void printbuffer(TTM*);
@@ -511,10 +511,10 @@ static void fputc32(utf32 c, FILE* f);
 static utf32 fgetc32(FILE* f);
 
 /* UTF32 <-> char management */
-static int streq328(utf32* s32, char_t* s8);
+static int streq32ascii(utf32* s32, char_t* s8);
 static int toChar8(char_t* dst, utf32 codepoint);
 static int toChar32(utf32* codepointp, char_t* src);
-static int toString8(char_t* dst, utf32* src, int len);
+static int toString8(char_t* dst, utf32* src, int srclen, int dstlen);
 static int toString32(utf32* dst, char_t* src, int len);
 #ifndef ISO_8859
 static int utf8count(unsigned int c);
@@ -522,7 +522,6 @@ static int utf8count(unsigned int c);
 /**************************************************/
 /* Global variables */
 
-static char* includes[MAXINCLUDES+1]; /* null terminated */
 static char* eoptions[MAXEOPTIONS+1]; /* null terminated */
 static char* argoptions[MAXARGS+1]; /* null terminated */
 
@@ -960,6 +959,8 @@ exec(TTM* ttm, Buffer* bb)
     Name* fcn;
     utf32* savepassive;
 
+    if(ttm->limits.execcount-- <= 0)
+	fail(ttm,EEXECCOUNT);	
     frame = pushFrame(ttm);
     /* Skip to the start of the function name */
     if(bb->active[1] == ttm->openc) {
@@ -1180,36 +1181,30 @@ call(TTM* ttm, Frame* frame, utf32* body)
 /**************************************************/
 /* Built-in Support Procedures */
 static void
-printstring(TTM* ttm, FILE* output, utf32* s32, int printall)
+printstring(TTM* ttm, FILE* output, utf32* s32)
 {
     int slen = strlen32(s32);
-    utf32 c32,prev;
+    utf32 c32;
 
     if(slen == 0) return;
-    prev = 0;
     while((c32=*s32++)) {
         if(isescape(c32)) {
             c32 = *s32++;
             c32 = convertEscapeChar(c32);
         }
         if(c32 != 0) {
-            if(printall || c32 == '\n' || !iscontrol(c32)) {
-                if(ismark(c32)) {
-                    char_t* p;
-                    char info[16+1];
-                    if(iscreate(c32))
-                        strcpy(info,"^00");
-                    else /* segmark */
-                        snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
-                    for(p=info;*p;p++) fputc32((utf32)*p,output);
-                } else
-                    fputc32(c32,output);
-            }
-        }
-        prev = c32;
+            if(ismark(c32)) {
+                char_t* p;
+                char info[16+1];
+                if(iscreate(c32))
+                    strcpy(info,"^00");
+                else /* segmark */
+                    snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
+                for(p=info;*p;p++) fputc32((utf32)*p,output);
+            } else
+                fputc32(c32,output);
+         }
     }
-    if(prev != '\n')
-        fputc32((utf32)'\n',output);
     fflush(output);
 }
 
@@ -1438,7 +1433,6 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     Name* str;
     long long ln;
     unsigned n;
-    int isneg;
     ERR err;
     unsigned int bodylen,startn;
     unsigned int avail;
@@ -1452,9 +1446,8 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     /* Get number of characters to extract */
     err = toInt64(frame->argv[1],&ln);
     if(err != ENOERR) fail(ttm,err);
-    if(ln >= MAXINT || ln <= MININT) fail(ttm,ERANGE);
-    isneg = 0;
-    if(ln < 0) {isneg = 1; ln = -ln;}
+    if(ln < 0) fail(ttm,ENOTNEGATIVE);   
+
     n = (unsigned int)ln;
 
     /* See if we have enough space */
@@ -1467,16 +1460,10 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     if(n == 0 || avail == 0) goto nullreturn;
     if(avail < n) n = avail; /* return what is available */
 
-    /* Figure out the starting and ending pointers for the transfer */
-    if(isneg) {/* n was originally negative */
-        /* We want n characters starting at bodylen - |n| */
-        startn = bodylen - n;
-	} else {
-        /* We want n characters starting at residual */
-        startn = str->residual;
-    }
+    /* We want n characters starting at residual */
+    startn = str->residual;
         
-    /* ok, copy n characters from startn to endn into the return buffer */
+    /* ok, copy n characters from startn into the return buffer */
     setBufferLength(ttm,ttm->result,n);
     strncpy32(ttm->result->content,str->body+startn,n);
     /* increment residual */
@@ -1505,8 +1492,8 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     if(str->builtin)
         fail(ttm,ENOPRIM);
 
-    rp = str->body + str->residual;
-    rp0 = rp;
+    rp0 = (str->body + str->residual);
+    rp = rp0;
     depth = 0;
     ttm->result->content[0] = NUL32; /* so we can strcat */
     for(;(c32=*rp);rp++) {
@@ -1632,16 +1619,18 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
     for(;*p;p++) {
         if(strncmp32(p,arg,arglen)==0) {result = p; break;}
     }    
-    if(result == NULL) {
+    if(result == NULL) {/* no match; return argv[3] */
         setBufferLength(ttm,ttm->result,strlen32(f));
         strcpy32(ttm->result->content,f);    
-    } else {
+    } else {/* return from residual ptr to location of string */
         unsigned int len = (p - p0);
         setBufferLength(ttm,ttm->result,len);
         strncpy32(ttm->result->content,p0,len);
-        str->residual += (len + arglen);
-        bodylen = strlen32(str->body);
-        if(str->residual > bodylen) str->residual = bodylen;
+	if(len == 0) {/* if the match is at the residual ptr, mv ptr */
+	    str->residual += (arglen);
+            bodylen = strlen32(str->body);
+            if(str->residual > bodylen) str->residual = bodylen;
+	}
     }
 }
 
@@ -1661,7 +1650,7 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 
     err = toInt64(frame->argv[1],&num);
     if(err != ENOERR) fail(ttm,err);
-    if(num < 0) fail(ttm,EPOSITIVE);   
+    if(num < 0) fail(ttm,ENOTNEGATIVE);   
 
     str->residual += (int)num;
     bodylen = strlen32(str->body);
@@ -2220,27 +2209,20 @@ ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
     utf32* s = frame->argv[1];
     utf32* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
     FILE* target;
-    if(stdxx != NULL && streq328(stdxx,"stderr"))
+    if(stdxx != NULL && streq32ascii(stdxx,"stderr"))
         target=stderr;
     else
         target = stdout;
-    printstring(ttm,target,s,!PRINTALL);
+    printstring(ttm,target,s);
 }
 
-/**
-In order to avoid spoofing, the
-string 'ttm>' is output before reading
-if reading from stdin.
-*/
 static void
 ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
 {
     int len;
     utf32 c;
-    if(ttm->isstdin)
-        {fprintf(stdout,"ttm>");fflush(stdout);}
     for(len=0;;len++) {
-        c=fgetc32(ttm->rsinput);
+        c=fgetc32(ttm->input);
         if(c == EOF) break;
         if(c == ttm->metac) break;
         setBufferLength(ttm,ttm->result,len+1);
@@ -2251,9 +2233,7 @@ ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
 static void
 ttm_psr(TTM* ttm, Frame* frame) /* Print Name and Read */
 {
-    /* force output to goto stdout */
     int argc = frame->argc;
-    if(argc > 2) frame->argc = 2;
     ttm_ps(ttm,frame);
     ttm_rs(ttm,frame);
     frame->argc = argc;
@@ -2273,9 +2253,9 @@ static void
 ttm_pf(TTM* ttm, Frame* frame) /* Flush stdout and/or stderr */
 {
     utf32* stdxx = (frame->argc == 1 ? NULL : frame->argv[1]);
-    if(stdxx == NULL || streq328(stdxx,"stdout"))
+    if(stdxx == NULL || streq32ascii(stdxx,"stdout"))
         fflush(stderr);
-    if(stdxx == NULL || streq328(stdxx,"stderr"))
+    if(stdxx == NULL || streq32ascii(stdxx,"stderr"))
         fflush(stderr);
 }
 
@@ -2435,6 +2415,7 @@ ttm_ctime(TTM* ttm, Frame* frame) /* Convert ##<time> to printable string */
     char_t result[1024];
     time_t ttod;
     unsigned int count;
+    int i;
 
     stod = frame->argv[1];
     err = toInt64(stod,&tod);
@@ -2442,6 +2423,12 @@ ttm_ctime(TTM* ttm, Frame* frame) /* Convert ##<time> to printable string */
     tod = tod/100; /* need seconds */
     ttod = (time_t)tod;
     snprintf(result,sizeof(result),"%s",ctime(&ttod));
+    /* ctime adds a trailing new line; remove it */
+    i = strlen(result);
+    for(i--;i >= 0;i--) {
+	if(result[i] != '\n' && result[i] != '\r') break;
+    }
+    result[i+1] = NUL;
     count = toString32(ttm->result->content,result,TOEOS);
     setBufferLength(ttm,ttm->result,count);
 }
@@ -2486,7 +2473,7 @@ ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */
 
 /* Functions new to this implementation */
 
- /* Get ith command line argument; zero is command */
+/* Get ith command line argument; zero is command */
 static void
 ttm_argv(TTM* ttm, Frame* frame)
 {
@@ -2503,6 +2490,20 @@ ttm_argv(TTM* ttm, Frame* frame)
     arglen = strlen(arg);
     setBufferLength(ttm,ttm->result,arglen);/*temp*/
     count = toString32(ttm->result->content,arg,arglen);
+    setBufferLength(ttm,ttm->result,count);
+}
+
+/* Get the length of argoptions */
+static void
+ttm_argc(TTM* ttm, Frame* frame)
+{
+    char result[MAXINTCHARS+1];
+    int argc,count;
+
+    argc = getOptionNameLength(argoptions);
+    snprintf(result,sizeof(result),"%d",argc);
+    setBufferLength(ttm,ttm->result,strlen(result));/*temp*/
+    count = toString32(ttm->result->content,result,TOEOS);
     setBufferLength(ttm,ttm->result,count);
 }
 
@@ -2587,46 +2588,22 @@ ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
     }
 }
 
-/**
-For security reasons, we impose the constraint
-that the file name must only be accessible
-through one of the include paths.
-This has the possibly undesirable consequence
-that if the user used #<include>, then the user
-must also specify a -I on the command line.
-*/
 static void
 ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 {
-    char** path;
+    utf32* path;
     FILE* finclude;
-    char suffix[8192];
-    char filename[8192];
-    utf32* suffix32;
     Buffer* bb = ttm->result;
-    int suffixlen;
+    char filename[8192];
     int count;
 
-    suffix32 = frame->argv[1];
-    suffixlen = strlen32(suffix32);
-    if(suffixlen == 0)
+    path = frame->argv[1];
+    if(strlen32(path) == 0)
         fail(ttm,EINCLUDE);
-    if(suffix32[0] == '/' || suffix32[0] == '\\') {
-        suffix32++;
-        suffixlen--;
-    }
-    /* convert */
-    count = toString8((char_t*)suffix,suffix32,suffixlen);
-    if(count >= 8192) fail(ttm,EBUFFERSIZE);
-    suffix[count] = NUL;
-    /* access thru the -I list */
-    for(path=includes;*path;) {
-        strcpy(filename,*path);
-        strcat(filename,"/");
-        strcat(filename,suffix);
-        finclude = fopen(filename,"r");
-        if(finclude != NULL) break;
-    }
+    count = toString8(filename,path,TOEOS,sizeof(filename));
+    if(count < 0)
+	fail(ttm,EINCLUDE);
+    finclude = fopen(filename,"r");
     if(finclude == NULL)
         fail(ttm,EINCLUDE);
     readfile(ttm,finclude,bb);
@@ -2781,13 +2758,13 @@ ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
     char discrim[(4*255)+1]; /* upper bound for 255 characters + nul term */
     int count;
     
-    count = toString8(discrim,frame->argv[1],TOEOS);
+    count = toString8(discrim,frame->argv[1],TOEOS,sizeof(discrim));
     discrim[count] = NUL;
 
     if(frame->argc >= 3 && strcmp("meta",discrim)==0) {
         ttm_ttm_meta(ttm,frame);
     } else if(frame->argc >= 4 && strcmp("info",discrim)==0) {
-        count = toString8(discrim,frame->argv[2],TOEOS);
+        count = toString8(discrim,frame->argv[2],TOEOS,sizeof(discrim));
         discrim[count] = NUL;
         if(strcmp("name",discrim)==0) {
             ttm_ttm_info_name(ttm,frame);
@@ -2931,7 +2908,8 @@ static struct Builtin builtin_orig[] = {
     
 /* Functions new to this implementation */
 static struct Builtin builtin_new[] = {
-    {"argv",1,1,"V",ttm_argv}, /* Get ith command line argument */
+    {"argv",1,1,"V",ttm_argv}, /* Get ith command line argument; 0<=i<argc */
+    {"argc",0,0,"V",ttm_argc}, /* no. of command line arguments */
     {"classes",0,0,"V",ttm_classes}, /* Obtain character class Names */
     {"ctime",1,1,"V",ttm_ctime}, /* Convert time to printable string */
     {"include",1,1,"S",ttm_include}, /* Include text of a file */
@@ -2957,7 +2935,6 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     /* create a new function object */
     function = newName(ttm);
     function->builtin = 1;
-    function->locked = 1;
     function->minargs = bin->minargs;
     function->maxargs = bin->maxargs;
     if(strcmp(bin->sv,"S")==0)
@@ -2980,49 +2957,57 @@ defineBuiltinFunctions(TTM* ttm)
 }
 
 /**************************************************/
-/* Predefined strings */
-struct Predefined {
-    char* name;
-    char* body;
-};
+/**
+Startup commands: execute before
+any -e or -f arguments.
+Beware that only
+the defaults instance variables are defined.
+ */
 
-/* Predefined Strings */
-static struct Predefined predefines[] = {
-    {"comment","#<ds;comment;>"},
-    {"def","#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>#<ss;def;name;subs;text>"},
-    {NULL,NULL} /* terminator */
+static char* startup_commands[] = {
+"#<ds;comment;>",
+"#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>#<ss;def;name;subs;text>",
+NULL
 };
 
 static void
-predefineNames(TTM* ttm)
+startupcommands(TTM* ttm)
 {
-    struct Predefined* pre;
-    utf32 name32[64];
-    int count,bodylen;
-    Name* fcn;
+    int count,cmdlen;
+    char* cmd;
+    char** cmdp;
     int saveflags = ttm->flags;
     ttm->flags &= ~FLAG_TRACE;
 
-    for(pre=predefines;pre->name != NULL;pre++) {
-        bodylen = strlen(pre->body);
+    for(cmdp=startup_commands;*cmdp != NULL;cmdp++) {
+	cmd = *cmdp;
+        cmdlen = strlen(cmd);
         resetBuffer(ttm,ttm->buffer);
-        setBufferLength(ttm,ttm->buffer,bodylen); /* temp */
-        count = toString32(ttm->buffer->content,pre->body,bodylen);     
+        setBufferLength(ttm,ttm->buffer,cmdlen); /* temp */
+        count = toString32(ttm->buffer->content,cmd,cmdlen);     
         setBufferLength(ttm,ttm->buffer,count);
         scan(ttm);
         resetBuffer(ttm,ttm->buffer); /* throw away any result */
-        /* Validate */
-        if(strlen(pre->name) >= sizeof(name32)/sizeof(utf32))
-            fatal(ttm,"Predefined Name name is too long");
-        count = toString32(name32,pre->name,TOEOS);
-        name32[count] = NUL32;
-        fcn = dictionaryLookup(ttm,name32);
-        if(fcn == NULL) fatal(ttm,"Could not define a predefined name");
-        fcn->locked = 1; /* do not allow predefines to be deleted */
     }
     ttm->flags = saveflags;
-
 }
+
+/**************************************************/
+/* Lock all the names in the dictionary */
+static void
+lockup(TTM* ttm)
+{
+    int i;
+    for(i=0;i<HASHSIZE;i++) {
+	struct HashEntry* entry = ttm->dictionary.table[i].next;
+        while(entry != NULL) {
+	    Name* name = (Name*)entry;
+	    name->locked = 1;
+            entry = entry->next;
+        }
+    }
+}
+
 
 /**************************************************/
 /* Error reporting */
@@ -3088,7 +3073,7 @@ errstring(ERR err)
     case ETTM: msg="A TTM Processing Error Occurred"; break;
     case ESTORAGE: msg="Error In Storage Format"; break;
 #endif
-    case EPOSITIVE: msg="Only unsigned decimal integers"; break;
+    case ENOTNEGATIVE: msg="Only unsigned decimal integers"; break;
     /* messages new to this implementation */
     case ESTACKOVERFLOW: msg="Stack overflow"; break;
     case ESTACKUNDERFLOW: msg="Stack Underflow"; break;
@@ -3103,6 +3088,7 @@ errstring(ERR err)
     case EUTF32: msg="Illegal utf-32 character set"; break;
     case ETTMCMD: msg="Illegal #<ttm> command"; break;
     case ETIME: msg="Gettimeofday() failed"; break;
+    case EEXECCOUNT: msg="too many executions"; break;
     case EOTHER: msg="Unknown Error"; break;
     }
     return msg;
@@ -3127,6 +3113,13 @@ dumpnames(TTM* ttm)
         }
 	fprintf(stderr,"\n");	
     }
+}
+
+static void
+dumpframe(TTM* ttm, Frame* frame)
+{
+    traceframe(ttm,frame,1);
+    fprintf(stderr,"\n");
 }
 
 #endif
@@ -3245,7 +3238,7 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     unsigned int i = 0;
 
     if(frame->argc == 0) {
-	fprintf(stderr,"#<empty frame>\n");
+	fprintf(stderr,"#<empty frame>");
 	return;
     }
     tag[i++] = (char)ttm->sharpc;
@@ -3274,7 +3267,6 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
         fprintf(stderr,"trace: no frame to trace\n");
         return;
     }   
-
     frame = &ttm->stack[depth];
     fprintf(stderr,"[%02d] ",depth);
     if(tracing)
@@ -3301,7 +3293,7 @@ trace(TTM* ttm, int entering, int tracing)
 /**************************************************/
 /* Debug Support */
 /**
-Dump the stack
+ump the stack
 */
 static void
 dumpstack(TTM* ttm)
@@ -3390,7 +3382,6 @@ pushOptionName(char* option, unsigned int max, char** list)
 static void
 initglobals()
 {
-    memset((void*)includes,0,sizeof(includes));
     memset((void*)eoptions,0,sizeof(eoptions));
     memset((void*)argoptions,0,sizeof(argoptions));
 }
@@ -3401,29 +3392,19 @@ usage(const char* msg)
     if(msg != NULL)
         fprintf(stderr,"%s\n",msg);
 	fprintf(stderr,"%s\n",
-"usage: ttm [-d string][-D name=string][-e string][-f|-p programfile][-i][-I directory][-o file][-r rsfile][-V][-X tag=value][--][arg...]");
+"usage: ttm "
+"[-d string]"
+"[-e string]"
+"[-p programfile]"
+"[-f inputfile]"
+"[-o file]"
+"[-i]"
+"[-V]"
+"[-X tag=value]"
+"[--]"
+"[arg...]");
     fprintf(stderr,"\tOptions may be repeated\n");
     if(msg != NULL) exit(1); else exit(0);
-}
-
-/* Convert option -Dx=y to option -e '#<ds;x;y>' */
-static void
-convertDtoE(const char* def)
-{
-    char* macro;
-    char* sep;
-    macro = (char*)malloc(strlen(def)+strlen("##<ds;;>")+1);
-    if(macro == NULL) fail(NOTTM,EMEMORY);
-    strcpy(macro,"##<ds;");
-    strcat(macro,def);
-    sep = strchr(macro,'=');
-    if(sep != NULL)
-        *sep++ = ';';
-    else
-        strcat(macro,";");
-    strcat(macro,">");
-    pushOptionName(macro,MAXEOPTIONS,eoptions);    
-    free(macro);
 }
 
 static void
@@ -3516,7 +3497,7 @@ readbalanced(TTM* ttm)
 static void
 printbuffer(TTM* ttm)
 {
-    printstring(ttm,ttm->output,ttm->buffer->content,PRINTALL);
+    printstring(ttm,ttm->output,ttm->buffer->content);
 }
 
 static int
@@ -3563,11 +3544,26 @@ tagvalue(const char* p)
     return value;
 }
 
+static int
+setdebugflags(const char* flagstring)
+{
+    const char* p = flagstring;
+    int c;
+    int flags = 0;
+    if(flagstring == NULL) return flags;
+    while((c=*p++)) {
+	switch (c) {
+	case 't': flags |= FLAG_TRACE;
+	default: break;
+	}
+    }
+    return flags;
+}
 
 /**************************************************/
 /* Main() */
 
-static char* options = "d:D:e:f:iI:o:p:r:VX:-";
+static char* options = "d:e:f:iI:o:p:VX:-";
 
 int
 main(int argc, char** argv)
@@ -3580,14 +3576,15 @@ main(int argc, char** argv)
     int interactive = 0;
     char* outputfilename = NULL;
     char* executefilename = NULL; /* This is the ttm file to execute */
-    char* rsfilename = NULL; /* This is data for #<rs> */
+    char* inputfilename = NULL; /* This is data for #<rs> */
     int isstdout = 1;
     FILE* outputfile = NULL;
     int isstdin = 1;
-    FILE* rsfile = NULL;
+    FILE* inputfile = NULL;
     TTM* ttm = NULL;
     int c;
     char* p;
+    int flags;
 
     if(argc == 1)
         usage(NULL);
@@ -3619,35 +3616,26 @@ main(int argc, char** argv)
                 break;
             default: usage("Illegal -X option");
             }
-
+	    break;
         case 'd':
             if(debugargs == NULL)
                 debugargs = strdup(optarg);
-            break;
-        case 'D':
-            /* Convert the -D to a -e */
-            convertDtoE(optarg);
             break;
         case 'e':
             pushOptionName(optarg,MAXEOPTIONS,eoptions);
             break;
         case 'p':
-        case 'f':
             if(executefilename == NULL)
                 executefilename = strdup(optarg);
             break;
-        case 'I':
-            if(optarg[strlen(optarg)-1] == '/')
-                optarg[strlen(optarg)-1] = NUL;
-            pushOptionName(optarg,MAXINCLUDES,includes);
+        case 'f':
+            if(inputfilename == NULL)
+                inputfilename = strdup(optarg);
+	    interactive = 0;
             break;
         case 'o':
             if(outputfilename == NULL)
                 outputfilename = strdup(optarg);
-            break;
-        case 'r':
-            interactive = 0;
-            rsfilename = strdup(optarg);
             break;
         case 'V':
             printf("ttm version: %s\n",VERSION);
@@ -3673,12 +3661,12 @@ main(int argc, char** argv)
         exit(1);
     }
 
-    if(buffersize < MINBUFFERSIZE)
-        buffersize = MINBUFFERSIZE;         
-    if(stacksize < MINSTACKSIZE)
-        stacksize = MINSTACKSIZE;           
-    if(execcount < MINEXECCOUNT)
-        execcount = MINEXECCOUNT;           
+    if(buffersize < DFALTBUFFERSIZE)
+        buffersize = DFALTBUFFERSIZE;         
+    if(stacksize < DFALTSTACKSIZE)
+        stacksize = DFALTSTACKSIZE;           
+    if(execcount < DFALTEXECCOUNT)
+        execcount = DFALTEXECCOUNT;           
 
     if(outputfilename == NULL) {
         outputfile = stdout;
@@ -3692,13 +3680,13 @@ main(int argc, char** argv)
         isstdout = 0;
     }
 
-    if(rsfilename == NULL) {
-        rsfile = stdin;
+    if(inputfilename == NULL) {
+        inputfile = stdin;
         isstdin = 1;
     } else {
-        rsfile = fopen(rsfilename,"r");
-        if(rsfile == NULL) {
-            fprintf(stderr,"-r file is not readable: %s\n",rsfilename);
+        inputfile = fopen(inputfilename,"r");
+        if(inputfile == NULL) {
+            fprintf(stderr,"-f file is not readable: %s\n",inputfilename);
             exit(1);
         }           
         isstdin = 0;
@@ -3708,11 +3696,17 @@ main(int argc, char** argv)
     ttm = newTTM(buffersize,stacksize,execcount);
     ttm->output = outputfile;
     ttm->isstdout = isstdout;
-    ttm->rsinput = rsfile;
+    ttm->input = inputfile;
     ttm->isstdin = isstdin;    
 
     defineBuiltinFunctions(ttm);
-    predefineNames(ttm);
+    startupcommands(ttm);
+    /* Lock up all the currently defined functions */
+    lockup(ttm);
+
+    /* Define flags */
+    flags = setdebugflags(debugargs);
+    ttm->flags |= flags;
 
     /* Execute the -e strings in turn */
     for(i=0;eoptions[i]!=NULL;i++) {
@@ -3728,7 +3722,7 @@ main(int argc, char** argv)
             goto done;
     }
 
-    /* Now execute the executefile, if any */
+    /* Now execute the executefile, if any, and discard output */
     if(executefilename != NULL) {
         readinput(ttm,executefilename,ttm->buffer);
         scan(ttm);
@@ -3754,7 +3748,7 @@ done:
 
     /* cleanup */
     if(!ttm->isstdout) fclose(ttm->output);
-    if(!ttm->isstdin) fclose(ttm->rsinput);
+    if(!ttm->isstdin) fclose(ttm->input);
 
     freeTTM(ttm);
 
@@ -3849,47 +3843,47 @@ memcpy32(utf32* dst, utf32* src, int len)
 /**************************************************/
 /* Manage utf32 versus char_t */
 
-/* Test equality of char* string to utf32 string */
+/* Test equality of pure ascii string to utf32 string */
 static int
-streq328(utf32* s32, char_t* s8)
+streq32ascii(utf32* s32, char* s)
 {
-    utf32 c32;
-    int count;
-        
-    while(*s8 && *s32) {
-        count = toChar32(&c32,s8);
-        if(count < 0) fail(NOTTM,ECHAR8);
-        if(c32 != *s32) break;
-        s8 += count;
-        s32++;
+    while(*s && *s32) {
+	if(*s != *s32) return 0; /* not equal */
+	s++;
+	s32++;
     }
-    if(*s8 && *s32) return 1; /* equal */
+    if(*s == *s32) return 1; /* equal */
     return 0;
 }
 
 /**
 Convert a string of utf32 characters to a string of char_t
-characters.  Stop when len src characters are processed or
-end-of-string is encountered, whichever comes first.
+characters.  Stop when srclen characters are processed or
+end-of-string is encountered, or dstlen dst characters are processed,
+whichever comes first.
 WARNING: result is not nul-terminated.
 Return: -1 if error, # of dst chars produced otherwise.
 */
 
 static int
-toString8(char_t* dst, utf32* src, int len)
+toString8(char_t* dst, utf32* src, int srclen, int dstlen)
 {
     utf32* p32;
     char_t* q8;
     int i;
+    int avail = dstlen;
 
     p32 = src;
     q8 = dst;
-    for(i=0;i<len;i++) {
+    for(i=0;i<srclen;i++) {
         int count;
         utf32 c=*p32++;
         if(c == NUL32) break;
         count = toChar8(q8,c);
         if(count == 0) return -1;
+	avail -= count;
+	if(avail < 0)
+	    return -1;
         q8 += count;
     }
     return (q8 - dst);

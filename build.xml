@@ -9,9 +9,11 @@
 <property name="build.classes"	location="${build.dir}/classes"/>
 
 <!-- Test cases and baselines -->
-<property name="test.input"	      location="test.ttm"/>
+<property name="test.program"	      location="test.ttm"/>
+<property name="test.input"	      location="test.rs"/>
 <property name="test.baseline"	      location="test.baseline"/>
 <property name="test.output"	      location="test.output"/>
+<property name="test.error"	      location="test.error"/>
 
 <!-- Where to put test case output -->
 <property name="results.dir"	location="${build.dir}/results"/>
@@ -40,6 +42,7 @@
         <fileset dir="${build.dir}"/>
     </delete>
     <delete file="${test.output}"/>
+    <delete file="${test.error}"/>
 </target>
 
 <target name="compile" depends="init">
@@ -69,34 +72,31 @@
     </javadoc>
 </target>
 
-<target name="test" depends="compare,pass,fail"/>
+<target name="check" depends="test"/>
+<target name="test" depends="clean,runtest,compare"/>
 
-<target name="pass" if="match">
-  <echo>*** PASS: ${test.baseline} and ${test.output} are the same</echo>
-</target>
-
-<target name="fail" unless="match">
-  <echo>*** FAIL: ${test.baseline} and ${test.output} differ</echo>
-</target>
-
-<target name="compare" depends="jar">
+<target name="runtest" depends="jar">
     <!-- execute to produce test.output -->
     <java 
-          classpath="${build.classes}"
-	  classname="${main.class}"
+	  jar="${build.dir}/${ttm.jar}"
           fork="true"
+	  output="${test.output}"
           failonerror="true">
-	<jvmarg value="-Dprogram=test.ttm"/>
-	<jvmarg value="-Drsfile=test.rs"/>
-	<jvmarg value="-Doutput=${test.output}"/>
+	<jvmarg value="-Ddebug=T"/>
+	<jvmarg value="-Dprogram=${test.program}"/>
+	<jvmarg value="-Dinput=${test.input}"/>
 	<arg value="a"/>
 	<arg value="b"/>
 	<arg value="c"/>
     </java>
+</target>
+
+<target name="compare">
     <!-- compare test.output to test.baseline -->
-    <condition property="match" value="true" else="false">
-	<filesmatch file1="${test.baseline}" file2="${test.output}"/>
+    <condition property="samefile" value="true" else="false">
+	<filesmatch file1="${test.baseline}" file2="${test.output}" textfile="true"/>
     </condition>
+    <echo message="match=${samefile}"/>
 </target>
 
 </project>
