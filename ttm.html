@@ -113,21 +113,9 @@ Specify arguments that are accessible using the <i>#&lt;argv&gt;</i> function.
 The java invocation of ttm differs from the C version as follows.
 <ul>
 <li> Invoke using the command <i>java <options> -jar ttm.jar args...</i>.
-<li> Options may only be specified once.
-<li> The options are specified using the java <i>-D</i> command line mechanism.
-The options are encoded as follows.
-<ul>
-<li>-Dexec=string &mdash equivalent to the C <i>-e</i> flag.
-<li>-Dinteractive &mdash equivalent to the C <i>-i</i> flag.
-<li>-Dprogram=filepath &mdash equivalent to the C <i>-p</i> flag.
-<li>-Dinput=filepath &mdash equivalent to the C <i>-f</i> flag.
-<li>-Doutput=filepath &mdash equivalent to the C <i>-o</i> flag.
-<li>-Drsfile=filepath &mdash equivalent to the C <i>-r</i> flag.
-<li>-Dverbose &mdash equivalent to the C <i>-V</i> flag.
-<li>-DX=string &mdash equivalent to the C <i>-X</i> flag. The string
-is of the form <tag>:<value>,<tag>:<value>...
+<li> Only one option may be specified per '-'.
 </ul>
-</ul>
+Otherwise, it is the same as the C command line.
 
 <h2>OVERALL OPERATION</h2>
 The <b>ttm</b> macro processor starts

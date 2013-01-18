@@ -49,8 +49,6 @@ Java reflection to dynamically load new ttm builtin functions.
 Differences (vis-a-vis C implementation)
 ----------------------------------------
 1. ISO8859 is not supported.
-2. Command line options may not be repeated
-   (due to using the Java -D flag).
 */
 
 public class TTM
@@ -300,7 +298,7 @@ static class Charclass {
 //////////////////////////////////////////////////
 // Class variables
 
-// Class -Ddebug flags
+// Class -d debug flags
 static boolean testing = false; // true=>make stderr and stdout same
 
 //////////////////////////////////////////////////
@@ -2619,16 +2617,17 @@ usage(final String msg)
     if(msg != null)
         System.err.printf("%s\n",msg);
     System.err.printf(
-"usage: java"
-+ "[-Ddebug=string]"
-+ "[-Dexec=string]"
-+ "[-Dprogram=file]"
-+ "[-Doutput=file]"
-+ "[-Dinput=file]"
-+ "[-Dinteractive]"
-+ "[-Dversion]"
-+ "[-DX=tag:value,...]"
-+ " -jar jar [arg...]\n");
+"usage: java -jar ttm.jar"
++ "[-d string]"
++ "[-e string]"
++ "[-p programfile]"
++ "[-f inputfile]"
++ "[-o file]"
++ "[-i]"
++ "[-V]"
++ "[-X tag=value]"
++ "[--]"
++ "[arg...]");
     if(msg != null) System.exit(1); else System.exit(0);
 }
 
@@ -2688,6 +2687,81 @@ tagvalue(String p)
 }
 
 //////////////////////////////////////////////////
+// getopt functionality
+
+/**
+Process a set of command line options
+with the following constraints.
+1. -- => quit processing options
+2. any option without a leading '-' is assumed to be a non-option
+3. multiple options cannot be combined, but the option and its value
+   can be combined.
+4. an option can be duplicated multiple times.
+
+@param optiontags A getopt style specifications of options
+@param argv the set of command line arguments
+
+@return A map from the option character to a list of values
+*/
+static Map<String,List<String>>
+getopts(String optiontags, String[] argv)
+{
+    Map<String,List<String>> optionmap = new HashMap<String,List<String>>();
+    optiontags = optiontags + '\0';
+    boolean stopoptions = false;
+    for(int i=0;i<argv.length;i++) {
+	String arg = argv[i];
+	int arglen = arg.length();
+	if(stopoptions || arglen == 0 || arg.charAt(0) != '-') {
+	    addoption('-',arg,optionmap);
+	} else if("-".equals(arg)) {
+	    usage("Illegal option: '-'");
+	} else if("--".equals(arg)) {
+	    stopoptions = true;
+	} else {
+	    // decompose the arg
+	    arg = arg.substring(1); // remove leading '-'
+        arglen--;
+	    char optionchar = arg.charAt(0);
+	    String optionarg = arg.substring(1,arglen);
+	    int index = optiontags.indexOf(optionchar);
+	    if(index < 0)
+		usage("Illegal option: "+optionchar);
+	    if(optiontags.charAt(index+1) == ':') {
+		if(optionarg.length() == 0) {
+		    i++;
+		    if(i ==  argv.length)
+			usage("Option requires argument: "+optionchar);
+		    optionarg = argv[i];
+		}
+	    } else
+		optionarg = "";
+	    addoption(optionchar,optionarg,optionmap);
+	}
+    }
+    return optionmap;
+}
+
+static void
+addoption(char key, String value, Map<String,List<String>> map)
+{
+    String skey = String.valueOf(key);
+    List<String> list = map.get(skey);
+    if(list == null) {list = new ArrayList<String>(); map.put(skey,list);}
+    list.add(value);
+}
+
+static String
+getoption(char c, String dfalt, Map<String,List<String>> map)
+{
+    List<String> list = map.get(String.valueOf(c));
+    String value = dfalt;
+    if(list != null)
+	value = (list.size() == 0 ? dfalt : list.get(0));
+    return value;
+}
+
+//////////////////////////////////////////////////
 /**
 Initialize and start the TTM instance
 
@@ -2695,18 +2769,25 @@ Initialize and start the TTM instance
 @throws Fatal
 */
 
+static String optiontags = "d:e:f:iI:o:p:VX:-";
+
 static public void
 main(String[] argv)
 {
-    // Get the -D flags from command line
-    String execcmd = System.getProperty("exec");
-    String executefilename = System.getProperty("program");
-    String outputfilename = System.getProperty("output");
-    String inputfilename = System.getProperty("input");
-    boolean interactive = (System.getProperty("interactive") != null);
 
-    String version = System.getProperty("version");
-    if(version != null) {
+    Map<String,List<String>> optionmap = getopts(optiontags,argv);
+
+    // Option flag values
+    List<String> xoptions = optionmap.get("X");
+    List<String> execcmds = optionmap.get("e");
+    boolean interactive = (optionmap.get("i") != null);
+    boolean showversion = (optionmap.get("V") != null);
+    String executefilename = getoption('p',null,optionmap);
+    String outputfilename = getoption('o',null,optionmap);
+    String inputfilename = getoption('f',null,optionmap);
+    String debugflags = getoption('d',"",optionmap);
+
+    if(showversion) {
         System.err.println("TTM version = "+VERSION);
         return;
     }
@@ -2716,34 +2797,28 @@ main(String[] argv)
         usage("Interactive is illegal if output file specified");
     }
 
-    // Process the -Ddebug flags
-    String debugflags = System.getProperty("debug");
-    if(debugflags != null) { // -Ddebug=<debugflags>
-	for(int i=0;i<debugflags.length();i++) {
-	    char c = debugflags.charAt(i);
-	    switch (c) {
-	    case 'T': TTM.testing = true; break;
-            default:
-                usage("Illegal -Ddebug option: "+c);
-            }
+    // Process the -d debug flags
+    for(int i=0;i<debugflags.length();i++) {
+	char c = debugflags.charAt(i);
+	switch (c) {
+	case 'T': TTM.testing = true; break;
+        default:
+            usage("Illegal -d option: "+c);
         }
     }
-
 
     long buffersize = 0;
     long stacksize = 0;
     long execcount = 0;
-    String xoption = System.getProperty("X");
-    if(xoption != null) { // -DX=<xoption>
-        String[] pieces = xoption.split("[ \t]*,[ \t]*");
-        for(String piece: pieces) {
-            String[] tagparts = piece.split("[ \t]*:[ \t]*");
-            long size = -1;
+    if(xoptions != null) {
+	for(String xoption: xoptions) {
+	    long size = 0;
+	    String[] tagparts = xoption.split("[ ]*=[ ]*");
             if(tagparts.length != 2
                 || tagparts[0].length() == 0
                 || (size=tagvalue(tagparts[1])) <= 0)
-                usage("Illegal -DX option: "+piece);
-            switch (tagparts[0].charAt(0)) {
+                usage("Illegal -X option: "+xoption);
+	    switch (xoption.charAt(0)) {
             case 'b':
                 buffersize = size;
                 break;
@@ -2754,7 +2829,7 @@ main(String[] argv)
                 execcount = size;
                 break;
             default:
-                usage("Illegal -DX option: "+piece);
+                usage("Illegal -X option: "+xoption);
             }
         }
     }
@@ -2766,9 +2841,12 @@ main(String[] argv)
     ttm.setLimits(buffersize,stacksize,execcount);
 
     // Collect any args for #<arg>
+    List<String> remainder = optionmap.get("-");
     ttm.addArgv(ARGV0); // pretend
-    for(String arg: argv)
-        ttm.addArgv(arg);
+    if(remainder != null) {
+        for(String arg: remainder)
+            ttm.addArgv(arg);
+    }
 
     if(outputfilename == null) {
 	ttm.setOutput(ttm.getStdout(),true);
@@ -2792,7 +2870,7 @@ main(String[] argv)
     } else {
         File f = new File(inputfilename);
         if(!f.canRead()) {
-            usage("-Dinput file is not readable: "+inputfilename);
+            usage("-f input file is not readable: |"+inputfilename+"|");
         }
         try {
             ttm.setInput(
@@ -2805,10 +2883,12 @@ main(String[] argv)
 
     boolean stop = false;
 
-    // Execute the -Dexec string
-    if(execcmd != null) {
-        ttm.scan(execcmd);
-        if((ttm.testFlag(FLAG_EXIT))) stop = true;
+    // Execute the -e strings
+    if(execcmds != null) {
+	for(String execcmd: execcmds) {
+	    ttm.scan(execcmd);
+	    if((ttm.testFlag(FLAG_EXIT))) {stop = true; break;}
+	}
     }
 
     // Now execute the executefile, if any
@@ -2819,7 +2899,7 @@ main(String[] argv)
             if(ttm.testFlag(FLAG_EXIT)) stop = true;
             ttm.printstring(ttm.stdout,result);
         } catch (IOException ioe) {
-            usage("Cannot read -f file: "+ioe.getMessage());
+            usage("Cannot read -p file: "+ioe.getMessage());
         }
     }
 
