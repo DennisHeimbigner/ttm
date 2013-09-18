@@ -1,7 +1,3 @@
-T1='test1.ttm a b c'
-alias qc="gcc -Wall -Wdeclaration-after-statement -g -O0 -o ttm ttm.c"
-alias qe="gcc -E -Wall -Wdeclaration-after-statement ttm.c"
-alias q0="./ttm ${T1}"
-alias qq="gdb --args ttm ${T1}"
-
+alias p='python ttm.py -p tt'
+alias pt='rm -f junk; python -mtrace --trace ttm.py -p tt'
 

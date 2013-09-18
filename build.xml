@@ -75,21 +75,16 @@
 <target name="check" depends="test"/>
 <target name="test" depends="clean,runtest,compare"/>
 
-<!--
-	  classname="ucar.ttm.TTM"
-	  classpath="${build.classes}"
--->
 <target name="runtest" depends="jar">
     <!-- execute to produce test.output -->
     <java 
 	  jar="${build.dir}/${ttm.jar}"
-	  output="${test.output}"
           fork="true"
+	  output="${test.output}"
           failonerror="true">
-	<arg value="-dT"/> <!-- to keep stderr and stdout in sync -->
-	<arg value="-p${test.program}"/>
-	<arg value="-f"/>
-	<arg value="${test.input}"/>
+	<jvmarg value="-Ddebug=t"/>
+	<jvmarg value="-Dprogram=${test.program}"/>
+	<jvmarg value="-Dinput=${test.input}"/>
 	<arg value="a"/>
 	<arg value="b"/>
 	<arg value="c"/>

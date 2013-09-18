@@ -1,3 +1,5 @@
+#!/bin/sh
+set -x
 GIT=git
 DST=$GIT/ttm
 
@@ -8,10 +10,7 @@ mkdir -p ${DST}
 
 for f in ${FILES} ; do
 DIR=`dirname $f`
-if test -d $f ; then
-mkdir -p ${DST}/${f}
-else
 mkdir -p ${DST}/${DIR}
 cp $f $DST/$f
-fi
 done
+
