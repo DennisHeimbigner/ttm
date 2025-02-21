@@ -4,11 +4,12 @@
 
 <h2>Segmenting</h2>
 Segment marks within a string are represented
-by the a two character sequence.
+by the a two byte sequence.
 <ol>
-<li> 0xff - signals the occurrence of a segment mark.
+<li> 0xC0 - signals the occurrence of a segment mark.
 <li> 0x00..0xff - indicated the segment index: 0 thru 255.
 </ol>
+Segment mark 0 is reserved as the creation mark.
 
 </body>
 </html>
