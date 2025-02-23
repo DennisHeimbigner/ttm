@@ -9,9 +9,16 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 
 /**************************************************/
 
-#if 0
-#define DEBUG 1
+#undef DEBUG
+#define GDB
+
+#ifdef DEBUG
+#ifndef GDB
+#define GDB
 #endif
+#endif
+
+#undef TTMGLOBAL
 
 /**************************************************/
 /**
@@ -42,11 +49,11 @@ This is in lieu of the typical config.h.
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <assert.h>
 
 #ifdef MSWINDOWS
 #include <windows.h>  /* To get GetProcessTimes() */
-#include <time.h> /* to get ctime() */
 #else /*!MSWINDOWS*/
 #include <unistd.h> /* This defines getopt */
 #include <sys/times.h> /* to get times() */
@@ -112,8 +119,14 @@ typedef int utf32; /* 32-bit utf char type; signed is ok
 #endif
 
 /**************************************************/
+/* Misc Utility Macros */
+
+/* Watch out: x is evaluated multiple times */
+#define nullfree(x) do{if(x) free(x);}while(0)
+
+/**************************************************/
 static void
-makespace(utf32* dst, utf32* src, unsigned int len)
+makespace(utf32* dst, utf32* src, unsigned len)
 {
 #ifdef HAVE_MEMMOVE
     memmove((void*)dst,(void*)src,len*sizeof(utf32));
@@ -165,7 +178,14 @@ Constants
 
 #define CREATELEN 4 /* # of characters for a create mark */
 
-#define HASHSIZE 128
+/* HASHSIZE must be a power of two so that HASHTABLEMASK becomes a sequence of one bits. */
+#ifdef GDB
+#define HASHSIZE 16
+#else
+#define HASHSIZE 256
+#endif
+
+#define HASHTABLEMASK (HASHSIZE-1)
 
 /*Mnemonics*/
 #define NESTED 1
@@ -270,7 +290,7 @@ Structure Type declarations
 */
 
 typedef struct TTM TTM;
-typedef struct Name Name;
+typedef struct Function Function;
 typedef struct Charclass Charclass;
 typedef struct Frame Frame;
 typedef struct Buffer Buffer;
@@ -282,10 +302,13 @@ typedef void (*TTMFCN)(TTM*, Frame*);
 
 struct HashEntry {
     utf32* name;
-    unsigned int hash;
+    unsigned hash;
     struct HashEntry* next;
 };
 
+/* Note that the ith entry is actually only used to provide
+   a place to store the pointer to the first real entry.
+*/
 struct HashTable {
     struct HashEntry table[HASHSIZE];
 };
@@ -302,13 +325,13 @@ TTM state object
 
 struct TTM {
     struct Limits {
-        unsigned int buffersize;
-        unsigned int stacksize;
-        unsigned int execcount;
+        unsigned buffersize;
+        unsigned stacksize;
+        unsigned execcount;
     } limits;
-    unsigned int flags;
-    unsigned int exitcode;
-    unsigned int crcounter; /* for cr marks */
+    unsigned flags;
+    unsigned exitcode;
+    unsigned crcounter; /* for cr marks */
     utf32 sharpc; /* sharp-like char */
     utf32 openc; /* <-like char */
     utf32 closec; /* >-like char */
@@ -317,7 +340,7 @@ struct TTM {
     utf32 metac; /* read eof char */
     Buffer* buffer; /* contains the string being processed */
     Buffer* result; /* contains result strings from functions */
-    unsigned int stacknext; /* |stack| == (stacknext) */
+    unsigned stacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
     int   isstdout;
@@ -333,12 +356,12 @@ Define a fixed size byte buffer
 for holding the current state of the expansion.
 Buffer always has an extra terminating NUL ('\0').
 Note that by using a buffer that is allocated once,
-we can use pointers into the buffer space in e.g. struct Name.
+we can use pointers into the buffer space in e.g. struct Function.
  */
 
 struct Buffer {
-    unsigned int alloc;  /* including trailing NUL */
-    unsigned int length;  /* including trailing NUL; defines what of
+    unsigned alloc;  /* including trailing NUL */
+    unsigned length;  /* including trailing NUL; defines what of
                              the allocated space is actual content. */
     utf32* active; /* characters yet to be scanned */
     utf32* passive; /* characters that will never be scanned again */
@@ -352,30 +375,43 @@ struct Buffer {
 
 struct Frame {
   utf32* argv[MAXARGS+1];
-  unsigned int argc;
+  unsigned argc;
   int active; /* 1 => # 0 => ## */
 };
 
 /**
-Name Storage and the Dictionary
+Function Storage and the Dictionary
+*/
+
+/*
+Note that for ttm purposes, any entry in the dictionary can be treated
+as a function whose name is the entry name and whose body is the value
+of the name in the dictionary.
+
+However, the dictionary entry also serves as a stateful string object
+-- the entry body -- that has a pointer into the body string where
+that pointer can be moved to any point in the body and from which
+characters can be extracted.
 */
 
 /* If you add field to this, you need
    to modify especially ttm_ds
+*/
 
+/*
 Note: the rules of C casting allow this to be
 cast to a struct HashEntry.
 */
-struct Name {
+struct Function {
     struct HashEntry entry;
     int trace;
     int locked;
     int builtin;
-    unsigned int minargs;
-    unsigned int maxargs;
+    unsigned minargs;
+    unsigned maxargs;
     int novalue; /* must always return no value */
-    unsigned int residual;
-    unsigned int maxsegmark; /* highest segment mark number
+    unsigned residual;
+    unsigned maxsegmark; /* highest segment mark number
                                 in use in this string */
     TTMFCN fcn; /* builtin == 1 */
     utf32* body; /* builtin == 0 */
@@ -391,25 +427,43 @@ struct Charclass {
     int negative;
 };
 
+/**
+Provide a pointer wrapper for
+use with functions that take control
+of a pointer argument.
+*/
+//typedef void** Thunk; /* Pointer to a pointer; set to NULL if fcn takes control */
+#define Thunk void**
+/* Define a macro to record actual type of the ref */
+#define THUNK(type,var) Thunk var##p /* varp is type** */
+#define THUNKREF(type,var) type* var = (*((type**)(var##p)))
+#define THUNKCLAIM(var) *var##p = NULL
+#define THUNKIFY(var) ((void**)&(var))
+
 /**************************************************/
 /* Forward */
 
 static TTM* newTTM(long,long,long);
 static void freeTTM(TTM*);
-static Buffer* newBuffer(TTM*, unsigned intbuffersize);
+static Buffer* newBuffer(TTM*, unsigned buffersize);
 static void freeBuffer(TTM*, Buffer* bb);
-static void expandBuffer(TTM*, Buffer* bb, unsigned int len);
+static void expandBuffer(TTM*, Buffer* bb, unsigned len);
 static void resetBuffer(TTM*, Buffer* bb);
-static void setBufferLength(TTM*, Buffer* bb, unsigned int len);
+static void setBufferLength(TTM*, Buffer* bb, unsigned len);
+static void clearHashEntry(struct HashEntry* entry);
 static Frame* pushFrame(TTM*);
-static Frame* popFrame(TTM*);
-static Name* newName(TTM*);
-static void freeName(TTM*, Name* f);
-static int dictionaryInsert(TTM*, Name* str);
-static Name* dictionaryLookup(TTM*, utf32* name);
-static Name* dictionaryRemove(TTM*, utf32* name);
+static void popFrame(TTM*);
+static void clearFrame(TTM* ttm, Frame* frame);
+static void freeFramestack(TTM* ttm, Frame* stack, unsigned stacksize);
+static Function* newFunction(TTM*);
+static void freeFunction(TTM*, Function* f);
+static void clearDictionary(TTM*,struct HashTable* dict);
+static int dictionaryInsert(TTM*, Function* fcn);
+static Function* dictionaryLookup(TTM*, utf32* name);
+static Function* dictionaryRemove(TTM*, utf32* name);
 static Charclass* newCharclass(TTM*);
 static void freeCharclass(TTM*, Charclass* cl);
+static void clearCharclasses(TTM*,struct HashTable* classes);
 static int charclassInsert(TTM*, Charclass* cl);
 static Charclass* charclassLookup(TTM*, utf32* name);
 static Charclass* charclassRemove(TTM*, utf32* name);
@@ -490,9 +544,16 @@ static void trace1(TTM*, int depth, int entering, int tracing);
 static void traceframe(TTM* ttm, Frame* frame, int traceargs);
 static void dumpstack(TTM*);
 static void dbgprint32(utf32* s, char quote);
+#ifdef DEBUG
 static void dbgprint32c(utf32 c, char quote);
+#endif
+static void dbgsprint32(utf32* s, char quote, char* sf);
+static char* dbgsprint32c(utf32 c, char quote, char* sf);
+#ifdef GDB
+static const char* dbgsframe32(Frame* frame);
+#endif
 static int getOptionNameLength(char** list);
-static int pushOptionName(char* option, unsigned int max, char** list);
+static int pushOptionName(char* option, unsigned max, char** list);
 static void initglobals();
 static void usage(const char*);
 static void readinput(TTM*, const char* filename,Buffer* bb);
@@ -501,13 +562,13 @@ static void printbuffer(TTM*);
 static int readfile(TTM*, FILE* file, Buffer* bb);
 
 /* utf32 replacements for common unix strXXX functions */
-static unsigned int strlen32(utf32* s);
-static void strcpy32(utf32* dst, utf32* src);
-static void strncpy32(utf32* dst, utf32* src, unsigned int len);
-static utf32* strdup32(utf32* src);
-static int strcmp32(utf32* s1, utf32* s2);
-static int strncmp32(utf32* s1, utf32* s2, unsigned int len);
-static void memcpy32(utf32* dst, utf32* src, int len);
+static unsigned strlen32(const utf32* s);
+static void strcpy32(utf32* dst, const utf32* src);
+static void strncpy32(utf32* dst, const utf32* src, unsigned len);
+static utf32* strdup32(const utf32* src);
+static int strcmp32(const utf32* s1, const utf32* s2);
+static int strncmp32(const utf32* s1, const utf32* s2, unsigned len);
+static void memcpy32(utf32* dst, const utf32* src, int len);
 /* Read/Write Management */
 static void fputc32(utf32 c, FILE* f);
 static utf32 fgetc32(FILE* f);
@@ -519,7 +580,7 @@ static int toChar32(utf32* codepointp, char_t* src);
 static int toString8(char_t* dst, utf32* src, int srclen, int dstlen);
 static int toString32(utf32* dst, char_t* src, int len);
 #ifndef ISO_8859
-static int utf8count(unsigned int c);
+static int utf8count(unsigned c);
 #endif
 /**************************************************/
 /* Global variables */
@@ -527,22 +588,33 @@ static int utf8count(unsigned int c);
 static char* eoptions[MAXEOPTIONS+1]; /* null terminated */
 static char* argoptions[MAXARGS+1]; /* null terminated */
 
+#ifdef TTMGLOBAL
+static TTM* ttm = NULL;
+#endif
+
 /**************************************************/
 /**
 HashTable Management.  The table is only pseudo-hash
 simplified by making it an array of chains indexed by the
-low order 7 bits of the name[0].
+low order n bits of the name[0].
 The hashcode is just the simple sum
 of the characters in the name shifted by 1 bit each.
 */
 
 /* Define a hash computing macro */
-#define computehash(hash,name) {utf32* p; for(hash=0,p=name;*p!=NUL32;p++) {hash = hash + (*p <<1);} if(hash==0) hash=1;}
+static unsigned 
+computehash(utf32* name)
+{
+    unsigned hash;
+    utf32* p;
+    for(hash=0,p=name;*p!=NUL32;p++) hash = hash + (*p <<1);
+    if(hash==0) hash=1;
+    return hash;        
+}
 
 /* Locate a named entry in the hashtable;
    return 1 if found; 0 otherwise.
-   Store the entry before the named entry
-   or the entry that would have been the previous entry.
+   prev is a pointer to HashEntry "before" the found entry.
 */
 
 static int
@@ -551,12 +623,12 @@ hashLocate(struct HashTable* table, utf32* name, struct HashEntry** prevp)
     struct HashEntry* prev;
     struct HashEntry* next;
     utf32 index;
-    unsigned int hash;
+    unsigned hash;
 
-    computehash(hash,name);
+    hash = computehash(name);
     if(!(table != NULL && name != NULL))
     assert(table != NULL && name != NULL);
-    index = (name[0] & 0x7F);
+    index = (name[0] & HASHTABLEMASK);
     prev = &table->table[index];
     next = prev->next;
     while(next != NULL) {
@@ -564,7 +636,7 @@ hashLocate(struct HashTable* table, utf32* name, struct HashEntry** prevp)
 	   && strcmp32(name,next->name)==0)
 	    break;
 	prev = next;
-	next = prev->next;
+	next = next->next;
     }
     if(prevp) *prevp = prev;
     return (next == NULL ? 0 : 1);
@@ -601,49 +673,48 @@ hashInsert(struct HashTable* table, struct HashEntry* prev, struct HashEntry* en
 /**************************************************/
 /* Provide subtype specific wrappers for the HashTable operations. */
 
-static Name*
+static Function*
 dictionaryLookup(TTM* ttm, utf32* name)
 {
     struct HashTable* table = &ttm->dictionary;
     struct HashEntry* prev;    
     struct HashEntry* entry;
-    Name* def = NULL;
+    Function* def = NULL;
 
     if(hashLocate(table,name,&prev)) {
 	entry = prev->next;
-	def = (Name*)entry;
+	def = (Function*)entry;
     } /*else Not found */
     return def;
 }
 
-static Name*
+static Function*
 dictionaryRemove(TTM* ttm, utf32* name)
 {
     struct HashTable* table = &ttm->dictionary;
     struct HashEntry* prev;    
     struct HashEntry* entry;
-    Name* def = NULL;
+    Function* def = NULL;
 
     if(hashLocate(table,name,&prev)) {
 	entry = prev->next;
 	hashRemove(table,prev,entry);
 	entry->next = NULL;
-	def = (Name*)entry;
+	def = (Function*)entry;
     } /*else Not found */
     return def;
 }
 
 static int
-dictionaryInsert(TTM* ttm, Name* str)
+dictionaryInsert(TTM* ttm, Function* fcn)
 {
     struct HashTable* table = &ttm->dictionary;
     struct HashEntry* prev;    
 
-    if(hashLocate(table,str->entry.name,&prev))
-	return 0;
+    if(hashLocate(table,fcn->entry.name,&prev)) return 0;
     /* Does not already exist */
-    computehash(str->entry.hash,str->entry.name);/*make sure*/
-    hashInsert(table,prev,(struct HashEntry*)str);
+    fcn->entry.hash = computehash(fcn->entry.name);/*make sure*/
+    hashInsert(table,prev,(struct HashEntry*)fcn);
     return 1;
 }
 
@@ -684,11 +755,10 @@ charclassInsert(TTM* ttm, Charclass* cl)
 {
     struct HashTable* table = &ttm->charclasses;
     struct HashEntry* prev;    
-
     if(hashLocate(table,cl->entry.name,&prev))
 	return 0;
     /* Not already exists */
-    computehash(cl->entry.hash,cl->entry.name);
+    cl->entry.hash = computehash(cl->entry.name);
     hashInsert(table,prev,(struct HashEntry*)cl);
     return 1;
 }
@@ -712,7 +782,7 @@ newTTM(long buffersize, long stacksize, long execcount)
     ttm->buffer = newBuffer(ttm,buffersize);
     ttm->result = newBuffer(ttm,buffersize);
     ttm->stacknext = 0;
-    ttm->stack = (Frame*)malloc(sizeof(Frame)*stacksize);
+    ttm->stack = (Frame*)calloc(sizeof(Frame),stacksize);
     if(ttm->stack == NULL) fail(ttm,TTM_EMEMORY);
     memset((void*)&ttm->dictionary,0,sizeof(ttm->dictionary));
     memset((void*)&ttm->charclasses,0,sizeof(ttm->charclasses));
@@ -727,20 +797,21 @@ freeTTM(TTM* ttm)
 {
     freeBuffer(ttm,ttm->buffer);
     freeBuffer(ttm,ttm->result);
-    if(ttm->stack != NULL)
-        free(ttm->stack);
+    freeFramestack(ttm,ttm->stack,ttm->stacknext);
+    clearDictionary(ttm,&ttm->dictionary);
+    clearCharclasses(ttm,&ttm->charclasses);
     free(ttm);
 }
 
 /**************************************************/
 
 static Buffer*
-newBuffer(TTM* ttm, unsigned int buffersize)
+newBuffer(TTM* ttm, unsigned buffersize)
 {
     Buffer* bb;
     bb = (Buffer*)calloc(1,sizeof(Buffer));
     if(bb == NULL) fail(ttm,TTM_EMEMORY);
-    bb->content = (utf32*)malloc(buffersize*sizeof(utf32));
+    bb->content = (utf32*)calloc(buffersize,sizeof(utf32));
     if(bb->content == NULL) fail(ttm,TTM_EMEMORY);
     bb->alloc = buffersize;
     bb->length = 0;
@@ -753,20 +824,19 @@ newBuffer(TTM* ttm, unsigned int buffersize)
 static void
 freeBuffer(TTM* ttm, Buffer* bb)
 {
-    if(bb->content != NULL)
-        free(bb->content);
+    nullfree(bb->content);
     free(bb);
 }
 
 /* Make room for a string of length n at current active position. */
 static void
-expandBuffer(TTM* ttm, Buffer* bb, unsigned int len)
+expandBuffer(TTM* ttm, Buffer* bb, unsigned len)
 {
     assert(bb != NULL);
     if((bb->alloc - bb->length) < len) fail(ttm,TTM_EBUFFERSIZE);
     if(bb->active < bb->end) {
         /* make room for len characters by moving bb->active and up*/
-        unsigned int tomove = (bb->end - bb->active);
+        unsigned tomove = (bb->end - bb->active);
         makespace(bb->active+len,bb->active,tomove);
     }
     bb->active += len;
@@ -778,7 +848,7 @@ expandBuffer(TTM* ttm, Buffer* bb, unsigned int len)
 #if 0
 /* Remove len characters at current position */
 static void
-compressBuffer(TTM* ttm, Buffer* bb, unsigned int len)
+compressBuffer(TTM* ttm, Buffer* bb, unsigned len)
 {
     assert(bb != NULL);
     if(len > 0 && bb->active < bb->end) {
@@ -806,12 +876,22 @@ resetBuffer(TTM* ttm, Buffer* bb)
    If space is added, its content is undefined.
 */
 static void
-setBufferLength(TTM* ttm, Buffer* bb, unsigned int len)
+setBufferLength(TTM* ttm, Buffer* bb, unsigned len)
 {
     if(len >= bb->alloc) fail(ttm,TTM_EBUFFERSIZE);
     bb->length = len;
     bb->end = bb->content+bb->length;
     *(bb->end) = NUL; /* make sure */    
+}
+
+/**************************************************/
+
+static void
+clearHashEntry(struct HashEntry* entry)
+{
+    if(entry == NULL) return;
+    nullfree(entry->name);
+    memset(entry,0,sizeof(struct HashEntry));
 }
 
 /**************************************************/
@@ -830,7 +910,7 @@ pushFrame(TTM* ttm)
     return frame;
 }
 
-static Frame*
+static void
 popFrame(TTM* ttm)
 {
     Frame* frame;
@@ -841,25 +921,60 @@ popFrame(TTM* ttm)
         frame = NULL;
     else
         frame = &ttm->stack[ttm->stacknext-1];    
-    return frame;
-}
-
-/**************************************************/
-static Name*
-newName(TTM* ttm)
-{
-    Name* str = (Name*)calloc(1,sizeof(Name));
-    if(str == NULL) fail(ttm,TTM_EMEMORY);
-    return str;    
+    clearFrame(ttm,frame);
 }
 
 static void
-freeName(TTM* ttm, Name* f)
+clearFrame(TTM* ttm, Frame* frame)
+{
+    if(frame == NULL) return;
+    /* Do not reclaim the argv because it points into ttm->buffer */
+}
+
+static void
+freeFramestack(TTM* ttm, Frame* stack, unsigned stacksize)
+{
+    unsigned i;
+    for(i=0;i<stacksize;i++) {
+	Frame* f = &stack[i];
+	clearFrame(ttm,f);
+    }
+    nullfree(stack);
+}
+
+/**************************************************/
+static Function*
+newFunction(TTM* ttm)
+{
+    Function* f = (Function*)calloc(1,sizeof(Function));
+    if(f == NULL) fail(ttm,TTM_EMEMORY);
+    return f;
+}
+
+static void
+freeFunction(TTM* ttm, Function* f)
 {
     assert(f != NULL);
-    if(f->entry.name != NULL) free(f->entry.name);
-    if(!f->builtin && f->body != NULL) free(f->body);
+    if(!f->builtin) nullfree(f->body);
+    clearHashEntry(&f->entry);
     free(f);
+}
+
+static void
+clearDictionary(TTM* ttm, struct HashTable* dict)
+{
+    unsigned i;
+    for(i=0;i<HASHSIZE;i++) {
+	struct HashEntry* cur = dict->table[i].next; /* First entry is a placeholder */
+	while(cur != NULL) {
+	    struct HashEntry* next = cur->next;
+	    struct Function* fcn = (struct Function*)cur;
+	    freeFunction(ttm,fcn);
+	    cur = next;
+	}
+	dict->table[i].next = NULL;
+    }
+    memset(dict,0,sizeof(struct HashTable));
 }
 
 /**************************************************/
@@ -875,9 +990,26 @@ static void
 freeCharclass(TTM* ttm, Charclass* cl)
 {
     assert(cl != NULL);
-    if(cl->entry.name != NULL) free(cl->entry.name);
-    if(cl->characters) free(cl->characters);
+    nullfree(cl->characters);
+    clearHashEntry(&cl->entry);
     free(cl);
+}
+
+static void
+clearCharclasses(TTM* ttm, struct HashTable* charclasses)
+{
+    unsigned i;
+    for(i=0;i<HASHSIZE;i++) {
+	struct HashEntry* cur = charclasses->table[i].next; /* First entry is a placeholder */
+	while(cur != NULL) {
+	    struct HashEntry* next = cur->next;
+	    struct Charclass* cc = (struct Charclass*)cur;
+	    freeCharclass(ttm,cc);
+	    cur = next;
+	}
+	charclasses->table[i].next = NULL;
+    }
+    memset(charclasses,0,sizeof(struct HashTable));
 }
 
 static int
@@ -943,7 +1075,7 @@ scan(TTM* ttm)
 
     /* When we get here, we are finished, so clean up */
     { 
-        unsigned int newlen;
+        unsigned newlen;
         /* reset the buffer length using bb->passive.*/
         newlen = bb->passive - bb->content;
         setBufferLength(ttm,bb,newlen);
@@ -958,7 +1090,7 @@ static void
 exec(TTM* ttm, Buffer* bb)
 {
     Frame* frame;
-    Name* fcn;
+    Function* fcn;
     utf32* savepassive;
 
     if(ttm->limits.execcount-- <= 0)
@@ -1009,9 +1141,9 @@ fprintf(stderr,"\n");
     /* Now, put the result into the buffer */
     if(!fcn->novalue && ttm->result->length > 0) {
         utf32* insertpos;
-        unsigned int resultlen = ttm->result->length;
+        unsigned resultlen = ttm->result->length;
         /*Compute the space avail between bb->passive and bb->active */
-        unsigned int avail = (bb->active - bb->passive); 
+        unsigned avail = (bb->active - bb->passive); 
         /* Compute amount we need to expand, if any */
         if(avail < resultlen)
             expandBuffer(ttm,bb,(resultlen - avail));/*will change bb->active*/
@@ -1132,7 +1264,7 @@ call(TTM* ttm, Frame* frame, utf32* body)
 {
     utf32* p;
     utf32 c;
-    unsigned int len;
+    unsigned len;
     utf32* result;
     utf32* dst;
     char crformat[16];
@@ -1144,7 +1276,7 @@ call(TTM* ttm, Frame* frame, utf32* body)
     /* Compute the size of the output */
     for(len=0,p=body;(c=*p++);) {
         if(issegmark(c)) {
-            unsigned int segindex = (unsigned int)(*p++);
+            unsigned segindex = (unsigned )(*p++);
             if(segindex < frame->argc)
                 len += strlen32(frame->argv[segindex]);
             /* else treat as empty string */
@@ -1161,7 +1293,7 @@ call(TTM* ttm, Frame* frame, utf32* body)
     dst[0] = NUL32; /* so we can use strcat */
     for(p=body;(c=*p++);) {
         if(issegmark(c)) {
-            unsigned int segindex = (unsigned int)(c & 0xFF);
+            unsigned segindex = (unsigned )(c & 0xFF);
             if(segindex < frame->argc) {
                 utf32* arg = frame->argv[segindex];
                 strcpy32(dst,arg);
@@ -1223,10 +1355,11 @@ printstring(TTM* ttm, FILE* output, utf32* s32)
 static void
 ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
 {
-    utf32* body;
-    utf32* apstring;
-    Name* str = dictionaryLookup(ttm,frame->argv[1]);
-    unsigned int aplen, bodylen;
+    utf32* body = NULL;
+    utf32* newbody = NULL;
+    utf32* apstring = NULL;
+    Function* str = dictionaryLookup(ttm,frame->argv[1]);
+    unsigned aplen, bodylen;
 
     if(str == NULL) {/* Define the string */
         ttm_ds(ttm,frame);
@@ -1237,10 +1370,17 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     aplen = strlen32(apstring);
     body = str->body;
     bodylen = strlen32(body);
-    body = realloc(body,sizeof(utf32)*(bodylen+aplen+1));
-    if(body == NULL) fail(ttm,TTM_EMEMORY);
-    strcpy32(body+bodylen,apstring);
+    /* Fake realloc because windows realloc is flawed */
+    newbody = calloc(sizeof(utf32),(bodylen+aplen+1));
+    if(newbody == NULL) fail(ttm,TTM_EMEMORY);
+    if(bodylen > 0) {
+        memcpy(newbody,body,bodylen);
+        newbody[bodylen] = '\0';
+    }
+    strcpy32(newbody+bodylen,apstring);
     str->residual = bodylen+aplen;
+    body = newbody; newbody = NULL;
+    nullfree(body);
 }
 
 /**
@@ -1253,31 +1393,32 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
 {
     utf32* newname = frame->argv[1];
     utf32* oldname = frame->argv[2];
-    Name* newstr = dictionaryLookup(ttm,newname);
-    Name* oldstr = dictionaryLookup(ttm,oldname);
+    Function* newfcn = dictionaryLookup(ttm,newname);
+    Function* oldfcn = dictionaryLookup(ttm,oldname);
     struct HashEntry saveentry;
 
-    if(oldstr == NULL)
+    if(oldfcn == NULL)
         fail(ttm,TTM_ENONAME);
-    if(newstr == NULL) {
+    if(newfcn == NULL) {
         /* create a new string object */
-        newstr = newName(ttm);
-        newstr->entry.name = strdup32(newname);
-        dictionaryInsert(ttm,newstr);
+        newfcn = newFunction(ttm);
+	assert(newfcn->entry.name == NULL);
+        newfcn->entry.name = strdup32(newname);
+        dictionaryInsert(ttm,newfcn);
     }
-    saveentry = newstr->entry;
-    *newstr = *oldstr;
-    newstr->entry = saveentry;
-    /* Do fixup */
-    if(newstr->body != NULL) {
-        newstr->body = strdup32(newstr->body);
-    }
+    saveentry = newfcn->entry;
+    *newfcn = *oldfcn;
+    /* Keep new hash entry */
+    newfcn->entry = saveentry;
+    /* Do pointer fixup */
+    if(newfcn->body != NULL)
+        newfcn->body = strdup32(newfcn->body);
 }
 
 static void
 ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 {
-    Name* str;
+    Function* str;
     int crlen;
     utf32* body;
     utf32* crstring;
@@ -1311,10 +1452,12 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 static void
 ttm_ds(TTM* ttm, Frame* frame)
 {
-    Name* str = dictionaryLookup(ttm,frame->argv[1]);
+    Function* str = NULL;
+    str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL) {
         /* create a new string object */
-        str = newName(ttm);
+        str = newFunction(ttm);
+	assert(str->entry.name == NULL);
         str->entry.name = strdup32(frame->argv[1]);
         dictionaryInsert(ttm,str);
     } else {
@@ -1325,22 +1468,22 @@ ttm_ds(TTM* ttm, Frame* frame)
         str->residual = 0;
         str->maxsegmark = 0;
         str->fcn = NULL;
-        if(str->body != NULL) free(str->body);
-        str->body = NULL;
+	nullfree(str->body);
     }
+    nullfree(str->body);
     str->body = strdup32(frame->argv[2]);
 }
 
 static void
 ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 {
-    unsigned int i;
+    unsigned i;
     for(i=1;i<frame->argc;i++) {
         utf32* strname = frame->argv[i];
-        Name* str = dictionaryLookup(ttm,strname);
+        Function* str = dictionaryLookup(ttm,strname);
         if(str != NULL && !str->locked) {
             dictionaryRemove(ttm,strname);
-            freeName(ttm,str); /* reclaim the string */
+            freeFunction(ttm,str); /* reclaim the string */
         }
     }
 }
@@ -1349,8 +1492,8 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 static int
 ttm_ss0(TTM* ttm, Frame* frame)
 {
-    Name* str;
-    unsigned int i,segcount,startseg,bodylen;
+    Function* str;
+    unsigned i,segcount,startseg,bodylen;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1365,7 +1508,7 @@ ttm_ss0(TTM* ttm, Frame* frame)
     startseg = str->maxsegmark;
     for(i=2;i<frame->argc;i++) {
         utf32* arg = frame->argv[i];
-        unsigned int arglen = strlen32(arg);
+        unsigned arglen = strlen32(arg);
         if(arglen > 0) { /* search only if possible success */
             int found;
             utf32* p;
@@ -1410,41 +1553,41 @@ ttm_ss(TTM* ttm, Frame* frame) /* Segment and count */
     (void)ttm_ss0(ttm,frame);
 }
 
-/* Name Selection */
+/* String Selection */
 
 static void
 ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 {
-    Name* str;
+    Function* fcn;
 
-    str = dictionaryLookup(ttm,frame->argv[1]);
-    if(str == NULL)
+    fcn = dictionaryLookup(ttm,frame->argv[1]);
+    if(fcn == NULL)
         fail(ttm,TTM_ENONAME);
-    if(str->builtin)
+    if(fcn->builtin)
         fail(ttm,TTM_ENOPRIM);
     /* Check for pointing at trailing NUL */
-    if(str->residual < strlen32(str->body)) {
-        utf32 c32 = *(str->body+str->residual);
+    if(fcn->residual < strlen32(fcn->body)) {
+        utf32 c32 = *(fcn->body+fcn->residual);
         *ttm->result->content = c32;
         setBufferLength(ttm,ttm->result,1);
-        str->residual++;
+        fcn->residual++;
     }
 }
 
 static void
 ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
 {
-    Name* str;
+    Function* fcn;
     long long ln;
     unsigned n;
     TTMERR err;
-    unsigned int bodylen,startn;
-    unsigned int avail;
+    unsigned bodylen,startn;
+    unsigned avail;
 
-    str = dictionaryLookup(ttm,frame->argv[2]);
-    if(str == NULL)
+    fcn = dictionaryLookup(ttm,frame->argv[2]);
+    if(fcn == NULL)
         fail(ttm,TTM_ENONAME);
-    if(str->builtin)
+    if(fcn->builtin)
         fail(ttm,TTM_ENOPRIM);
 
     /* Get number of characters to extract */
@@ -1452,26 +1595,26 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters */
     if(err != TTM_ENOERR) fail(ttm,err);
     if(ln < 0) fail(ttm,TTM_ENOTNEGATIVE);   
 
-    n = (unsigned int)ln;
+    n = (unsigned )ln;
 
     /* See if we have enough space */
-    bodylen = strlen32(str->body);
-    if(str->residual >= bodylen)
+    bodylen = strlen32(fcn->body);
+    if(fcn->residual >= bodylen)
 	avail = 0;
     else
-        avail = (bodylen - str->residual);
+        avail = (bodylen - fcn->residual);
    
     if(n == 0 || avail == 0) goto nullreturn;
     if(avail < n) n = avail; /* return what is available */
 
     /* We want n characters starting at residual */
-    startn = str->residual;
+    startn = fcn->residual;
         
     /* ok, copy n characters from startn into the return buffer */
     setBufferLength(ttm,ttm->result,n);
-    strncpy32(ttm->result->content,str->body+startn,n);
+    strncpy32(ttm->result->content,fcn->body+startn,n);
     /* increment residual */
-    str->residual += n;
+    fcn->residual += n;
     return;
 
 nullreturn:
@@ -1483,20 +1626,20 @@ nullreturn:
 static void
 ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 {
-    Name* str;
-    unsigned int delta;
+    Function* fcn;
+    unsigned delta;
     utf32* rp;
     utf32* rp0;
     utf32 c32;
     int depth;
 
-    str = dictionaryLookup(ttm,frame->argv[1]);
-    if(str == NULL)
+    fcn = dictionaryLookup(ttm,frame->argv[1]);
+    if(fcn == NULL)
         fail(ttm,TTM_ENONAME);
-    if(str->builtin)
+    if(fcn->builtin)
         fail(ttm,TTM_ENOPRIM);
 
-    rp0 = (str->body + str->residual);
+    rp0 = (fcn->body + fcn->residual);
     rp = rp0;
     depth = 0;
     ttm->result->content[0] = NUL32; /* so we can strcat */
@@ -1512,28 +1655,28 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     delta = (rp - rp0);
     setBufferLength(ttm,ttm->result,delta);
     strncpy32(ttm->result->content,rp0,delta);
-    str->residual += delta;
-    if(c32 != NUL32) str->residual++;
+    fcn->residual += delta;
+    if(c32 != NUL32) fcn->residual++;
 }
 
 static void
 ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 {
-    Name* str;
+    Function* fcn;
     utf32 c32;
     utf32* p;
     utf32* p0;
-    unsigned int delta;
+    unsigned delta;
 
-    str = dictionaryLookup(ttm,frame->argv[1]);
-    if(str == NULL)
+    fcn = dictionaryLookup(ttm,frame->argv[1]);
+    if(fcn == NULL)
         fail(ttm,TTM_ENONAME);
-    if(str->builtin)
+    if(fcn->builtin)
         fail(ttm,TTM_ENOPRIM);
 
     /* Locate the next segment mark */
     /* Unclear if create marks also qualify; assume yes */
-    p0 = str->body + str->residual;
+    p0 = fcn->body + fcn->residual;
     p = p0;
     for(;(c32=*p);p++) {
         if(c32 == NUL32 || testMark(c32,SEGMARK) || testMark(c32,CREATE))
@@ -1545,20 +1688,20 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
         strncpy32(ttm->result->content,p0,delta);
     }
     /* set residual pointer correctly */
-    str->residual += delta;
-    if(c32 != NUL32) str->residual++;
+    fcn->residual += delta;
+    if(c32 != NUL32) fcn->residual++;
 }
 
 static void
 ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointer */
 {
-    Name* str;
+    Function* str;
     utf32* t;
     utf32* f;
     utf32* result;
     utf32* arg;
-    unsigned int arglen;
-    unsigned int slen;
+    unsigned arglen;
+    unsigned slen;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1586,7 +1729,7 @@ ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointe
 static void
 ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */
 {
-    Name* str = dictionaryLookup(ttm,frame->argv[1]);
+    Function* str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
         fail(ttm,TTM_ENONAME);
     if(str->builtin)
@@ -1597,9 +1740,9 @@ ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */
 static void
 ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
 {
-    Name* str;
-    unsigned int arglen;
-    unsigned int bodylen;
+    Function* str;
+    unsigned arglen;
+    unsigned bodylen;
     utf32* f;
     utf32* result;
     utf32* arg;
@@ -1627,7 +1770,7 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
         setBufferLength(ttm,ttm->result,strlen32(f));
         strcpy32(ttm->result->content,f);    
     } else {/* return from residual ptr to location of string */
-        unsigned int len = (p - p0);
+        unsigned len = (p - p0);
         setBufferLength(ttm,ttm->result,len);
         strncpy32(ttm->result->content,p0,len);
 	if(len == 0) {/* if the match is at the residual ptr, mv ptr */
@@ -1643,8 +1786,8 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 {
     TTMERR err;
     long long num;
-    Name* str;
-    unsigned int bodylen;
+    Function* str;
+    unsigned bodylen;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1665,8 +1808,8 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
 static void
 ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 {
-    Name* str;
-    unsigned int bodylen;
+    Function* str;
+    unsigned bodylen;
     utf32* t;
     utf32* f;
     utf32* result;
@@ -1684,14 +1827,14 @@ ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
     strcpy32(ttm->result->content,result);
 }
 
-/* Name Scanning Operations */
+/* String Scanning Operations */
 
 static void
 ttm_gn(TTM* ttm, Frame* frame) /* Give n characters from argument string*/
 {
     utf32* snum = frame->argv[1];
     utf32* s = frame->argv[2];
-    unsigned int slen = strlen32(s);
+    unsigned slen = strlen32(s);
     TTMERR err;
     long long num;
     utf32* startp;
@@ -1707,8 +1850,8 @@ ttm_gn(TTM* ttm, Frame* frame) /* Give n characters from argument string*/
         num = (slen - num);
     }
     if(num != 0) {
-        setBufferLength(ttm,ttm->result,(unsigned int)num);
-        strncpy32(ttm->result->content,startp,(unsigned int)num);
+        setBufferLength(ttm,ttm->result,(unsigned )num);
+        strncpy32(ttm->result->content,startp,(unsigned )num);
     }
 }
 
@@ -1807,7 +1950,7 @@ static void
 ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
-    Name* str = dictionaryLookup(ttm,frame->argv[2]);
+    Function* str = dictionaryLookup(ttm,frame->argv[2]);
     utf32 c;
     utf32* p;
     utf32* start;
@@ -1837,15 +1980,16 @@ ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
 static void
 ttm_dcl0(TTM* ttm, Frame* frame, int negative)
 {
-    Charclass* cl = charclassLookup(ttm,frame->argv[1]);
+    Charclass* cl = NULL;
+    cl = charclassLookup(ttm,frame->argv[1]);
     if(cl == NULL) {
         /* create a new charclass object */
         cl = newCharclass(ttm);
+	assert(cl->entry.name == NULL);
         cl->entry.name = strdup32(frame->argv[1]);
         charclassInsert(ttm,cl);
     }
-    if(cl->characters != NULL)
-        free(cl->characters);
+    nullfree(cl->characters);
     cl->characters = strdup32(frame->argv[2]);
     cl->negative = negative;
 }
@@ -1865,12 +2009,12 @@ ttm_dncl(TTM* ttm, Frame* frame) /* Define a negative class */
 static void
 ttm_ecl(TTM* ttm, Frame* frame) /* Erase a class */
 {
-    unsigned int i;
+    unsigned i;
     for(i=1;i<frame->argc;i++) {
         utf32* clname = frame->argv[i];
-        Charclass* prev = charclassRemove(ttm,clname);
-        if(prev != NULL) {
-            freeCharclass(ttm,prev); /* reclaim the character class */
+        Charclass* cl = charclassRemove(ttm,clname);
+        if(cl != NULL) {
+            freeCharclass(ttm,cl); /* reclaim the character class */
         }
     }
 }
@@ -1879,7 +2023,7 @@ static void
 ttm_scl(TTM* ttm, Frame* frame) /* Skip class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
-    Name* str = dictionaryLookup(ttm,frame->argv[2]);
+    Function* str = dictionaryLookup(ttm,frame->argv[2]);
     utf32 c;
     utf32* p;
     utf32* start;
@@ -1904,7 +2048,7 @@ static void
 ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
-    Name* str = dictionaryLookup(ttm,frame->argv[2]);
+    Function* str = dictionaryLookup(ttm,frame->argv[2]);
     utf32* retval;
     int retlen;
     utf32* t;
@@ -1963,7 +2107,7 @@ ttm_ad(TTM* ttm, Frame* frame) /* Add */
     long long num;
     long long total;
     TTMERR err;
-    unsigned int i,count;
+    unsigned i,count;
 
     total = 0;
     for(i=1;i<frame->argc;i++) {
@@ -2028,7 +2172,7 @@ ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
     long long num;
     long long total;
     TTMERR err;
-    unsigned int i,count;
+    unsigned i,count;
 
     total = 1;
     for(i=1;i<frame->argc;i++) {
@@ -2208,7 +2352,7 @@ characters except '\n', and a final
 '\n' is forced.
 */
 static void
-ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
+ttm_ps(TTM* ttm, Frame* frame) /* Print a Function/String */
 {
     utf32* s = frame->argv[1];
     utf32* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
@@ -2221,7 +2365,7 @@ ttm_ps(TTM* ttm, Frame* frame) /* Print a Name */
 }
 
 static void
-ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
+ttm_rs(TTM* ttm, Frame* frame) /* Read a Function/String */
 {
     int len;
     utf32 c;
@@ -2235,7 +2379,7 @@ ttm_rs(TTM* ttm, Frame* frame) /* Read a Name */
 }
 
 static void
-ttm_psr(TTM* ttm, Frame* frame) /* Print Name and Read */
+ttm_psr(TTM* ttm, Frame* frame) /* Print a string and then read from input */
 {
     int argc = frame->argc;
     ttm_ps(ttm,frame);
@@ -2265,12 +2409,20 @@ ttm_pf(TTM* ttm, Frame* frame) /* Flush stdout and/or stderr */
 
 /* Library Operations */
 
+static int
+stringveccmp32(const void* a, const void* b)
+{
+    const utf32** sa = (const utf32**)a;
+    const utf32** sb = (const utf32**)b;
+    return strcmp32(*sa,*sb);
+}
+
 static void
-ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names in sorted order */
+ttm_names(TTM* ttm, Frame* frame) /* Obtain all dictionary instance names in sorted order */
 {
     int i,nnames,index,allnames;
     utf32** names;
-    unsigned int len;
+    unsigned len;
     utf32* p;
 
     allnames = (frame->argc > 1 ? 1 : 0);
@@ -2280,7 +2432,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names in sorted or
     for(nnames=0,i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->dictionary.table[i].next;
         while(entry != NULL) {
-	    Name* name = (Name*)entry;
+	    Function* name = (Function*)entry;
 	    if(allnames || !name->builtin) {
 		len += strlen32(name->entry.name);
                 nnames++;
@@ -2293,35 +2445,22 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names in sorted or
         return;
 
     /* Now collect all the names */
-    names = (utf32**)malloc(sizeof(utf32*)*nnames);
+    names = (utf32**)calloc(sizeof(utf32*),nnames);
     if(names == NULL) fail(ttm,TTM_EMEMORY);
     index = 0;
     for(i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->dictionary.table[i].next;
         while(entry != NULL) {
-	    Name* name = (Name*)entry;
+	    Function* name = (Function*)entry;
             if(allnames || !name->builtin) {
                 names[index++] = name->entry.name;                
             }
             entry = entry->next;
         }
     }
+    /* Quick sort using strcmp32 as the comparator */
+    qsort((void*)names, nnames, sizeof(char*),stringveccmp32);
 
-    /* Now bubble sort the set of names */
-    for(;;) {
-        int swapped = 0;
-        for(i=1;i<nnames;i++) {
-            /* test out of order */
-            if(strcmp32(names[i-1],names[i]) > 0) {
-                /* swap them and remember something changed */
-                utf32* tmp = names[i-1];
-                names[i-1] = names[i];
-                names[i] = tmp;
-                swapped = 1;
-            }
-        }
-        if(!swapped) break;
-    }
     /* Return the set of names separated by commas */    
     setBufferLength(ttm,ttm->result,len+(nnames-1));
     p = ttm->result->content;
@@ -2330,6 +2469,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all Name instance names in sorted or
         strcpy32(p,names[i]);
         p += strlen32(names[i]);
     }
+    if(nnames > 0) free(names);
 }
 
 static void
@@ -2348,9 +2488,9 @@ ttm_exit(TTM* ttm, Frame* frame) /* Return from TTM */
 /* Utility Operations */
 
 static void
-ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a Name is Defined */
+ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a name is defined */
 {
-    Name* str;
+    Function* str;
     utf32* t;
     utf32* f;
     utf32* result;
@@ -2418,7 +2558,7 @@ ttm_ctime(TTM* ttm, Frame* frame) /* Convert ##<time> to printable string */
     long long tod;
     char_t result[1024];
     time_t ttod;
-    unsigned int count;
+    unsigned count;
     int i;
 
     stod = frame->argv[1];
@@ -2441,9 +2581,9 @@ static void
 ttm_tf(TTM* ttm, Frame* frame) /* Turn Trace Off */
 {
     if(frame->argc > 1) {/* trace off specific*/
-        unsigned int i;
+        unsigned i;
         for(i=1;i<frame->argc;i++) {
-            Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+            Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
             if(fcn == NULL) fail(ttm,TTM_ENONAME);      
             fcn->trace = 0;
         }
@@ -2452,7 +2592,7 @@ ttm_tf(TTM* ttm, Frame* frame) /* Turn Trace Off */
         for(i=0;i<HASHSIZE;i++) {
 	    struct HashEntry* entry = ttm->dictionary.table[i].next;
             while(entry != NULL) {
-		Name* name = (Name*)entry;
+		Function* name = (Function*)entry;
                 name->trace = 0;
                 entry = entry->next;
             }
@@ -2465,9 +2605,9 @@ static void
 ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */
 {
     if(frame->argc > 1) {/* trace specific*/
-        unsigned int i;
+        unsigned i;
         for(i=1;i<frame->argc;i++) {
-            Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+            Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
             if(fcn == NULL) fail(ttm,TTM_ENONAME);      
             fcn->trace = 1;
         }
@@ -2516,7 +2656,7 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
 {
     int i,nclasses,index;
     utf32** classes;
-    unsigned int len;
+    unsigned len;
     utf32* p;
 
     /* First, figure out the number of classes */
@@ -2532,7 +2672,7 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
         return;
 
     /* Now collect all the class and their total size */
-    classes = (utf32**)malloc(sizeof(utf32*)*nclasses);
+    classes = (utf32**)calloc(sizeof(utf32*),nclasses);
     if(classes == NULL) fail(ttm,TTM_EMEMORY);
     for(len=0,index=0,i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->charclasses.table[i].next;
@@ -2544,21 +2684,7 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
         }
     }
 
-    /* Now bubble sort the set of classes */
-    for(;;) {
-        int swapped = 0;
-        for(i=1;i<nclasses;i++) {
-            /* test out of order */
-            if(strcmp32(classes[i-1],classes[i]) > 0) {
-                /* swap them and remember something changed */
-                utf32* tmp = classes[i-1];
-                classes[i-1] = classes[i];
-                classes[i] = tmp;
-                swapped = 1;
-            }
-        }
-        if(!swapped) break;
-    }
+    qsort((void*)classes, nclasses, sizeof(char*),stringveccmp32);
 
     /* Return the set of classes separated by commas */    
     setBufferLength(ttm,ttm->result,len+(nclasses-1));
@@ -2568,14 +2694,17 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
         strcpy32(p,classes[i]);
         p += strlen32(classes[i]);
     }
+
+    /* Cleanup */
+    nullfree(classes);
 }
 
 static void
 ttm_lf(TTM* ttm, Frame* frame) /* Lock a function from being deleted */
 {
-    unsigned int i;
+    unsigned i;
     for(i=1;i<frame->argc;i++) {
-        Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+        Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
         if(fcn == NULL) fail(ttm,TTM_ENONAME);          
         fcn->locked = 1;
     }
@@ -2584,9 +2713,9 @@ ttm_lf(TTM* ttm, Frame* frame) /* Lock a function from being deleted */
 static void
 ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
 {
-    unsigned int i;
+    unsigned i;
     for(i=1;i<frame->argc;i++) {
-        Name* fcn = dictionaryLookup(ttm,frame->argv[i]);
+        Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
         if(fcn == NULL) fail(ttm,TTM_ENONAME);          
         fcn->locked = 0;
     }
@@ -2639,13 +2768,13 @@ ttm_ttm_meta(TTM* ttm, Frame* frame)
 static void
 ttm_ttm_info_name(TTM* ttm, Frame* frame)
 {
-    Name* str;
+    Function* str;
     Buffer* result = ttm->result;
     char info[8192];
     utf32* q;
     utf32* p;
     utf32 c32;
-    unsigned int namelen,count,i;
+    unsigned namelen,count,i;
 
     setBufferLength(ttm,result,result->alloc-1);
     q = result->content;
@@ -2720,7 +2849,7 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame) /* Misc. combined actions */
     utf32* q;
     utf32* p;
     utf32 c32;
-    unsigned int i,len;
+    unsigned i,len;
     Buffer* result = ttm->result;
 
     q = result->content;
@@ -2790,8 +2919,8 @@ ttm_ttm(TTM* ttm, Frame* frame) /* Misc. combined actions */
 
 struct Builtin {
     char* name;
-    unsigned int minargs;
-    unsigned int maxargs;
+    unsigned minargs;
+    unsigned maxargs;
     char* sv;
     TTMFCN fcn;
 };
@@ -2812,7 +2941,7 @@ static struct Builtin builtin_orig[] = {
     {"es",1,ARB,"S",ttm_es}, /* Erase string */
     {"sc",2,63,"SV",ttm_sc}, /* Segment and count */
     {"ss",2,2,"S",ttm_ss}, /* Segment a string */
-    /* Name Selection */
+    /* Stateful String Selection */
     {"cc",1,1,"SV",ttm_cc}, /* Call one character */
     {"cn",2,2,"SV",ttm_cn}, /* Call n characters */
     {"sn",2,2,"S",ttm_sn}, /* Skip n characters */ /*Batch*/
@@ -2821,7 +2950,7 @@ static struct Builtin builtin_orig[] = {
     {"isc",4,4,"SV",ttm_isc}, /* Initial character scan */
     {"rrp",1,1,"S",ttm_rrp}, /* Reset residual pointer */
     {"scn",3,3,"SV",ttm_scn}, /* Character scan */
-    /* Name Scanning Operations */
+    /* Stateful String Scanning Operations */
     {"gn",2,2,"V",ttm_gn}, /* Give n characters */
     {"zlc",1,1,"V",ttm_zlc}, /* Zero-level commas */
     {"zlcp",1,1,"V",ttm_zlcp}, /* Zero-level commas and parentheses */
@@ -2850,12 +2979,12 @@ static struct Builtin builtin_orig[] = {
     {"lt?",4,4,"V",ttm_ltl}, /* ? Compare logical less-than */
     /* Peripheral Input/Output Operations */
     {"cm",1,1,"S",ttm_cm}, /*Change Meta Character*/
-    {"ps",1,2,"S",ttm_ps}, /* Print a Name */
-    {"psr",1,1,"SV",ttm_psr}, /* Print Name and Read */
+    {"ps",1,2,"S",ttm_ps}, /* Print a string */
+    {"psr",1,1,"SV",ttm_psr}, /* Print string and then read */
 #ifdef IMPLEMENTED
-    {"rcd",2,2,"S",ttm_rcd}, /* Set to Read Prom Cards */
+    {"rcd",2,2,"S",ttm_rcd}, /* Set to Read from cards */
 #endif
-    {"rs",0,0,"V",ttm_rs}, /* Read a Name */
+    {"rs",0,0,"V",ttm_rs}, /* Read a string */
     /*Formated Output Operations*/
 #ifdef IMPLEMENTED
     {"fm",1,ARB,"S",ttm_fm}, /* Format a Line or Card */
@@ -2868,18 +2997,18 @@ static struct Builtin builtin_orig[] = {
 #ifdef IMPLEMENTED
     {"store",2,2,"S",ttm_store}, /* Store a Program */
     {"delete",1,1,"S",ttm_delete}, /* Delete a Program */
-    {"copy",1,1,"S",ttm_copy}, /* Copy a Program */
-    {"show",0,1,"S",ttm_show}, /* Show Program Names */
+    {"copy",1,1,"S",ttm_copy}, /* Copy a program */
+    {"show",0,1,"S",ttm_show}, /* Show program strings */
     {"libs",2,2,"S",ttm_libs}, /* Declare standard qualifiers */ /*Batch*/
 #endif
-    {"names",0,1,"V",ttm_names}, /* Obtain Name Names */
+    {"names",0,1,"V",ttm_names}, /* Obtain name strings */
     /* Utility Operations */
 #ifdef IMPLEMENTED
     {"break",0,1,"S",ttm_break}, /* Program Break */
 #endif
     {"exit",0,0,"S",ttm_exit}, /* Return from TTM */
-    {"ndf",3,3,"V",ttm_ndf}, /* Determine if a Name is Defined */
-    {"norm",1,1,"V",ttm_norm}, /* Obtain the Norm of a Name */
+    {"ndf",3,3,"V",ttm_ndf}, /* Determine if a name is defined */
+    {"norm",1,1,"V",ttm_norm}, /* Obtain the norm (length) of a string */
     {"time",0,0,"V",ttm_time}, /* Obtain time of day (modified) */
     {"xtime",0,0,"V",ttm_xtime}, /* Obtain execution time */ /*Batch*/
     {"tf",0,0,"S",ttm_tf}, /* Turn Trace Off */
@@ -2914,7 +3043,7 @@ static struct Builtin builtin_orig[] = {
 static struct Builtin builtin_new[] = {
     {"argv",1,1,"V",ttm_argv}, /* Get ith command line argument; 0<=i<argc */
     {"argc",0,0,"V",ttm_argc}, /* no. of command line arguments */
-    {"classes",0,0,"V",ttm_classes}, /* Obtain character class Names */
+    {"classes",0,0,"V",ttm_classes}, /* Obtain character class names */
     {"ctime",1,1,"V",ttm_ctime}, /* Convert time to printable string */
     {"include",1,1,"S",ttm_include}, /* Include text of a file */
     {"lf",0,ARB,"S",ttm_lf}, /* Lock functions */
@@ -2927,27 +3056,31 @@ static struct Builtin builtin_new[] = {
 static void
 defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
 {
-    Name* function;
+    Function* fcn;
     utf32 binname[8192];
     int count;
 
     count = toString32(binname,bin->name,strlen(bin->name));
     binname[count] = NUL32;
     /* Make sure we did not define builtin twice */
-    function = dictionaryLookup(ttm,binname);
-    assert(function == NULL);
+    fcn = dictionaryLookup(ttm,binname);
+    if(fcn != NULL)
+	fatal(ttm,"Duplicate builtin function");
     /* create a new function object */
-    function = newName(ttm);
-    function->builtin = 1;
-    function->minargs = bin->minargs;
-    function->maxargs = bin->maxargs;
+    fcn = newFunction(ttm);
+    fcn->builtin = 1;
+    fcn->minargs = bin->minargs;
+    fcn->maxargs = bin->maxargs;
     if(strcmp(bin->sv,"S")==0)
-        function->novalue = 1;
-    function->fcn = bin->fcn;
+        fcn->novalue = 1;
+    fcn->fcn = bin->fcn;
     /* Convert name to utf32 */
-    function->entry.name = strdup32(binname);
-    if(!dictionaryInsert(ttm,function))
+    assert(fcn->entry.name == NULL);
+    fcn->entry.name = strdup32(binname);
+    if(!dictionaryInsert(ttm,fcn)) {
+	freeFunction(ttm,fcn);
 	fatal(ttm,"Dictionary insertion failed");
+    }
 }
 
 static void
@@ -3005,7 +3138,7 @@ lockup(TTM* ttm)
     for(i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->dictionary.table[i].next;
         while(entry != NULL) {
-	    Name* name = (Name*)entry;
+	    Function* name = (Function*)entry;
 	    name->locked = 1;
             entry = entry->next;
         }
@@ -3101,7 +3234,7 @@ errstring(TTMERR err)
 /**************************************************/
 /* Debug utility functions */
 
-#ifdef DEBUG
+#ifdef GDB
 
 static void
 dumpnames(TTM* ttm)
@@ -3235,11 +3368,33 @@ convertEscapeChar(utf32 c)
     return c;
 }
 
+#ifdef GDB
+static const char*
+dbgsframe32(Frame* frame)
+{
+    unsigned i = 0;
+    static char sf[8192];
+    static char sname[128];
+
+    sf[0] = '\0'; sname[0] = '\0';
+    dbgsprint32(frame->argv[0],NUL,sname);
+    snprintf(sf,sizeof(sf),"Frame{active=%d name=%s argc=%u argv=[",frame->active,sname,frame->argc);
+    for(i=1;i<frame->argc;i++) {
+	if(i > 1) strcat(sf+strlen(sf),",");
+	strcat(sf+strlen(sf),"|");
+	dbgsprint32(frame->argv[i],NUL,sf+strlen(sf));
+	strcat(sf+strlen(sf),"|");
+    }
+    strcat(sf+strlen(sf),"]}");
+    return sf;
+}
+#endif
+
 static void
 traceframe(TTM* ttm, Frame* frame, int traceargs)
 {
     char tag[4];
-    unsigned int i = 0;
+    unsigned i = 0;
 
     if(frame->argc == 0) {
 	fprintf(stderr,"#<empty frame>");
@@ -3269,6 +3424,7 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
 
     if(tracing && ttm->stacknext == 0) {
         fprintf(stderr,"trace: no frame to trace\n");
+	fflush(stderr);
         return;
     }   
     frame = &ttm->stack[depth];
@@ -3282,6 +3438,7 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
         dbgprint32(ttm->result->content,'"');
     } 
     fprintf(stderr,"\n");
+    fflush(stderr);
 }
 
 /**
@@ -3297,61 +3454,86 @@ trace(TTM* ttm, int entering, int tracing)
 /**************************************************/
 /* Debug Support */
 /**
-ump the stack
+Dump the stack
 */
 static void
 dumpstack(TTM* ttm)
 {
-    unsigned int i;
+    unsigned i;
     for(i=1;i<=ttm->stacknext;i++) {
         trace1(ttm,i,1,!TRACING);
     }
     fflush(stderr);
 }
 
+#ifdef DEBUG
 static void
 dbgprint32c(utf32 c, char quote)
 {
+    char sf[8102];
+    dbgsprint32c(c,quote,sf,sizeof(sf));
+    fprintf(stderr,"%s",sf);
+}
+#endif
+
+static char*
+dbgsprint32c(utf32 c, char quote, char* p)
+{
+    size_t i;
     if(ismark(c)) {
-        char_t* p;
-        char info[16+1];
-        if(iscreate(c))
-            strcpy(info,"^00");
-        else /* segmark */
+	char info[8];
+        if(iscreate(c)) {
+	    snprintf(info,sizeof(info),"%s","^00");
+	} else {/* segmark */
             snprintf(info,sizeof(info),"^%02d",(int)(c & 0xFF));
-        for(p=info;*p;p++) fputc(*p,stderr);
+	}
+	for(i=0;i<strlen(info);i++) *p++ = info[i];
     } else if(iscontrol(c)) {
-        fputc32('\\',stderr);
+	*p++ = '\\';
         switch (c) {
-        case '\r': fputc('r',stderr); break;
-        case '\n': fputc('n',stderr); break;
-        case '\t': fputc('t',stderr); break;
-        case '\b': fputc('b',stderr); break;
-        case '\f': fputc('f',stderr); break;
+        case '\r': *p++ = 'r'; break;
+        case '\n': *p++ = 'n'; break;
+        case '\t': *p++ = 't'; break;
+        case '\b': *p++ = 'b'; break;
+        case '\f': *p++ = 'f'; break;
         default: {
             /* dump as a decimal character */
             char digits[4];
             snprintf(digits,sizeof(digits),"%d",(int)c);
-            fprintf(stderr,"%s",digits);
+	    for(i=0;i<strlen(digits);i++) *p++ = digits[i];
             } break;
         }
     } else {
-        if(c == quote) fputc('\\',stderr);
-        fputc32(c,stderr);
+	size_t count;
+	char u[4]; /* unicode sequence */
+        if(c == quote) *p++ = '\\';
+	count = (size_t)toChar8(u,c);
+	for(i=0;i<count;i++) *p++ = u[i];
     }
+    return p;
 }
 
 static void
 dbgprint32(utf32* s, char quote)
 {
-    utf32 c;
-    if(quote != NUL)
-        fputc(quote,stderr);
-    while((c=*s++)) {
-	dbgprint32c(c,quote);
+    char sf[8192];
+    dbgsprint32(s,quote,sf);
+    fprintf(stderr,"%s",sf);
+}
+
+static void
+dbgsprint32(utf32* s, char quote, char* sf)
+{
+    unsigned i,slen;
+    char* p = sf;
+    slen = strlen32(s);
+    if(quote != NUL) *p++ = quote;
+    for(i=0;i<slen;i++) {
+	utf32 c = s[i];
+	p = dbgsprint32c(c,quote,p);
     }
-    if(quote != NUL)
-        fputc(quote,stderr);
+    if(quote != NUL) *p++ = quote;
+    *p++ = '\0';
     fflush(stderr);
 }
 
@@ -3361,19 +3543,19 @@ dbgprint32(utf32* s, char quote)
 static int
 getOptionNameLength(char** list)
 {
-    unsigned int i;
+    unsigned i;
     char** p;
     for(i=0,p=list;*p;i++,p++);
     return i;
 }
 
 static int
-pushOptionName(char* option, unsigned int max, char** list)
+pushOptionName(char* option, unsigned max, char** list)
 {
-    unsigned int i;
+    unsigned i;
     for(i=0;i<max;i++) {
         if(list[i] == NULL) {
-            list[i] = (char*)malloc(strlen(option)+1);
+            list[i] = (char*)calloc(1,strlen(option)+1);
             strcpy(list[i],option);
             return 1;
         }
@@ -3416,8 +3598,8 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     utf32* content = NULL;
     FILE* f = NULL;
     int isstdin = 0;
-    unsigned int i;
-    unsigned int buffersize = bb->alloc;
+    unsigned i;
+    unsigned buffersize = bb->alloc;
 
     if(strcmp(filename,"-") == 0) {
         /* Read from stdinput */
@@ -3466,8 +3648,8 @@ readbalanced(TTM* ttm)
     Buffer* bb;
     utf32* content;
     utf32 c32;
-    unsigned int depth,i;
-    unsigned int buffersize;
+    unsigned depth,i;
+    unsigned buffersize;
 
     bb = ttm->buffer;
     resetBuffer(ttm,bb);
@@ -3532,7 +3714,7 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
 static long
 tagvalue(const char* p)
 {
-    unsigned int value;
+    unsigned value;
     int c;
     if(p == NULL || p[0] == NUL)
         return -1;
@@ -3556,8 +3738,8 @@ setdebugflags(const char* flagstring)
     if(flagstring == NULL) return flags;
     while((c=*p++)) {
 	switch (c) {
-	case 't': flags |= FLAG_TRACE;
-	case 'b': flags |= FLAG_BARE;
+	case 't': flags |= FLAG_TRACE; break;
+	case 'b': flags |= FLAG_BARE; break;
 	default: break;
 	}
     }
@@ -3576,7 +3758,7 @@ main(int argc, char** argv)
     long buffersize = 0;
     long stacksize = 0;
     long execcount = 0;
-    char* debugargs = strdup("");
+    char* debugargs = NULL;
     int interactive = 0;
     char* outputfilename = NULL;
     char* executefilename = NULL; /* This is the ttm file to execute */
@@ -3585,11 +3767,13 @@ main(int argc, char** argv)
     FILE* outputfile = NULL;
     int isstdin = 1;
     FILE* inputfile = NULL;
-    TTM* ttm = NULL;
     int c;
     char* p;
     int flags;
     int quiet = 0;
+#ifndef TTMGLOBAL
+    TTM* ttm = NULL;
+#endif
 
     if(argc == 1)
         usage(NULL);
@@ -3763,29 +3947,35 @@ done:
     if(!ttm->isstdout) fclose(ttm->output);
     if(!ttm->isstdin) fclose(ttm->input);
 
+    /* Clean up misc state */
+    nullfree(outputfilename);
+    nullfree(executefilename);
+    nullfree(inputfilename);
+    nullfree(debugargs);
+
     freeTTM(ttm);
 
     return (exitcode?1:0); // exit(exitcode);
 }
 
 /* Replacments for strcpy, strcmp ... */
-static unsigned int
-strlen32(utf32* s)
+static unsigned 
+strlen32(const utf32* s)
 {
-    unsigned int len = 0;
+    unsigned len = 0;
     while(*s++)
         len++;
     return len;
 }
 
 static void
-strcpy32(utf32* dst, utf32* src)
+strcpy32(utf32* dst, const utf32* src)
 {
     while((*dst++ = *src++));
 }
 
 static void
-strncpy32(utf32* dst, utf32* src, unsigned int len)
+strncpy32(utf32* dst, const utf32* src, unsigned len)
 {
     utf32 c32 = 0;
     for(;len>0 && (c32 = *src++);len--){*dst++ = c32;}
@@ -3794,7 +3984,7 @@ strncpy32(utf32* dst, utf32* src, unsigned int len)
 
 #if 0
 static void
-strcat32(utf32* dst, utf32* src)
+strcat32(utf32* dst, const utf32* src)
 {
     /* find end of dst */
     while(*dst++);
@@ -3803,22 +3993,27 @@ strcat32(utf32* dst, utf32* src)
 #endif
 
 static utf32*
-strdup32(utf32* src)
+strdup32(const utf32* src)
 {
-    unsigned int len = 0;
+    unsigned len = 0;
     utf32* dup = 0;
 
     len = strlen32(src);
-    dup = (utf32*)malloc((1+len)*sizeof(utf32));
+    dup = (utf32*)calloc((1+len),sizeof(utf32));
+#if 0
     if(dup != NULL) {
         utf32* dst = dup;
         while((*dst++ = *src++));
     }
+#else
+    if(dup != NULL)
+ 	memcpy(dup,src,(len+1)*sizeof(utf32));
+#endif
     return dup;
 }
 
 static int
-strcmp32(utf32* s1, utf32* s2)
+strcmp32(const utf32* s1, const utf32* s2)
 {
     while(*s1 && *s2 && *s1 == *s2) {s1++; s2++;}
     /* Look at the last char to decide */
@@ -3829,7 +4024,7 @@ strcmp32(utf32* s1, utf32* s2)
 }
 
 static int
-strncmp32(utf32* s1, utf32* s2, unsigned int len)
+strncmp32(const utf32* s1, const utf32* s2, unsigned len)
 {
     utf32 c1=0;
     utf32 c2=0;
@@ -3848,7 +4043,7 @@ strncmp32(utf32* s1, utf32* s2, unsigned int len)
 
 
 static void
-memcpy32(utf32* dst, utf32* src, int len)
+memcpy32(utf32* dst, const utf32* src, int len)
 {
     memcpy((void*)dst,(void*)src,len*sizeof(utf32));
 }
@@ -3985,13 +4180,13 @@ toChar32(utf32* codepointp, char_t* src)
     char_t* p;
     utf32 codepoint;
     int charsize;
-    unsigned int c0;
+    unsigned c0;
     static int mask[5] = {0x00,0x7F,0x1F,0x0F,0x07};
     unsigned char bytes[4];
     int i;
 
     p = src;
-    c0 = (unsigned int)*p;
+    c0 = (unsigned )*p;
     charsize = utf8count(c0);
     if(charsize == 0) return -1; /* invalid */
     /* Process the 1st char in the char_t codepoint */
@@ -4014,7 +4209,7 @@ toChar32(utf32* codepointp, char_t* src)
 
 /* Assumes ismultibyte(c) is true */
 static int
-utf8count(unsigned int c)
+utf8count(unsigned c)
 {
     if(((c) & 0x80) == 0x00) return 1; /* us-ascii */
     if(((c) & 0xE0) == 0xC0) return 2;
@@ -4233,7 +4428,7 @@ getopt(int argc, char **argv, char *optstring)
 {
     static char *next = NULL;
     char c;
-    char *cp = malloc(sizeof(char)*1024);
+    char *cp = calloc(sizeof(char),1024);
 
     if(optind == 0)
         next = NULL;

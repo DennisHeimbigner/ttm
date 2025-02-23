@@ -30,5 +30,6 @@
 ./src/Python/ttm2.py
 ./tests/env
 ./tests/test.baseline
+./tests/test.trace.baseline
 ./tests/test.rs
 ./tests/test.ttm

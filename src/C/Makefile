@@ -28,14 +28,20 @@ ttm.txt::
 	gcc -E -Wall -Wdeclaration-after-statement ttm.c > ttm.txt
 
 TESTPROG = -p ${top_srcdir}/tests/test.ttm
+#TESTPROG = -p ${top_srcdir}/src/C/t.ttm
 TESTARGS = a b c
 TESTRFLAG = -f ${top_srcdir}/tests/test.rs
-TESTCMD = ./ttm ${TESTPROG} ${TESTRFLAG} ${TESTARGS}
+TESTTRACE = -dt
+TESTCMD = ./ttm ${TESTPROG} ${TESTTRACE} ${TESTRFLAG} ${TESTARGS}
 
 check:: ttm.exe
-	rm -f ./test.output
-	${TESTCMD} >& ./test.output
+	rm -f ./test.output test.trace
+	${TESTCMD} 2> test.trace >./test.output
+	diff -w ${top_srcdir}/tests/test.trace.baseline ./test.trace
 	diff -w ${top_srcdir}/tests/test.baseline ./test.output
+
+gdb:: ttm.exe
+	gdb --args ${TESTCMD}
 
 git::
 	${SH} ${top_srcdir}/src/git.sh

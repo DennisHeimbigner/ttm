@@ -1,0 +1,347 @@
+[01] begin: ##<ttm;info;name;comment>
+[01] end: ##<ttm> => "comment,0,0,V residual=0 body=||\n"
+[00] begin: ##<ps;xxcomment,0,0,V residual=0 body=||\nyy>
+[00] end: ##<ps> => ""
+[02] begin: ##<ttm;info;name;def;comment>
+[02] end: ##<ttm> => "def,0,3,V residual=0 body=|##<ds;^01;<^03>>##<ss;^01;^02>|\ncomment,0,0,V residual=0 body=||\n"
+[01] begin: ##<ps;def,0,3,V residual=0 body=|##<ds;^01;<^03>>##<ss;^01;^02>|\ncomment,0,0,V residual=0 body=||\n>
+[01] end: ##<ps> => ""
+[00] begin: #<comment;>
+[00] end: #<comment> => ""
+[00] begin: #<ds;greek;ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>
+[00] end: #<ds> => ""
+[00] begin: #<ds;kanji;龥>
+[00] end: #<ds> => ""
+[00] begin: #<ds;katakana;キャク>
+[00] end: #<ds> => ""
+[00] begin: #<ds;有為の;奥山>
+[00] end: #<ds> => ""
+[00] begin: ##<ttm;info;name;greek;kanji;katakana;有為の>
+[00] end: ##<ttm> => "greek,0,0,V residual=0 body=|ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ|\nkanji,0,0,V residual=0 body=|龥|\nkatakana,0,0,V residual=0 body=|キャク|\n有為の,0,0,V residual=0 body=|奥山|\n"
+[00] begin: #<ds;x;12θ34>
+[00] end: #<ds> => ""
+[00] begin: #<ap;x;567890>
+[00] end: #<ap> => ""
+[00] begin: #<rrp;x>
+[00] end: #<rrp> => ""
+[00] begin: #<ss;x;θ>
+[00] end: #<ss> => ""
+[00] begin: ##<ttm;info;name;x>
+[00] end: ##<ttm> => "x,0,1,V residual=0 body=|12^0134|\n"
+[00] begin: ##<cc;x>
+[00] end: ##<cc> => "1"
+[00] begin: ##<cn;8;x>
+[00] end: ##<cn> => "2^0134"
+[00] begin: ##<cn;2;x>
+[00] end: ##<cn> => ""
+[00] begin: ##<ttm;info;name;x>
+[00] end: ##<ttm> => "x,0,1,V residual=5 body=|12^0134|\n"
+[00] begin: #<ds;d;x:y>
+[00] end: #<ds> => ""
+[00] begin: #<sc;d;x;y>
+[00] end: #<sc> => "2"
+[00] begin: ##<ttm;info;name;d>
+[00] end: ##<ttm> => "d,0,2,V residual=0 body=|^01:^02|\n"
+[00] begin: #<ndf;d;d defined;d not defined>
+[00] end: #<ndf> => "d defined"
+[00] begin: #<ndf;dd;dd defined;dd not defined>
+[00] end: #<ndf> => "dd not defined"
+[00] begin: #<argc>
+[00] end: #<argc> => "4"
+[00] begin: #<argv;2>
+[00] end: #<argv> => "b"
+[00] begin: #<ad;3;4;7>
+[00] end: #<ad> => "14"
+[00] begin: #<su;1;17>
+[00] end: #<su> => "-16"
+[00] begin: #<mu;2;16;2>
+[00] end: #<mu> => "64"
+[00] begin: #<dv;200;13>
+[00] end: #<dv> => "15"
+[00] begin: #<dvr;200;13>
+[00] end: #<dvr> => "5"
+[00] begin: #<def;XX;34;12345>
+[00] end: #<def> => "##<ds;XX;<12345>>##<ss;XX;34>"
+[00] begin: ##<ds;XX;12345>
+[00] end: ##<ds> => ""
+[00] begin: ##<ss;XX;34>
+[00] end: ##<ss> => ""
+[00] begin: #<XX;0000>
+[00] end: #<XX> => "1200005"
+[00] begin: ##<abs;2>
+[00] end: ##<abs> => "2"
+[00] begin: ##<abs;-2>
+[00] end: ##<abs> => "2"
+[00] begin: ##<eq;2;2;equal;!equal>
+[00] end: ##<eq> => "equal"
+[00] begin: ##<eq;2;3;equal;!equal>
+[00] end: ##<eq> => "!equal"
+[00] begin: ##<eq?;abcd;abcd;equal?;!equal?>
+[00] end: ##<eq?> => "equal?"
+[00] begin: ##<eq?;abc;abcd;equal?;!equal?>
+[00] end: ##<eq?> => "!equal?"
+[00] begin: ##<gt;2;1;gt;!gt>
+[00] end: ##<gt> => "gt"
+[00] begin: ##<gt;2;2;gt;!gt>
+[00] end: ##<gt> => "!gt"
+[00] begin: ##<gt?;abcd;abc;gt?;!gt?>
+[00] end: ##<gt?> => "gt?"
+[00] begin: ##<gt?;abcd;abcd;gt?;!gt?>
+[00] end: ##<gt?> => "!gt?"
+[00] begin: ##<lt;1;2;lt;!lt>
+[00] end: ##<lt> => "lt"
+[00] begin: ##<lt;2;2;lt;!lt>
+[00] end: ##<lt> => "!lt"
+[00] begin: ##<lt?;abc;abcd;lt?;!lt?>
+[00] end: ##<lt?> => "lt?"
+[00] begin: ##<lt?;abcd;abcd;lt?;!lt?>
+[00] end: ##<lt?> => "!lt?"
+[00] begin: ##<flip;abcd>
+[00] end: ##<flip> => "dcba"
+[00] begin: ##<flip;>
+[00] end: ##<flip> => ""
+[00] begin: ##<gn;2;12345>
+[00] end: ##<gn> => "12"
+[00] begin: ##<gn;-2;12345>
+[00] end: ##<gn> => "345"
+[00] begin: ##<gn;0;12345>
+[00] end: ##<gn> => ""
+[00] begin: ##<gn;1;>
+[00] end: ##<gn> => ""
+[00] begin: ##<gn;2;a>
+[00] end: ##<gn> => "a"
+[00] begin: #<norm;12345>
+[00] end: #<norm> => "5"
+[00] begin: ##<zlc;1,(a,b),c>
+[00] end: ##<zlc> => "1;(a,b);c"
+[00] begin: ##<zlcp;a(b)>
+[00] end: ##<zlcp> => "a;b"
+[00] begin: ##<zlcp;a,(b)>
+[00] end: ##<zlcp> => "a;b"
+[00] begin: ##<zlcp;(b,(c))f>
+[00] end: ##<zlcp> => "b,(c);f"
+[00] begin: #<ds;test;123>
+[00] end: #<ds> => ""
+[00] begin: ##<ndf;test;test defined;test not defined>
+[00] end: ##<ndf> => "test defined"
+[00] begin: #<es;test>
+[00] end: #<es> => ""
+[00] begin: ##<ndf;test;test defined;test not defined>
+[00] end: ##<ndf> => "test not defined"
+[00] begin: #<ds;test;123>
+[00] end: #<ds> => ""
+[00] begin: #<eos;test;test eos;test not eos>
+[00] end: #<eos> => "test not eos"
+[00] begin: #<cn;3;test>
+[00] end: #<cn> => "123"
+[00] begin: #<eos;test;test eos;test not eos>
+[00] end: #<eos> => "test eos"
+[00] begin: ##<ds;test_sn;123456>
+[00] end: ##<ds> => ""
+[00] begin: ##<sn;6;test_sn>
+[00] end: ##<sn> => ""
+[00] begin: #<eos;test_sn;test_sn eos;test_sn not eos>
+[00] end: #<eos> => "test_sn eos"
+[00] begin: ##<dcl;digits;0123456789>
+[00] end: ##<dcl> => ""
+[00] begin: ##<dncl;nonlc;abcdefghijklmnopqrstuvwxyz>
+[00] end: ##<dncl> => ""
+[00] begin: ##<ds;testclass;01Ab5>
+[00] end: ##<ds> => ""
+[00] begin: ##<ccl;digits;testclass>
+[00] end: ##<ccl> => "01"
+[00] begin: ##<scl;nonlc;testclass>
+[00] end: ##<scl> => ""
+[00] begin: ##<ttm;info;name;testclass>
+[00] end: ##<ttm> => "testclass,0,0,V residual=3 body=|01Ab5|\n"
+[00] begin: ##<cn;100;testclass>
+[00] end: ##<cn> => "b5"
+[00] begin: ##<ttm;info;name;testclass>
+[00] end: ##<ttm> => "testclass,0,0,V residual=5 body=|01Ab5|\n"
+[00] begin: ##<rrp;testclass>
+[00] end: ##<rrp> => ""
+[00] begin: ##<ttm;info;name;testclass>
+[00] end: ##<ttm> => "testclass,0,0,V residual=0 body=|01Ab5|\n"
+[00] begin: ##<tcl;digits;testclass;digit found;digit not found>
+[00] end: ##<tcl> => "digit found"
+[00] begin: ##<cn;100;testclass>
+[00] end: ##<cn> => "01Ab5"
+[00] begin: ##<classes>
+[00] end: ##<classes> => "digits,nonlc"
+[00] begin: ##<ecl;digits>
+[00] end: ##<ecl> => ""
+[02] begin: ##<classes>
+[02] end: ##<classes> => "nonlc"
+[01] begin: #<zlc;nonlc>
+[01] end: #<zlc> => "nonlc"
+[00] begin: ##<ecl;nonlc>
+[00] end: ##<ecl> => ""
+[00] begin: ##<classes>
+[00] end: ##<classes> => ""
+[00] begin: #<ds;testisc;012345>
+[00] end: #<ds> => ""
+[00] begin: ##<isc;012;testisc;match;no match>
+[00] end: ##<isc> => "match"
+[00] begin: ##<ttm;info;name;testisc>
+[00] end: ##<ttm> => "testisc,0,0,V residual=3 body=|012345|\n"
+[00] begin: ##<isc;34;testisc;match;no match>
+[00] end: ##<isc> => "match"
+[00] begin: ##<ttm;info;name;testisc>
+[00] end: ##<ttm> => "testisc,0,0,V residual=5 body=|012345|\n"
+[00] begin: ##<isc;34;testisc;match;no match>
+[00] end: ##<isc> => "no match"
+[00] begin: ##<ttm;info;name;testisc>
+[00] end: ##<ttm> => "testisc,0,0,V residual=5 body=|012345|\n"
+[00] begin: ##<isc;5;testisc;match;no match>
+[00] end: ##<isc> => "match"
+[00] begin: ##<ttm;info;name;testisc>
+[00] end: ##<ttm> => "testisc,0,0,V residual=6 body=|012345|\n"
+[00] begin: ##<isc;;testisc;match;no match>
+[00] end: ##<isc> => "match"
+[00] begin: ##<ttm;info;name;testisc>
+[00] end: ##<ttm> => "testisc,0,0,V residual=6 body=|012345|\n"
+[00] begin: #<ds;testscn;012345>
+[00] end: #<ds> => ""
+[00] begin: ##<scn;01;testscn;not substring>
+[00] end: ##<scn> => ""
+[00] begin: ##<ttm;info;name;testscn>
+[00] end: ##<ttm> => "testscn,0,0,V residual=2 body=|012345|\n"
+[00] begin: ##<scn;234;testscn;not substring>
+[00] end: ##<scn> => ""
+[00] begin: ##<ttm;info;name;testscn>
+[00] end: ##<ttm> => "testscn,0,0,V residual=5 body=|012345|\n"
+[00] begin: ##<scn;02;testscn;not substring>
+[00] end: ##<scn> => "not substring"
+[00] begin: ##<ttm;info;name;testscn>
+[00] end: ##<ttm> => "testscn,0,0,V residual=5 body=|012345|\n"
+[00] begin: ##<ctime;135258979000>
+[00] end: ##<ctime> => "Sat Nov 10 16:23:10 2012"
+[02] begin: ##<names>
+[02] end: ##<names> => "XX,comment,d,def,greek,kanji,katakana,test,test_sn,testclass,testisc,testscn,x,有為の"
+[01] begin: #<zlc;XX,comment,d,def,greek,kanji,katakana,test,test_sn,testclass,testisc,testscn,x,有為の>
+[01] end: #<zlc> => "XX;comment;d;def;greek;kanji;katakana;test;test_sn;testclass;testisc;testscn;x;有為の"
+[00] begin: #<es;XX;comment;d;def;greek;kanji;katakana;test;test_sn;testclass;testisc;testscn;x;有為の>
+[00] end: #<es> => ""
+[00] begin: #<names;all>
+[00] end: #<names> => "abs,ad,ap,argc,argv,cc,ccl,cf,classes,cm,cn,comment,cp,cr,cs,ctime,dcl,def,dncl,ds,dv,dvr,ecl,eos,eq,eq?,es,exit,flip,gn,gt,gt?,include,isc,lf,lt,lt?,mu,names,ndf,norm,pf,ps,psr,rrp,rs,sc,scl,scn,sn,ss,su,tcl,tf,time,tn,ttm,uf,xtime,zlc,zlcp"
+[00] begin: #<ds;testcr;abcxxdefxx>
+[00] end: #<ds> => ""
+[00] begin: #<cr;testcr;xx>
+[00] end: #<cr> => ""
+[00] begin: ##<ttm;info;name;testcr>
+[00] end: ##<ttm> => "testcr,0,0,V residual=0 body=|abc^00def^00|\n"
+[00] begin: ##<testcr>
+[00] end: ##<testcr> => "abc0001def0001"
+[00] begin: #<ds;testcp;a<b;c>;d;<;>>
+[00] end: #<ds> => ""
+[00] begin: ##<cp;testcp>
+[00] end: ##<cp> => "a<b;c>"
+[00] begin: ##<ttm;info;name;testcp>
+[00] end: ##<ttm> => "testcp,0,0,V residual=7 body=|a<b;c>;d;<;>|\n"
+[00] begin: ##<cp;testcp>
+[00] end: ##<cp> => "d"
+[00] begin: ##<ttm;info;name;testcp>
+[00] end: ##<ttm> => "testcp,0,0,V residual=9 body=|a<b;c>;d;<;>|\n"
+[00] begin: ##<cp;testcp>
+[00] end: ##<cp> => "<;>"
+[00] begin: ##<ttm;info;name;testcp>
+[00] end: ##<ttm> => "testcp,0,0,V residual=12 body=|a<b;c>;d;<;>|\n"
+[00] begin: #<ds;testcs;abcdefgcd>
+[00] end: #<ds> => ""
+[00] begin: #<sc;testcs;cd>
+[00] end: #<sc> => "2"
+[00] begin: ##<ttm;info;name;testcs>
+[00] end: ##<ttm> => "testcs,0,1,V residual=0 body=|ab^01efg^01|\n"
+[00] begin: ##<cs;testcs>
+[00] end: ##<cs> => "ab"
+[00] begin: ##<cs;testcs>
+[00] end: ##<cs> => "efg"
+[00] begin: ##<cs;testcs>
+[00] end: ##<cs> => ""
+[00] begin: ##<ttm;info;name;testcs>
+[00] end: ##<ttm> => "testcs,0,1,V residual=7 body=|ab^01efg^01|\n"
+[00] begin: #<ds;testlf;abcd>
+[00] end: #<ds> => ""
+[00] begin: #<lf;testlf>
+[00] end: #<lf> => ""
+[00] begin: #<es;testlf>
+[00] end: #<es> => ""
+[00] begin: #<ndf;testlf;testlf defined;testlf not defined>
+[00] end: #<ndf> => "testlf defined"
+[00] begin: #<uf;testlf>
+[00] end: #<uf> => ""
+[00] begin: #<es;testlf>
+[00] end: #<es> => ""
+[00] begin: #<ndf;testlf;testlf defined;testlf not defined>
+[00] end: #<ndf> => "testlf not defined"
+[00] begin: #<ds;testcf;abccdcce>
+[00] end: #<ds> => ""
+[00] begin: #<sc;testcf;cc>
+[00] end: #<sc> => "2"
+[00] begin: ##<ttm;info;name;testcf>
+[00] end: ##<ttm> => "testcf,0,1,V residual=0 body=|ab^01d^01e|\n"
+[00] begin: #<cf;testcf2;testcf>
+[00] end: #<cf> => ""
+[00] begin: ##<ttm;info;name;testcf2>
+[00] end: ##<ttm> => "testcf2,0,1,V residual=0 body=|ab^01d^01e|\n"
+[00] begin: #<ds;testtn;functionbodyxx>
+[00] end: #<ds> => ""
+[00] begin: #<ss;testtn;xx>
+[00] end: #<ss> => ""
+[00] begin: #<tn;testtn>
+[00] end: #<tn> => ""
+[00] begin: ##<testtn;y1>
+[00] end: ##<testtn> => "functionbodyy1"
+[00] begin: #<pf>
+[00] end: #<pf> => ""
+[00] begin: #<tf;testtn>
+[00] end: #<tf> => ""
+[00] begin: ##<testtn;y2>
+[00] end: ##<testtn> => "functionbodyy2"
+[00] begin: #<tf>
+[00] end: #<tn> => ""
+[00] begin: ##<testtn;y4>
+[00] end: ##<testtn> => "functionbodyy4"
+[00] begin: #<pf>
+[00] end: #<pf> => ""
+[00] begin: ##<psr;reading line1\n;stderr>
+reading line1
+[00] end: ##<psr> => "line1.line2"
+[00] begin: ##<rs>
+[00] end: ##<rs> => "line3"
+[00] begin: #<cm;.>
+[00] end: #<cm> => ""
+[00] begin: ##<rs;reading line1>
+[00] end: ##<rs> => ""
+[00] begin: ##<rs;reading line3>
+[00] end: ##<rs> => ""
+[00] begin: #<cm;\n>
+[00] end: #<cm> => ""
+[00] begin: #<comment;Need to test #<include>>
+[00] end: #<comment> => ""
+[00] begin: #<def;n!;N;#<lt;N;2;1;<#<mu;N;#<n!;#<su;N;1>>>>>>
+[00] end: #<def> => "##<ds;n!;<#<lt;N;2;1;<#<mu;N;#<n!;#<su;N;1>>>>>>>##<ss;n!;N>"
+[00] begin: ##<ds;n!;#<lt;N;2;1;<#<mu;N;#<n!;#<su;N;1>>>>>>
+[00] end: ##<ds> => ""
+[00] begin: ##<ss;n!;N>
+[00] end: ##<ss> => ""
+[00] begin: #<n!;3>
+[00] end: #<n!> => "#<lt;3;2;1;<#<mu;3;#<n!;#<su;3;1>>>>>"
+[00] begin: #<lt;3;2;1;#<mu;3;#<n!;#<su;3;1>>>>
+[00] end: #<lt> => "#<mu;3;#<n!;#<su;3;1>>>"
+[02] begin: #<su;3;1>
+[02] end: #<su> => "2"
+[01] begin: #<n!;2>
+[01] end: #<n!> => "#<lt;2;2;1;<#<mu;2;#<n!;#<su;2;1>>>>>"
+[01] begin: #<lt;2;2;1;#<mu;2;#<n!;#<su;2;1>>>>
+[01] end: #<lt> => "#<mu;2;#<n!;#<su;2;1>>>"
+[03] begin: #<su;2;1>
+[03] end: #<su> => "1"
+[02] begin: #<n!;1>
+[02] end: #<n!> => "#<lt;1;2;1;<#<mu;1;#<n!;#<su;1;1>>>>>"
+[02] begin: #<lt;1;2;1;#<mu;1;#<n!;#<su;1;1>>>>
+[02] end: #<lt> => "1"
+[01] begin: #<mu;2;1>
+[01] end: #<mu> => "2"
+[00] begin: #<mu;3;2>
+[00] end: #<mu> => "6"
