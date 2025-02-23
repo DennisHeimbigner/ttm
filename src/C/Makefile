@@ -1,6 +1,7 @@
 top_srcdir = ../..
 
 MEM = 1
+CYGWIN = 1
 
 .PHONEY: check
 .PHONEY: clean
@@ -9,9 +10,9 @@ CC = gcc
 CCWARN = -Wsign-compare -Wall -Wdeclaration-after-statement
 CCDEBUG = -g -O0
 ifdef MEM
+ifndef CYGWIN
 CCMEM = -fsanitize=address -fsanitize=leak
-#-static-libasan
-LASAN = -lasan
+endif
 endif
 
 all: ttm.exe

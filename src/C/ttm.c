@@ -3950,7 +3950,6 @@ done:
     nullfree(outputfilename);
     nullfree(executefilename);
     nullfree(inputfilename);
-    nullfree(debugargs);
 
     freeTTM(ttm);
 
