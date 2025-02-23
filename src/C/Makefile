@@ -17,7 +17,7 @@ endif
 all: ttm.exe
 
 clean::
-	rm -f ttm.exe ttm ttm.txt test.output
+	rm -f ttm.exe ttm ttm.txt test.output test.stderr test.stdout
 
 ttm.exe: ttm.c
 	${CC} ${CCWARN} ${CCDEBUG} -o ttm ttm.c ${CCMEM} ${LASAN}
@@ -35,9 +35,9 @@ TESTTRACE = -dt
 TESTCMD = ./ttm ${TESTPROG} ${TESTTRACE} ${TESTRFLAG} ${TESTARGS}
 
 check:: ttm.exe
-	rm -f ./test.output test.trace
-	${TESTCMD} 2> test.trace >./test.output
-	diff -w ${top_srcdir}/tests/test.trace.baseline ./test.trace
+	rm -f ./test.stdout test.stderr test.output
+	${TESTCMD} 2> test.stderr > ./test.stdout
+	cat test.stderr test.stdout > test.output # Provide a unified output for diff with baseline
 	diff -w ${top_srcdir}/tests/test.baseline ./test.output
 
 gdb:: ttm.exe

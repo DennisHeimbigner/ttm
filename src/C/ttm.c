@@ -10,7 +10,7 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 /**************************************************/
 
 #undef DEBUG
-#define GDB
+#undef GDB
 
 #ifdef DEBUG
 #ifndef GDB
@@ -1374,13 +1374,13 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     newbody = calloc(sizeof(utf32),(bodylen+aplen+1));
     if(newbody == NULL) fail(ttm,TTM_EMEMORY);
     if(bodylen > 0) {
-        memcpy(newbody,body,bodylen);
-        newbody[bodylen] = '\0';
+        memcpy32(newbody,body,bodylen);
+        newbody[bodylen] = NUL32;
     }
     strcpy32(newbody+bodylen,apstring);
     str->residual = bodylen+aplen;
-    body = newbody; newbody = NULL;
-    nullfree(body);
+    nullfree(str->body);
+    str->body = newbody; newbody = NULL;
 }
 
 /**
@@ -2736,7 +2736,7 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     count = toString8(filename,path,TOEOS,sizeof(filename));
     if(count < 0)
 	fail(ttm,TTM_EINCLUDE);
-    finclude = fopen(filename,"r");
+    finclude = fopen(filename,"rb");
     if(finclude == NULL)
         fail(ttm,TTM_EINCLUDE);
     readfile(ttm,finclude,bb);
@@ -3606,7 +3606,7 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
         isstdin = 1;
         f = stdin;      
     } else {
-        f = fopen(filename,"r");
+        f = fopen(filename,"rb");
         if(f == NULL) {
             fprintf(stderr,"Cannot read file: %s\n",filename);
             exit(1);
@@ -3616,7 +3616,7 @@ readinput(TTM* ttm, const char* filename,Buffer* bb)
     resetBuffer(ttm,bb);
     content = bb->content;
 
-    /* Read char_t character by character until EOF */
+    /* Read utf8 character by character until EOF and convert to utf32 */
     for(i=0;i<buffersize-1;i++) {
         utf32 c32;
         c32 = fgetc32(f);
@@ -3749,7 +3749,7 @@ setdebugflags(const char* flagstring)
 /**************************************************/
 /* Main() */
 
-static char* options = "d:e:f:iI:o:p:VX:-";
+static char* options = "d:e:f:io:p:qI:VX:-";
 
 int
 main(int argc, char** argv)
@@ -3758,7 +3758,7 @@ main(int argc, char** argv)
     long buffersize = 0;
     long stacksize = 0;
     long execcount = 0;
-    char* debugargs = NULL;
+    char debugargs[16] = {'\0'};
     int interactive = 0;
     char* outputfilename = NULL;
     char* executefilename = NULL; /* This is the ttm file to execute */
@@ -3785,6 +3785,30 @@ main(int argc, char** argv)
 
     while ((c = getopt(argc, argv, options)) != EOF) {
         switch(c) {
+        case 'd':
+            strcat(debugargs,optarg);
+            break;
+        case 'e':
+            pushOptionName(optarg,MAXEOPTIONS,eoptions);
+            break;
+        case 'f':
+            if(inputfilename == NULL)
+                inputfilename = strdup(optarg);
+	    interactive = 0;
+            break;
+        case 'o':
+            if(outputfilename == NULL)
+                outputfilename = strdup(optarg);
+            break;
+        case 'p':
+            if(executefilename == NULL)
+                executefilename = strdup(optarg);
+            break;
+        case 'q': quiet = 1; break;
+        case 'V':
+            printf("ttm version: %s\n",VERSION);
+            exit(0);
+            break;
         case 'X':
             if(optarg == NULL) usage("Illegal -X tag");
             p = optarg;
@@ -3806,31 +3830,6 @@ main(int argc, char** argv)
             default: usage("Illegal -X option");
             }
 	    break;
-        case 'd':
-            if(debugargs == NULL)
-                debugargs = strdup(optarg);
-            break;
-        case 'e':
-            pushOptionName(optarg,MAXEOPTIONS,eoptions);
-            break;
-        case 'p':
-            if(executefilename == NULL)
-                executefilename = strdup(optarg);
-            break;
-        case 'f':
-            if(inputfilename == NULL)
-                inputfilename = strdup(optarg);
-	    interactive = 0;
-            break;
-        case 'o':
-            if(outputfilename == NULL)
-                outputfilename = strdup(optarg);
-            break;
-        case 'V':
-            printf("ttm version: %s\n",VERSION);
-            exit(0);
-            break;
-        case 'q': quiet = 1; break;
         case '-':
             break;
         case '?':
@@ -3862,7 +3861,7 @@ main(int argc, char** argv)
         outputfile = stdout;
         isstdout = 1;
     } else {
-        outputfile = fopen(outputfilename,"w");
+        outputfile = fopen(outputfilename,"wb");
         if(outputfile == NULL) {
             fprintf(stderr,"Output file is not writable: %s\n",outputfilename);
             exit(1);
@@ -3874,7 +3873,7 @@ main(int argc, char** argv)
         inputfile = stdin;
         isstdin = 1;
     } else {
-        inputfile = fopen(inputfilename,"r");
+        inputfile = fopen(inputfilename,"rb");
         if(inputfile == NULL) {
             fprintf(stderr,"-f file is not readable: %s\n",inputfilename);
             exit(1);

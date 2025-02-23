@@ -9,26 +9,24 @@ TESTBASELINE = ../../tests/test.baseline
 # Arguments to ttm.py
 TTMPROG = -p ${TESTPROG}
 TTMRFLAG = -f ${TESTRS}
-TTMDEBUG = -dT
 TTMTRACE = -dt
 TTMARGS = a b c
-TTMCMD = ${TTMPROG} ${TTMRFLAG} ${TTMDEBUG} ${TTMARGS}
-TTMTRACECMD = ${TTMPROG} ${TTMRFLAG} ${TTMTRACE} ${TTMARGS}
+TTMCMD = ${TTMTRACE} ${TTMPROG} ${TTMRFLAG} ${TTMARGS}
 
 TESTCMD = ./${TTMPY} ${TTMCMD}
-TRACECMD = ./${TTMPY} ${TTMTRACECMD}
 PDBCMD   = -m pdb ${TESTCMD}
 
 check:: ${TTMPY}
-	rm -f ./test.output
-	python3 ${TESTCMD} &> ./test.output
+	rm -f ./test.output ./test.stderr ./test.stdout
+	python3 ${TESTCMD} 2> ./test.stderr > ./test.stdout
+	cat ./test.stderr ./test.stdout > test.output
 	diff -w ${TESTBASELINE} ./test.output
+
+clean::
+	rm -f ./test.output ./test.stderr ./test.stdout
 
 see:: ${TTMPY}
 	python3 ${TESTCMD}
-
-trace:: ${TTMPY}
-	python3 ${TRACECMD}
 
 debug:: ${TTMPY}
 	python3 ${PDBCMD}

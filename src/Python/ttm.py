@@ -105,7 +105,6 @@ SHOWMAX=20
 FLAG_EXIT = 1
 FLAG_TRACE = 2
 FLAG_BARE = 4
-FLAG_TESTING = 8 # make stderr = stdout
 
 ##################################################
 # Error Numbers
@@ -2382,7 +2381,6 @@ def setdebugflags(flagstring):
   for c in flagstring:
     if (c == 't'): flags |= FLAG_TRACE
     elif (c == 'b'): flags |= FLAG_BARE
-    elif (c == 'T'): flags |= FLAG_TESTING
   return flags
 #end setdebugflags
 
@@ -2465,14 +2463,14 @@ def readbalanced(ttm, bb):
 ##################################################
 # Main()
 
-OPTIONS = "qd:e:f:iI:o:p:VX:-"
+OPTIONS = "d:e:f:io:p:qI:VX:-"
 
 def main():
   global argoptions, eoptions
   buffersize = 0
   stacksize = 0
   execcount = 0
-  debugargs = None
+  debugargs = ""
   interactive = False
   quiet = False
   outputfilename = None
@@ -2501,7 +2499,26 @@ def main():
     sys.exit(1)
 
   for opt, optarg in opts:
-    if opt == "-X":
+    if opt == '-d':
+      debugargs = debugargs + optarg
+    elif opt == '-e':
+      eoptions += optarg
+    elif opt == '-f':
+      if (inputfilename == None):
+        inputfilename = optarg
+        interactive = False
+    elif opt == '-o':
+      if (outputfilename == None):
+        outputfilename = optarg
+    elif opt == '-p':
+      if (executefilename == None):
+        executefilename = optarg
+    elif opt == '-q':
+      quiet = True
+    elif opt == '-V':
+      print("ttm version: ",VERSION);
+      sys.exit(0)
+    elif opt == "-X":
       if (optarg == None): usage("Illegal -X tag")
       c = optarg[0]
       if (c != '='): usage("Missing -X tag value")
@@ -2521,26 +2538,6 @@ def main():
           if (execcount < 0): usage("Illegal execcount")
       else:
         usage("Illegal -X option")
-    elif opt == '-d':
-      if (debugargs == None ):
-        debugargs = optarg
-    elif opt == '-e':
-      eoptions += optarg
-    elif opt == '-p':
-      if (executefilename == None):
-        executefilename = optarg
-    elif opt == '-f':
-      if (inputfilename == None):
-        inputfilename = optarg
-        interactive = False
-    elif opt == '-o':
-      if (outputfilename == None):
-        outputfilename = optarg
-    elif opt == '-q':
-      quiet = True
-    elif opt == '-V':
-      print("ttm version: ",VERSION);
-      sys.exit(0)
     else:
       usage("Illegal option")
       # end for
@@ -2593,10 +2590,7 @@ def main():
   ttm.stdoutclose = stdoutclose
   ttm.stdin = stdin
   ttm.stdinclose = stdinclose
-  if testMark(ttm.flags,FLAG_TESTING):
-    ttm.stderr = ttm.stdout
-  else:
-    ttm.stderr = sys.stderr
+  ttm.stderr = sys.stderr
   ttm.stderrclose = False  
 
   definebuiltinfunctions(ttm)
