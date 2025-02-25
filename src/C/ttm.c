@@ -50,6 +50,7 @@ This is in lieu of the typical config.h.
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
 #include <assert.h>
 
 #ifdef MSWINDOWS
@@ -87,9 +88,6 @@ static int timeofday(struct timeval *tv);
 /**************************************************/
 /* UTF and char Definitions */
 
-/* Use ISO-8859-1 Character set for input/output */
-#undef ISO_8859 
-
 /**
 We use the standard "char" type for input/output,
 but also assume that this type may point to
@@ -99,7 +97,7 @@ we use the alias "char_t".
 
 Note also that it is assumed that all C string constants
 in this file are restricted to US-ASCII, which is a subset
-of both UTF-8 and ISO-8859-1.
+of UTF-8.
 */
 
 typedef char char_t;
@@ -109,7 +107,7 @@ typedef int utf32; /* 32-bit utf char type; signed is ok
                         namely <= 0x10FFFF = 1,114,111
                      */
 /* Maximum codepoint size when using char_t */
-#define MAXCHARSIZE 4
+#define MAXCP8SIZE 4
 
 #ifndef MININT
 #define MININT -2147483647
@@ -142,7 +140,14 @@ makespace(utf32* dst, utf32* src, unsigned len)
 Constants
 */
 
-/* Assign special meaning to some otherwise illegal utf-32 character values */
+/**
+This code takes over part of the UTF8 space to store segment
+marks and create marks. Specifically the illegal continuation
+byte space is used: the two byte value range 0x80 through 0xBF.
+This is divided as follows:
+1. The (singleton) create mark: 0x80
+2. The 63 segment marks: 0x81 thru 0xBF.
+*/
 
 #define SEGMARK ((utf32)0x40000000)
 #define CREATE  ((utf32)0x20000000)
@@ -158,17 +163,14 @@ Constants
 #define MAXEOPTIONS 1024
 #define MAXINTCHARS 32
 
-#define NUL '\0'
+#define NUL8 '\0'
 #define NUL32 ((utf32)0)
+
 #define COMMA ','
 #define LPAREN '('
 #define RPAREN ')'
 #define LBRACKET '['
 #define RBRACKET ']'
-
-#ifdef ISO_8859
-#define MAXCHAR8859 ((char_t)255)
-#endif
 
 #define DFALTBUFFERSIZE (1<<20)
 #define DFALTSTACKSIZE 64
@@ -188,18 +190,13 @@ Constants
 #define HASHTABLEMASK (HASHSIZE-1)
 
 /*Mnemonics*/
-#define NESTED 1
-#define KEEPESCAPE 1
-#define TOSTRING 1
-#define NOTTM NULL
 #define TRACING 1
-#define TOEOS (0x7fffffff)
+#define TOEOS ((size_t)0xffffffffffffffff)
 
 #ifdef DEBUG
 #define PASSIVEMAX 20
 #define ACTIVEMAX 20
 #endif
-
 
 /* TTM Flags */
 #define FLAG_EXIT  1
@@ -579,9 +576,8 @@ static int toChar8(char_t* dst, utf32 codepoint);
 static int toChar32(utf32* codepointp, char_t* src);
 static int toString8(char_t* dst, utf32* src, int srclen, int dstlen);
 static int toString32(utf32* dst, char_t* src, int len);
-#ifndef ISO_8859
 static int utf8count(unsigned c);
-#endif
+
 /**************************************************/
 /* Global variables */
 
@@ -4123,7 +4119,6 @@ toString32(utf32* dst, char_t* src, int len)
     return (q32 - dst);
 }
 
-#ifndef ISO_8859
 /**
 Convert a utf32 value to a sequence of char_t bytes.
 Return -1 if invalid; # chars in char_t* dst otherwise.
@@ -4133,7 +4128,7 @@ toChar8(char_t* dst, utf32 codepoint)
 {
     char_t* p = dst;
     unsigned char uchar;
-    /* assert |dst| >= MAXCHARSIZE+1 */
+    /* assert |dst| >= MAXCP8SIZE+1 */
     if(codepoint <= 0x7F) {
         uchar = (unsigned char)codepoint;
        *p++ = (char)uchar;
@@ -4174,7 +4169,7 @@ return -1 if invalid, #bytes processed from src otherwise.
 static int
 toChar32(utf32* codepointp, char_t* src)
 {
-    /* assert |src| >= MAXCHARSIZE; not necessarily null terminated */
+    /* assert |src| >= MAXCP8SIZE; not necessarily null terminated */
     char_t* p;
     utf32 codepoint;
     int charsize;
@@ -4216,9 +4211,6 @@ utf8count(unsigned c)
     return 0;
 }
 
-#endif /*!ISO_8859*/
-
-#ifdef ISO_8859
 static int
 toChar8(char_t* dst, utf32 codepoint)
 {
@@ -4241,19 +4233,17 @@ toChar32(utf32* codepointp, char_t* src)
     *codepointp = (utf32)(*src);
     return 1;
 }
-#endif
 
 /**************************************************/
 /* Character Input/Output */ 
 
-#ifndef ISO_8859
 /* Unless you know that you are outputing ASCII,
    all output should go thru this procedure.
 */
 static void
 fputc32(utf32 c32, FILE* f)
 {
-    char_t c8[MAXCHARSIZE+1];
+    char_t c8[MAXCP8SIZE+1];
     int count,i;
     if((count = toChar8(c8,c32)) < 0) fail(NOTTM,TTM_EUTF32);
     for(i=0;i<count;i++) {fputc(c8[i],f);}
@@ -4269,7 +4259,7 @@ fgetc32(FILE* f)
     c = fgetc(f);
     if(c == EOF) return EOF;
     if(ismultibyte(c)) {
-        char_t c8[MAXCHARSIZE+1];
+        char_t c8[MAXCP8SIZE+1];
         int count,i;
         count = utf8count(c);
         i=0; c8[i++] = (char_t)c;
@@ -4285,13 +4275,11 @@ fgetc32(FILE* f)
         c32 = c;
     return c32;
 }
-#endif /*!ISO_8859*/
 
-#ifdef ISO_8859
 static void
 fputc32(utf32 c32, FILE* f)
 {
-    char_t c8[MAXCHARSIZE+1];
+    char_t c8[MAXCP8SIZE+1];
     int count,i;
     count = toChar8(c8,c32);
     for(i=0;i<count;i++) fputc(c8[i],f);
@@ -4305,7 +4293,6 @@ fgetc32(FILE* f)
     return c;
 }
 
-#endif
 /**************************************************/
 /**
 Implement functions that deal with Linux versus Windows
