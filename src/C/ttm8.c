@@ -50,6 +50,7 @@ This is in lieu of the typical config.h.
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
 #include <assert.h>
 
 #ifdef MSWINDOWS
@@ -87,29 +88,54 @@ static int timeofday(struct timeval *tv);
 /**************************************************/
 /* UTF and char Definitions */
 
-/* Use ISO-8859-1 Character set for input/output */
-#undef ISO_8859 
-
 /**
-We use the standard "char" type for input/output,
-but also assume that this type may point to
-multibyte characters (i.e. utf8).
-In order to identify such strings,
-we use the alias "char_t".
+We assume that all strings/characters in the external work use utf-8.
+This includes at least:
+1. files
+2. libc
+
+We use the "char_t" type to indicate the
+use of external string/characters.
+In practice, this is of course utf8.
+
+Note that, unless otherwise specified, lengths
+are in units of bytes, not utf8 codepoints.
 
 Note also that it is assumed that all C string constants
 in this file are restricted to US-ASCII, which is a subset
-of both UTF-8 and ISO-8859-1.
+of UTF-8.
+
+This code uses these formats to hold a utf8 character"
+1. 4-byte array holding the bytes of the utf8 codepoint.
+2. 32-bit integer 
+The two formats are inter-convertible using a union
+with two fields: case 1 field and case 2 field.
+Note that it is important that when converting,
+that unused bytes be initialized to zero.
 */
+
+/* Maximum codepoint size when using utf8 */
+#define MAXCP8SIZE 4
 
 typedef char char_t;
 
-typedef int utf32; /* 32-bit utf char type; signed is ok
-                        because of limited # of utf characters
-                        namely <= 0x10FFFF = 1,114,111
-                     */
-/* Maximum codepoint size when using char_t */
-#define MAXCHARSIZE 4
+typedef unsigned char utf8; /* 8-bit utf char type. */
+
+/* To simplify passing of a codepoint,
+   we declare it as an unsigned int.
+   This works since a utf8 codepoint is 1-4
+   bytes in length. Note that this is
+   mapped where needed to the utf8cpa type
+   using the utf8cpu union.
+*/
+typedef unsigned utf8cp;
+#define empty_u8cp ((unsigned)0)
+
+typedef utf8 utf8cpa[MAXCP8SIZE];
+#define empty_u8cpa {0,0,0,0}
+
+/* cp converter union */
+typedef union utf8cpu {utf8cp cp; utf8cpa cpa;} utf8cpu;
 
 #ifndef MININT
 #define MININT -2147483647
@@ -125,15 +151,23 @@ typedef int utf32; /* 32-bit utf char type; signed is ok
 #define nullfree(x) do{if(x) free(x);}while(0)
 
 /**************************************************/
+/**
+Define an internal form of memmove it not
+defined by platform.
+@param dst where to store bytes
+@param src source of bytes
+@param len no. of bytes to move
+@return void
+*/
 static void
-makespace(utf32* dst, utf32* src, unsigned len)
+memmovex(utf8* dst, utf8* src, size_t len)
 {
 #ifdef HAVE_MEMMOVE
-    memmove((void*)dst,(void*)src,len*sizeof(utf32));
+    memmove((void*)dst,(void*)src,len*sizeof(utf8));
 #else   
     src += len;
     dst += len;
-    for(;len>0;len--) *{dst-- = *src--;}
+    for(;len>0;len--) {*dst-- = *src--;}
 #endif
 }
 
@@ -142,33 +176,40 @@ makespace(utf32* dst, utf32* src, unsigned len)
 Constants
 */
 
-/* Assign special meaning to some otherwise illegal utf-32 character values */
+/**
+This code takes over part of the UTF8 space to store segment
+marks and create marks. Specifically the illegal continuation
+byte space is used: the two byte value range 0x80 through 0xBF.
+This is divided as follows:
+1. The (singleton) create mark sequenceL 0xB0,0xBF
+2. The 63 segment marks: 0xB0,0x80...0xBE
+*/
 
-#define SEGMARK ((utf32)0x40000000)
-#define CREATE  ((utf32)0x20000000)
+#define SEGSIZE     2 /*bytes*/
+#define SEGMARK     ((utf8)0xB0)
+#define CREATEMARK  SEGMARK
+/* Mask off the top two bits of the index part */
+#define SEGMARKMASK ((utf8)0x3F)
+#define CREATEINDEX 0xBF
+/* Macros to set/clear/test flags */
+#define setFlag(w,flag) ((w) | (flag))
+#define clearFlag(w,flag) ((w) & ~(flag))
+#define testFlag(w,flag) (((w) & (flag)) == 0 ? 0 : 1)
 
-/* Macros to set/clear/test these marks */
-#define setMark(w,mark) ((w) | (mark))
-#define clearMark(w,mark) ((w) & ~(mark))
-#define testMark(w,mark) (((w) & (mark)) == 0 ? 0 : 1)
-
+/* Segment mark contants (term "mark" comes from origin CalTech TTM). */
 #define MAXMARKS 62
 #define MAXARGS 63
 #define MAXINCLUDES 1024
 #define MAXEOPTIONS 1024
 #define MAXINTCHARS 32
 
-#define NUL '\0'
-#define NUL32 ((utf32)0)
+#define NUL8 '\0'
+
 #define COMMA ','
 #define LPAREN '('
 #define RPAREN ')'
 #define LBRACKET '['
 #define RBRACKET ']'
-
-#ifdef ISO_8859
-#define MAXCHAR8859 ((char_t)255)
-#endif
 
 #define DFALTBUFFERSIZE (1<<20)
 #define DFALTSTACKSIZE 64
@@ -178,28 +219,14 @@ Constants
 
 #define CREATELEN 4 /* # of characters for a create mark */
 
-/* HASHSIZE must be a power of two so that HASHTABLEMASK becomes a sequence of one bits. */
-#ifdef GDB
-#define HASHSIZE 16
-#else
-#define HASHSIZE 256
-#endif
-
-#define HASHTABLEMASK (HASHSIZE-1)
-
 /*Mnemonics*/
-#define NESTED 1
-#define KEEPESCAPE 1
-#define TOSTRING 1
-#define NOTTM NULL
 #define TRACING 1
-#define TOEOS (0x7fffffff)
+#define TOEOS ((size_t)0xffffffffffffffff)
 
 #ifdef DEBUG
 #define PASSIVEMAX 20
 #define ACTIVEMAX 20
 #endif
-
 
 /* TTM Flags */
 #define FLAG_EXIT  1
@@ -246,10 +273,9 @@ TTM_EMANYPARMS      = 36, /* # parameters > MAXARGS */
 TTM_EEOS            = 37, /* Unexpected end of string */
 TTM_EASCII          = 38, /* ASCII characters only */
 TTM_ECHAR8          = 39, /* Illegal 8-bit character set value */
-TTM_EUTF32          = 40, /* Illegal utf-32 character set */
-TTM_ETTMCMD         = 41, /* Illegal #<ttm> command */
-TTM_ETIME           = 42, /* gettimeofday failed */
-TTM_EEXECCOUNT	    = 43, /* too many execution calls */
+TTM_ETTMCMD         = 40, /* Illegal #<ttm> command */
+TTM_ETIME           = 41, /* gettimeofday failed */
+TTM_EEXECCOUNT	    = 42, /* too many execution calls */
 /* Default case */
 TTM_EOTHER	    = 99
 } TTMERR;
@@ -257,11 +283,11 @@ TTM_EOTHER	    = 99
 /**************************************************/
 /* "inline" functions */
 
-#define isescape(c)((c) == ttm->escapec)
+#define isescape(cpa) u8equal(cpa,ttm->escapec)
 
-#define ismark(c)(testMark((c),SEGMARK)||testMark((c),CREATE)?1:0)
-#define issegmark(c)(testMark((c),SEGMARK)?1:0)
-#define iscreate(c)(testMark((c),CREATE)?1:0)
+#define ismark(cp)(*(cp) == SEGMARK)||*(cp),CREATE)?1:0)
+#define issegmark(cp)(*(cp) == SEGMARK)?1:0)
+#define iscreateindex(idx)((idx) == CREATEINDEX);
 
 #define ismultibyte(c) (((c) & 0x80) == 0x80 ? 1 : 0)
 
@@ -300,8 +326,22 @@ typedef void (*TTMFCN)(TTM*, Frame*);
 /**************************************************/
 /* Generic pseudo-hashtable */
 
+/**
+HASHSIZE constraints:
+1. Must be a power of two so that HASHTABLEMASK becomes a sequence of one bits.
+2. Must be <= 256 since it used a single byte to index the top-level of table.
+*/
+
+#ifdef GDB
+#define HASHSIZE 16
+#else
+#define HASHSIZE 256
+#endif
+
+#define HASHTABLEMASK ((unsigned)(HASHSIZE-1))
+
 struct HashEntry {
-    utf32* name;
+    utf8* name;
     unsigned hash;
     struct HashEntry* next;
 };
@@ -314,7 +354,7 @@ struct HashTable {
 };
 
 /* Generic operations */
-static int hashLocate(struct HashTable* table, utf32* name, struct HashEntry** prevp);
+static int hashLocate(struct HashTable* table, utf8* name, struct HashEntry** prevp);
 static void hashRemove(struct HashTable* table, struct HashEntry* prev, struct HashEntry* entry);
 static void hashInsert(struct HashTable* table, struct HashEntry* prev, struct HashEntry* entry);
 
@@ -325,22 +365,22 @@ TTM state object
 
 struct TTM {
     struct Limits {
-        unsigned buffersize;
-        unsigned stacksize;
-        unsigned execcount;
+        size_t buffersize;
+        size_t stacksize;
+        size_t execcount;
     } limits;
     unsigned flags;
     unsigned exitcode;
     unsigned crcounter; /* for cr marks */
-    utf32 sharpc; /* sharp-like char */
-    utf32 openc; /* <-like char */
-    utf32 closec; /* >-like char */
-    utf32 semic; /* ;-like char */
-    utf32 escapec; /* escape-like char */
-    utf32 metac; /* read eof char */
+    utf8cpa sharpc; /* sharp-like char */
+    utf8cpa openc; /* <-like char */
+    utf8cpa closec; /* >-like char */
+    utf8cpa semic; /* ;-like char */
+    utf8cpa escapec; /* escape-like char */
+    utf8cpa metac; /* read eof char */
     Buffer* buffer; /* contains the string being processed */
     Buffer* result; /* contains result strings from functions */
-    unsigned stacknext; /* |stack| == (stacknext) */
+    size_tstacknext; /* |stack| == (stacknext) */
     Frame* stack;    
     FILE* output;    
     int   isstdout;
@@ -360,13 +400,13 @@ we can use pointers into the buffer space in e.g. struct Function.
  */
 
 struct Buffer {
-    unsigned alloc;  /* including trailing NUL */
-    unsigned length;  /* including trailing NUL; defines what of
-                             the allocated space is actual content. */
-    utf32* active; /* characters yet to be scanned */
-    utf32* passive; /* characters that will never be scanned again */
-    utf32* end; /* into content */
-    utf32* content;
+    size_t alloc;  /* including trailing NUL */
+    size_t length;  /* including trailing NUL; defines what of
+                       the allocated space is actual content. */
+    utf8* active; /* characters yet to be scanned */
+    utf8* passive; /* characters that will never be scanned again */
+    utf8* end; /* into content */
+    utf8* content; 
 };
 
 /**
@@ -374,8 +414,8 @@ struct Buffer {
 */
 
 struct Frame {
-  utf32* argv[MAXARGS+1];
-  unsigned argc;
+  utf8* argv[MAXARGS+1];
+  size_t argc;
   int active; /* 1 => # 0 => ## */
 };
 
@@ -407,14 +447,14 @@ struct Function {
     int trace;
     int locked;
     int builtin;
-    unsigned minargs;
-    unsigned maxargs;
+    size_t minargs;
+    size_t maxargs;
     int novalue; /* must always return no value */
-    unsigned residual;
-    unsigned maxsegmark; /* highest segment mark number
+    size_t residual;
+    size_t maxsegmark; /* highest segment mark number
                                 in use in this string */
     TTMFCN fcn; /* builtin == 1 */
-    utf32* body; /* builtin == 0 */
+    utf8* body; /* builtin == 0 */
 };
 
 /**
@@ -423,7 +463,7 @@ Character Classes  and the Charclass table
 
 struct Charclass {
     struct HashEntry entry;
-    utf32* characters;
+    utf8* characters;
     int negative;
 };
 
@@ -445,34 +485,34 @@ of a pointer argument.
 
 static TTM* newTTM(long,long,long);
 static void freeTTM(TTM*);
-static Buffer* newBuffer(TTM*, unsigned buffersize);
+static Buffer* newBuffer(TTM*, size_t buffersize);
 static void freeBuffer(TTM*, Buffer* bb);
-static void expandBuffer(TTM*, Buffer* bb, unsigned len);
+static void expandBuffer(TTM*, Buffer* bb, size_t len);
 static void resetBuffer(TTM*, Buffer* bb);
-static void setBufferLength(TTM*, Buffer* bb, unsigned len);
+static void setBufferLength(TTM*, Buffer* bb, size_t len);
 static void clearHashEntry(struct HashEntry* entry);
 static Frame* pushFrame(TTM*);
 static void popFrame(TTM*);
 static void clearFrame(TTM* ttm, Frame* frame);
-static void freeFramestack(TTM* ttm, Frame* stack, unsigned stacksize);
+static void freeFramestack(TTM* ttm, Frame* stack, size_t stacksize);
 static Function* newFunction(TTM*);
 static void freeFunction(TTM*, Function* f);
 static void clearDictionary(TTM*,struct HashTable* dict);
 static int dictionaryInsert(TTM*, Function* fcn);
-static Function* dictionaryLookup(TTM*, utf32* name);
-static Function* dictionaryRemove(TTM*, utf32* name);
+static Function* dictionaryLookup(TTM*, utf8* name);
+static Function* dictionaryRemove(TTM*, utf8* name);
 static Charclass* newCharclass(TTM*);
 static void freeCharclass(TTM*, Charclass* cl);
 static void clearCharclasses(TTM*,struct HashTable* classes);
 static int charclassInsert(TTM*, Charclass* cl);
-static Charclass* charclassLookup(TTM*, utf32* name);
-static Charclass* charclassRemove(TTM*, utf32* name);
-static int charclassMatch(utf32 c, utf32* charclass);
+static Charclass* charclassLookup(TTM*, utf8* name);
+static Charclass* charclassRemove(TTM*, utf8* name);
+static int charclassMatch(utf8* cp, utf8* charclass);
 static void scan(TTM*);
 static void exec(TTM*, Buffer* bb);
 static void parsecall(TTM*, Frame*);
-static void call(TTM*, Frame*, utf32* body);
-static void printstring(TTM*, FILE* output, utf32* s32);
+static void call(TTM*, Frame*, utf8* body);
+static void printstring(TTM*, FILE* output, utf8* s8);
 static void ttm_ap(TTM*, Frame*);
 static void ttm_cf(TTM*, Frame*);
 static void ttm_cr(TTM*, Frame*);
@@ -536,24 +576,20 @@ static void ttm_uf(TTM*, Frame*);
 static void fail(TTM*, TTMERR eno);
 static void fatal(TTM*, const char* msg);
 static const char* errstring(TTMERR err);
-static int int2string(utf32* dst, long long n);
-static TTMERR toInt64(utf32* s, long long* lp);
-static utf32 convertEscapeChar(utf32 c);
+static int int2string(utf8* dst, long long n);
+static TTMERR toInt64(utf8* s, long long* lp);
+static utf8cp convertEscapeChar(utf8* cp);
 static void trace(TTM*, int entering, int tracing);
 static void trace1(TTM*, int depth, int entering, int tracing);
 static void traceframe(TTM* ttm, Frame* frame, int traceargs);
 static void dumpstack(TTM*);
-static void dbgprint32(utf32* s, char quote);
 #ifdef DEBUG
-static void dbgprint32c(utf32 c, char quote);
-#endif
-static void dbgsprint32(utf32* s, char quote, char* sf);
-static char* dbgsprint32c(utf32 c, char quote, char* sf);
-#ifdef GDB
-static const char* dbgsframe32(Frame* frame);
+static void dbgprint(utf8* s, char quote);
+static void dbgprintc(utf8* c, char quote);
+static const char* dbgsframe(Frame* frame);
 #endif
 static int getOptionNameLength(char** list);
-static int pushOptionName(char* option, unsigned max, char** list);
+static int pushOptionName(char* option, size_t max, char** list);
 static void initglobals();
 static void usage(const char*);
 static void readinput(TTM*, const char* filename,Buffer* bb);
@@ -561,27 +597,31 @@ static int readbalanced(TTM*);
 static void printbuffer(TTM*);
 static int readfile(TTM*, FILE* file, Buffer* bb);
 
-/* utf32 replacements for common unix strXXX functions */
-static unsigned strlen32(const utf32* s);
-static void strcpy32(utf32* dst, const utf32* src);
-static void strncpy32(utf32* dst, const utf32* src, unsigned len);
-static utf32* strdup32(const utf32* src);
-static int strcmp32(const utf32* s1, const utf32* s2);
-static int strncmp32(const utf32* s1, const utf32* s2, unsigned len);
-static void memcpy32(utf32* dst, const utf32* src, int len);
-/* Read/Write Management */
-static void fputc32(utf32 c, FILE* f);
-static utf32 fgetc32(FILE* f);
+/* Read/Write Management to convert external data to/from utf8 codepoints */
+static void fputc8(utf8* c, FILE* f);
+static utf8cp fgetc8(FILE* f);
 
-/* UTF32 <-> char management */
-static int streq32ascii(utf32* s32, char_t* s8);
+/* UTF8 <-> char_t management */
+static int u8size(utf8* cp); /* figure out no. bytes in a codepoint */
+static const utf8cp ascii2u8(char c);
+static int u8equal(utf8* c1, utf8* c2);
+static utf8cp u8cp(utfcpa c8);
+static void u8cpa(utfcpa c8a,utf8cp c8);
+static int memcpycp(utf8cpa dst, utf8cpa src);
+static int copycpincr(utf8cpa* dstp, utf8cpa* srcp);
+static utf8* u8ith(utf8* p, size_t n);
+static utf8* u8incr(utf8** p0);
+static utf8* u8decr(utf8* p0);
+
+static size_t strlcatx(char* dst, const char* src, size_t size);
+
+#if 0
+static int streq8ascii(utf8* s32, char_t* s8);
 static int toChar8(char_t* dst, utf32 codepoint);
-static int toChar32(utf32* codepointp, char_t* src);
-static int toString8(char_t* dst, utf32* src, int srclen, int dstlen);
-static int toString32(utf32* dst, char_t* src, int len);
-#ifndef ISO_8859
-static int utf8count(unsigned c);
+static int toString8(char_t* dst, utf8* src, int srclen, int dstlen);
+static int toString32(utf8* dst, char_t* src, int len);
 #endif
+
 /**************************************************/
 /* Global variables */
 
@@ -594,20 +634,20 @@ static TTM* ttm = NULL;
 
 /**************************************************/
 /**
-HashTable Management.  The table is only pseudo-hash
-simplified by making it an array of chains indexed by the
-low order n bits of the name[0].
-The hashcode is just the simple sum
-of the characters in the name shifted by 1 bit each.
+HashTable Management:
+The table is only pseudo-hash simplified by making it an array
+of chains indexed by the low order n bits of the name[0].  The
+hashcode is just the simple sum of the characters in the name
+shifted by 1 bit each.
 */
 
 /* Define a hash computing macro */
 static unsigned 
-computehash(utf32* name)
+computehash(utf8* name)
 {
     unsigned hash;
-    utf32* p;
-    for(hash=0,p=name;*p!=NUL32;p++) hash = hash + (*p <<1);
+    utf8* p;
+    for(hash=0,p=name;*p!=NUL8;p++) hash = hash + (*p <<1);
     if(hash==0) hash=1;
     return hash;        
 }
@@ -618,22 +658,22 @@ computehash(utf32* name)
 */
 
 static int
-hashLocate(struct HashTable* table, utf32* name, struct HashEntry** prevp)
+hashLocate(struct HashTable* table, utf8* name, struct HashEntry** prevp)
 {
     struct HashEntry* prev;
     struct HashEntry* next;
-    utf32 index;
+    unsigned index;
     unsigned hash;
 
     hash = computehash(name);
     if(!(table != NULL && name != NULL))
     assert(table != NULL && name != NULL);
-    index = (name[0] & HASHTABLEMASK);
+    index = (((unsigned)(name[0])) & HASHTABLEMASK);
     prev = &table->table[index];
     next = prev->next;
     while(next != NULL) {
 	if(next->hash == hash
-	   && strcmp32(name,next->name)==0)
+	   && strcmp((char_t*)name,(char_t*)next->name)==0)
 	    break;
 	prev = next;
 	next = next->next;
@@ -674,7 +714,7 @@ hashInsert(struct HashTable* table, struct HashEntry* prev, struct HashEntry* en
 /* Provide subtype specific wrappers for the HashTable operations. */
 
 static Function*
-dictionaryLookup(TTM* ttm, utf32* name)
+dictionaryLookup(TTM* ttm, utf8* name)
 {
     struct HashTable* table = &ttm->dictionary;
     struct HashEntry* prev;    
@@ -689,7 +729,7 @@ dictionaryLookup(TTM* ttm, utf32* name)
 }
 
 static Function*
-dictionaryRemove(TTM* ttm, utf32* name)
+dictionaryRemove(TTM* ttm, utf8* name)
 {
     struct HashTable* table = &ttm->dictionary;
     struct HashEntry* prev;    
@@ -719,7 +759,7 @@ dictionaryInsert(TTM* ttm, Function* fcn)
 }
 
 static Charclass*
-charclassLookup(TTM* ttm, utf32* name)
+charclassLookup(TTM* ttm, utf8* name)
 {
     struct HashTable* table = &ttm->charclasses;
     struct HashEntry* prev;    
@@ -734,7 +774,7 @@ charclassLookup(TTM* ttm, utf32* name)
 }
 
 static Charclass*
-charclassRemove(TTM* ttm, utf32* name)
+charclassRemove(TTM* ttm, utf8* name)
 {
     struct HashTable* table = &ttm->charclasses;
     struct HashEntry* prev;    
@@ -773,12 +813,12 @@ newTTM(long buffersize, long stacksize, long execcount)
     ttm->limits.buffersize = buffersize;
     ttm->limits.stacksize = stacksize;
     ttm->limits.execcount = execcount;
-    ttm->sharpc = (utf32)'#';
-    ttm->openc = (utf32)'<';
-    ttm->closec = (utf32)'>';
-    ttm->semic = (utf32)';';
-    ttm->escapec = (utf32)'\\';
-    ttm->metac = (utf32)'\n';
+    ttm->sharpc = ascii2u8('#');
+    ttm->openc = ascii2u8('<');
+    ttm->closec = ascii2u8('>');
+    ttm->semic = ascii2u8(';');
+    ttm->escapec = ascii2u8('\\');
+    ttm->metac = ascii2u8('\n');
     ttm->buffer = newBuffer(ttm,buffersize);
     ttm->result = newBuffer(ttm,buffersize);
     ttm->stacknext = 0;
@@ -811,7 +851,7 @@ newBuffer(TTM* ttm, unsigned buffersize)
     Buffer* bb;
     bb = (Buffer*)calloc(1,sizeof(Buffer));
     if(bb == NULL) fail(ttm,TTM_EMEMORY);
-    bb->content = (utf32*)calloc(buffersize,sizeof(utf32));
+    bb->content = (utf8*)calloc(buffersize,sizeof(utf8));
     if(bb->content == NULL) fail(ttm,TTM_EMEMORY);
     bb->alloc = buffersize;
     bb->length = 0;
@@ -837,12 +877,12 @@ expandBuffer(TTM* ttm, Buffer* bb, unsigned len)
     if(bb->active < bb->end) {
         /* make room for len characters by moving bb->active and up*/
         unsigned tomove = (bb->end - bb->active);
-        makespace(bb->active+len,bb->active,tomove);
+        memmovex(bb->active+len,bb->active,tomove);
     }
     bb->active += len;
     bb->length += len;
     bb->end = bb->content+bb->length;
-    *(bb->end) = NUL32;
+    *(bb->end) = NUL8;
 }
 
 #if 0
@@ -868,7 +908,7 @@ resetBuffer(TTM* ttm, Buffer* bb)
     bb->length = 0;
     bb->active = bb->content;
     bb->end = bb->content;
-    *bb->end = NUL;
+    *bb->end = NUL8;
 }
 
 /* Change the buffer length without disturbing
@@ -881,7 +921,7 @@ setBufferLength(TTM* ttm, Buffer* bb, unsigned len)
     if(len >= bb->alloc) fail(ttm,TTM_EBUFFERSIZE);
     bb->length = len;
     bb->end = bb->content+bb->length;
-    *(bb->end) = NUL; /* make sure */    
+    *(bb->end) = NUL8; /* make sure */    
 }
 
 /**************************************************/
@@ -1013,11 +1053,10 @@ clearCharclasses(TTM* ttm, struct HashTable* charclasses)
 }
 
 static int
-charclassMatch(utf32 c, utf32* charclass)
+charclassMatch(utf8* cp, utf8* charclass)
 {
-    utf32* p=charclass;
-    utf32 pc;
-    while((pc=*p++)) {if(c == pc) return 1;}
+    utf8* p;
+    for(p=charclass;*p;u8incr(&p) {if(u8equal(cp,p)) return 1;
     return 0;
 }
 
@@ -1029,47 +1068,43 @@ This is basic top level scanner.
 static void
 scan(TTM* ttm)
 {
-    utf32 c;
     Buffer* bb = ttm->buffer;
+    int ncp;
 
     for(;;) {
-        c = *bb->active; /* NOTE that we do not bump here */
-        if(c == NUL32) { /* End of buffer */
+        c = u8cp(bb->active); /* NOTE that we do not bump here */
+        if(isnul(bb->active)) { /* End of buffer */
             break;
-        } else if(isescape(c)) {
-            bb->active++; /* skip the escape */
-            *bb->passive++ = *bb->active++;
-        } else if(c == ttm->sharpc) {/* Start of call? */
-            if(bb->active[1] == ttm->openc
-               || (bb->active[1] == ttm->sharpc
-                    && bb->active[2] == ttm->openc)) {
+        } else if(isescape(bb->active)) {
+            u8incr(&bb->active); /* skip the escape */
+	    copycpincr(&bb->passive,&bb->active);
+        } else if(u8equal(bb->active,ttm->sharpc) {/* Start of call? */
+            if(u8equal(u8ith(bb->active,1),ttm->openc)
+               || (u8equal(u8ith(bb->active,1),ttm->sharpc)
+                    && u8equal(u8ith(bb->active,2),ttm->openc))) {
                 /* It is a real call */
                 exec(ttm,bb);
                 if(ttm->flags & FLAG_EXIT) goto exiting;
-            } else {/* not an call; just pass the # along passively */
-                *bb->passive++ = c;
-                bb->active++;
+            } else {/* not an call; just pass the '#' along passively */
+                copycpincr(&bb->passive,&bb->active);
             }
-        } else if(c == ttm->openc) { /* Start of <...> escaping */
+        } else if(u8equal(bb->active,ttm->openc) { /* Start of <...> escaping */
             /* skip the leading lbracket */
             int depth = 1;
-            bb->active++;
+            u8incr(&bb->active);
             for(;;) {
-                c = *(bb->active);
-                if(c == NUL32) fail(ttm,TTM_EEOS); /* Unexpected EOF */
-                *bb->passive++ = c;
-                bb->active++;
-                if(isescape(c)) {
-                    *bb->passive++ = *bb->active++;
-                } else if(c == ttm->openc) {
+                if(isnul(bb->active)) fail(ttm,TTM_EEOS); /* Unexpected EOF */
+                copycpincr(&bb->passive,&bb->active);
+                if(isescape(bb->active)) {
+                    copycpincr(&bb->passive,&bb->active);
+                } else if(u8equal(bb->active,ttm->openc)) {
                     depth++;
-                } else if(c == ttm->closec) {
-                    if(--depth == 0) {bb->passive--; break;} /* we are done */
+                } else if(u8equal(bb->active,ttm->closec)) {
+                    if(--depth == 0) {bb->passive = u8decr(bb->passive); break;} /* we are done */
                 } /* else keep moving */
             }/*<...> for*/
         } else { /* non-signficant character */
-            *bb->passive++ = c;
-            bb->active++;
+            copycpincr(&bb->passive,&bb->active);
         }
     } /*scan for*/
 
@@ -1091,17 +1126,17 @@ exec(TTM* ttm, Buffer* bb)
 {
     Frame* frame;
     Function* fcn;
-    utf32* savepassive;
+    utf8* savepassive;
 
     if(ttm->limits.execcount-- <= 0)
 	fail(ttm,TTM_EEXECCOUNT);	
     frame = pushFrame(ttm);
     /* Skip to the start of the function name */
-    if(bb->active[1] == ttm->openc) {
-        bb->active += 2;
+    if(u8equal(u8ith(bb->active,1),ttm->openc)) {
+        bb->active = u8ith(bb->active,2);
         frame->active = 1;
     } else {
-        bb->active += 3;
+        bb->active = u8ith(bb->active,3);
         frame->active = 0;
     }
     /* Parse and store relevant pointers into frame. */
@@ -1112,7 +1147,7 @@ exec(TTM* ttm, Buffer* bb)
 
     /* Now execute this function, which will leave result in bb->result */
     if(frame->argc == 0) fail(ttm,TTM_ENONAME);
-    if(strlen32(frame->argv[0])==0) fail(ttm,TTM_ENONAME);
+    if(strlen(frame->argv[0])==0) fail(ttm,TTM_ENONAME);
     /* Locate the function to execute */
     fcn = dictionaryLookup(ttm,frame->argv[0]);
     if(fcn == NULL) fail(ttm,TTM_ENONAME);
@@ -1131,7 +1166,7 @@ exec(TTM* ttm, Buffer* bb)
 
 #ifdef DEBUG
 fprintf(stderr,"result: ");
-dbgprint32(ttm->result->content,'|');
+dbgprint(ttm->result->content,'|');
 fprintf(stderr,"\n");
 #endif
 
@@ -1140,7 +1175,7 @@ fprintf(stderr,"\n");
 
     /* Now, put the result into the buffer */
     if(!fcn->novalue && ttm->result->length > 0) {
-        utf32* insertpos;
+        utf8* insertpos;
         unsigned resultlen = ttm->result->length;
         /*Compute the space avail between bb->passive and bb->active */
         unsigned avail = (bb->active - bb->passive); 
@@ -1158,17 +1193,17 @@ fprintf(stderr,"\n");
             insertpos = bb->passive;
             bb->passive += resultlen;
         }
-        memcpy32((void*)insertpos,ttm->result->content,ttm->result->length);
+        memcpy((void*)insertpos,ttm->result->content,ttm->result->length);
 #ifdef DEBUG
 fprintf(stderr,"context:\n\tpassive=|");
 /* Since passive is not normally null terminated, we need to fake it */
-  {int i; utf32* p;
-    for(p=ttm->buffer->passive,i=0;i<PASSIVEMAX && *p != NUL32;i++,p++)
-      dbgprint32c(*p,'|');
+  {int i; utf8* p;
+    for(p=ttm->buffer->passive,i=0;i<PASSIVEMAX && *p != NUL8;i++,u8incr(&p))
+      dbgprint32c(u8cp(p),'|');
     fprintf(stderr,"...|\n");
     fprintf(stderr,"\tactive=|");
-    for(p=ttm->buffer->active,i=0;i<ACTIVEMAX && *p != NUL32;i++,p++)
-      dbgprint32c(*p,'|');
+    for(p=ttm->buffer->active,i=0;i<ACTIVEMAX && *p != NUL8;i++,u8incr(&p))
+      dbgprint32c(u8cp(p),'|');
     fprintf(stderr,"...|\n");
   }
 #endif
@@ -1186,67 +1221,62 @@ static void
 parsecall(TTM* ttm, Frame* frame)
 {
     int done,depth;
-    utf32 c;
     Buffer* bb = ttm->buffer;
 
     done = 0;
     do {
-        utf32* arg = bb->passive;/* start of ith argument */
+        utf8* arg = bb->passive;/* start of ith argument */
         while(!done) {
-            c = *bb->active; /* Note that we do not bump here */
-            if(c == NUL32) fail(ttm,TTM_EEOS); /* Unexpected end of buffer */
-            if(isescape(c)) {
-                bb->active++;
-                *bb->passive++ = *bb->active++;
-            } else if(c == ttm->semic || c == ttm->closec) {
+            if(isnul(bb->active)) fail(ttm,TTM_EEOS); /* Unexpected end of buffer */
+            if(isescape(bb->active)) {
+                copycpincr(&bb->passive,&bb->active);
+            } else if(u8equal(bb->active,ttm->semic) || u8equal(bb->active,ttm->closec)) {
                 /* End of an argument */
-                *bb->passive++ = NUL; /* null terminate the argument */
+                *bb->passive++ = NUL8; /* null terminate the argument */
 #ifdef DEBUG
 fprintf(stderr,"parsecall: argv[%d]=",frame->argc);
-dbgprint32(arg,'|');
+dbgprint(arg,'|');
 fprintf(stderr,"\n");
 #endif
-                bb->active++; /* skip the semi or close */
+                u8incr(&bb->active); /* skip the semi or close */
                 /* move to next arg */
                 frame->argv[frame->argc++] = arg;
-                if(c == ttm->closec) done=1;
+                if(u8equal(bb->active,ttm->closec)) done=1;
                 else if(frame->argc >= MAXARGS) fail(ttm,TTM_EMANYPARMS);
                 else arg = bb->passive;
-            } else if(c == ttm->sharpc) {
+            } else if(u8equal(bb->active,ttm->sharpc)) {
                 /* check for call within call */
-                if(bb->active[1] == ttm->openc
-                   || (bb->active[1] == ttm->sharpc
-                        && bb->active[2] == ttm->openc)) {
+                if(u8equal(u8ith(bb->active,1)m,ttm->openc)
+                   || (u8equal(u8ith(bb->active,1),ttm->sharpc)
+                        && u8equal(u8ith(bb->active,2),ttm->openc))) {
                     /* Recurse to compute inner call */
                     exec(ttm,bb);
                     if(ttm->flags & FLAG_EXIT) goto exiting;
                 }
-            } else if(c == ttm->openc) {/* <...> nested brackets */
-                bb->active++; /* skip leading lbracket */
+            } else if(u8equal(bb->active,ttm->openc)) {/* <...> nested brackets */
+                u8incr(&bb->active); /* skip leading lbracket */
                 depth = 1;
                 for(;;) {
-                    c = *(bb->active);
-                    if(c == NUL) fail(ttm,TTM_EEOS); /* Unexpected EOF */
-                    if(isescape(c)) {
-                        *bb->passive++ = (char)c;
-                        *bb->passive++ = *bb->active++;         
-                    } else if(c == ttm->openc) {
-                        *bb->passive++ = (char)c;
-                        bb->active++;
+                    if(isnul(bb->active)) fail(ttm,TTM_EEOS); /* Unexpected EOF */
+                    if(u8equal(bb->active,ttm->escapec)) {
+                        copycpincr(&bb->passive,&bb->active);
+                        copycpincr(&bb->passive,&bb->active);
+                    } else if(u8equal(bb->active,ttm->openc)) {
+                        copycpincr(&bb->passive,&bb->active);
+			u8incr(&bb->active);
                         depth++;
-                    } else if(c == ttm->closec) {
+                    } else if(u8equal(bb->active,ttm->closec)) {
                         depth--;
-                        bb->active++;
+                        u8incr(&bb->active);
+                        copycpincr(&bb->passive,&bb->active);
                         if(depth == 0) break; /* we are done */
-                        *bb->passive++ = (char)c;
                     } else {
-                        *bb->passive++ = *bb->active++;
+                        copycpincr(&bb->passive,&bb->active);
                     }
                 }/*<...> for*/
             } else {
                 /* keep moving */
-                *bb->passive++ = c;
-                bb->active++;           
+                copycpincr(&bb->passive,&bb->active);
             }
         } /* collect argument for */
     } while(!done);
@@ -1260,13 +1290,12 @@ Execute a non-builtin function
 */
 
 static void
-call(TTM* ttm, Frame* frame, utf32* body)
+call(TTM* ttm, Frame* frame, utf8* body)
 {
-    utf32* p;
-    utf32 c;
+    utf8* p;
     unsigned len;
-    utf32* result;
-    utf32* dst;
+    utf8* result;
+    utf8* dst;
     char crformat[16];
     char crval[CREATELEN+1];
     int crlen;
@@ -1274,73 +1303,76 @@ call(TTM* ttm, Frame* frame, utf32* body)
     crformat[0] = NUL;
 
     /* Compute the size of the output */
-    for(len=0,p=body;(c=*p++);) {
-        if(issegmark(c)) {
-            unsigned segindex = (unsigned )(*p++);
-            if(segindex < frame->argc)
-                len += strlen32(frame->argv[segindex]);
+    for(len=0,p=body;p+=count) {
+	int count = u8size(*p);
+        if(issegmark(p)) { /* Includes create mark */
+            size_t segindex = (size_t)(p[1] & SEGMARKMASK);
+            if((segindex != CREATEINDEX && segindex < frame->argc)
+                len += strlen(frame->argv[segindex]);
             /* else treat as empty string */
-        } else if(iscreate(c)) {
-            len += CREATELEN;
         } else
-            len++;
+            len += count;
     }
     /* Compute the body using ttm->result  */
     resetBuffer(ttm,ttm->result);
     setBufferLength(ttm,ttm->result,len);
     result = ttm->result->content;
     dst = result;
-    dst[0] = NUL32; /* so we can use strcat */
-    for(p=body;(c=*p++);) {
-        if(issegmark(c)) {
-            unsigned segindex = (unsigned )(c & 0xFF);
-            if(segindex < frame->argc) {
-                utf32* arg = frame->argv[segindex];
+    dst[0] = NUL8; /* so we can use strcat */
+    for(p=body;;) {
+        if(issegmark(p)) {
+            size_t segindex = (size_t)(p[1] & SEGMARKMASK);
+	    if(segindex == CREATEINDEX) {
+		if(strlen(crformat) == 0) {
+                    /* Construct the format string on the fly */
+                    snprintf(crformat,sizeof(crformat),"%%0%dd",CREATELEN);
+                    /* Construct the cr value */
+                    ttm->crcounter++;
+                    snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
+                }
+		crlen = strlen(crval);
+		dst += crlen;
+	    } else if((segindex < frame->argc) {
+                utf8* arg = frame->argv[segindex];
                 strcpy32(dst,arg);
-                dst += strlen32(arg);
+                dst += strlen(arg);
             } /* else treat as null string */
-        } else if (iscreate(c)) {
-	    if(strlen(crformat) == 0) {
-                /* Construct the format string on the fly */
-                snprintf(crformat,sizeof(crformat),"%%0%dd",CREATELEN);
-                /* Construct the cr value */
-                ttm->crcounter++;
-                snprintf(crval,sizeof(crval),crformat,ttm->crcounter);
-            }
-            crlen = toString32(dst,crval,TOEOS);
-            dst += crlen;
         } else
-            *dst++ = (char)c;
+            copycpincr(&dst,&p);
     }
-    *dst = NUL32;
+    *dst = NUL8;
     setBufferLength(ttm,ttm->result,(dst-result));
 }
 
 /**************************************************/
 /* Built-in Support Procedures */
 static void
-printstring(TTM* ttm, FILE* output, utf32* s32)
+printstring(TTM* ttm, FILE* output, utf8* s8)
 {
-    int slen = strlen32(s32);
-    utf32 c32;
+    int slen = strlen(s8);
+    utfcpu u;
+    u.cp = empty_cp;
 
     if(slen == 0) return;
-    while((c32=*s32++)) {
-        if(isescape(c32)) {
-            c32 = *s32++;
-            c32 = convertEscapeChar(c32);
+    while(*s8) {
+	u.cp = u8cp(s8);
+        if(isescape(s8)) {
+	    s8 += u8size(*s8);
+	    u.cp = convertEscapeChar(*s8)
+	    s8 += u8size(u.cpa[0]);
         }
-        if(c32 != 0) {
-            if(ismark(c32)) {
+        if(u.cp != 0) {
+            if(issegmark(u.cpa)) {
                 char_t* p;
-                char info[16+1];
-                if(iscreate(c32))
-                    strcpy(info,"^00");
+                char_t info[16];
+		size_t segindex = (size_t)(u.cpa[1] & SEGMARKMASK);
+                if(iscreateindex(segindex))
+		    snprintf(info,sizeof(info),"^FF");
                 else /* segmark */
-                    snprintf(info,sizeof(info),"^%02d",(int)(c32 & 0xFF));
-                for(p=info;*p;p++) fputc32((utf32)*p,output);
-            } else
-                fputc32(c32,output);
+		    snprintf(info,sizeof(info),"^%02x",(unsigned)segindex)
+		fputs(info,output);
+            } else /* some utf8 codepoint */
+		for(i=0;i<u8size(u.cpa[0]);i++) fputc(u.cpa[i],output);
          }
     }
     fflush(output);
@@ -1355,11 +1387,11 @@ printstring(TTM* ttm, FILE* output, utf32* s32)
 static void
 ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
 {
-    utf32* body = NULL;
-    utf32* newbody = NULL;
-    utf32* apstring = NULL;
+    utf8* body = NULL;
+    utf8* newbody = NULL;
+    utf8* apstring = NULL;
     Function* str = dictionaryLookup(ttm,frame->argv[1]);
-    unsigned aplen, bodylen;
+    unsigned aplen, bodylen, totallen;
 
     if(str == NULL) {/* Define the string */
         ttm_ds(ttm,frame);
@@ -1367,18 +1399,19 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
     }
     if(str->builtin) fail(ttm,TTM_ENOPRIM);
     apstring = frame->argv[2];
-    aplen = strlen32(apstring);
+    aplen = strlen(apstring);
     body = str->body;
-    bodylen = strlen32(body);
+    bodylen = strlen(body);
+    totallen = bodylen + aplen;
     /* Fake realloc because windows realloc is flawed */
-    newbody = calloc(sizeof(utf32),(bodylen+aplen+1));
+    newbody = calloc(sizeof(utf8),(totallen+1));
     if(newbody == NULL) fail(ttm,TTM_EMEMORY);
     if(bodylen > 0) {
-        memcpy32(newbody,body,bodylen);
-        newbody[bodylen] = NUL32;
+        memcpy(newbody,body,bodylen);
+        newbody[bodylen] = NUL8;
     }
-    strcpy32(newbody+bodylen,apstring);
-    str->residual = bodylen+aplen;
+    strlcat(newbody,apstring,totallen+1);
+    str->residual = totallen;
     nullfree(str->body);
     str->body = newbody; newbody = NULL;
 }
@@ -1391,19 +1424,18 @@ have been changed. See ttm.html
 static void
 ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
 {
-    utf32* newname = frame->argv[1];
-    utf32* oldname = frame->argv[2];
+    utf8* newname = frame->argv[1];
+    utf8* oldname = frame->argv[2];
     Function* newfcn = dictionaryLookup(ttm,newname);
     Function* oldfcn = dictionaryLookup(ttm,oldname);
     struct HashEntry saveentry;
 
-    if(oldfcn == NULL)
-        fail(ttm,TTM_ENONAME);
+    if(oldfcn == NULL) fail(ttm,TTM_ENONAME);
     if(newfcn == NULL) {
         /* create a new string object */
         newfcn = newFunction(ttm);
 	assert(newfcn->entry.name == NULL);
-        newfcn->entry.name = strdup32(newname);
+        newfcn->entry.name = strdup(newname);
         dictionaryInsert(ttm,newfcn);
     }
     saveentry = newfcn->entry;
@@ -1412,33 +1444,31 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
     newfcn->entry = saveentry;
     /* Do pointer fixup */
     if(newfcn->body != NULL)
-        newfcn->body = strdup32(newfcn->body);
+        newfcn->body = strdup(newfcn->body);
 }
 
 static void
 ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 {
     Function* str;
-    int crlen;
-    utf32* body;
-    utf32* crstring;
+    size_t crlen;
+    utf8* body;
+    utf8* crstring;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
-    if(str == NULL)
-        fail(ttm,TTM_ENONAME);
-    if(str->builtin)
-        fail(ttm,TTM_ENOPRIM);
+    if(str == NULL) fail(ttm,TTM_ENONAME);
+    if(str->builtin) fail(ttm,TTM_ENOPRIM);
 
     body = str->body;
     crstring = frame->argv[2];
-    crlen = strlen32(crstring);
+    crlen = strlen(crstring);
 
-    if(crlen > 0) { /* search only if possible success */
-        utf32* p;
-        /* Search for occurrences of arg */
+    if(crlen > 0) {/* search only if possible success */
+        utf8* p;
+        /* Search for occurrences of arg starting at residual */
         p = body + str->residual;
         while(*p) {
-            if(strncmp32(p,crstring,crlen) != 0)
+            if(strncmp(p,crstring,crlen) != 0)
                 {p++; continue;}
             /* we have a match, replace match by a create marker */
             *p = CREATE;
@@ -1479,7 +1509,7 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 {
     unsigned i;
     for(i=1;i<frame->argc;i++) {
-        utf32* strname = frame->argv[i];
+        utf8* strname = frame->argv[i];
         Function* str = dictionaryLookup(ttm,strname);
         if(str != NULL && !str->locked) {
             dictionaryRemove(ttm,strname);
@@ -1494,6 +1524,7 @@ ttm_ss0(TTM* ttm, Frame* frame)
 {
     Function* str;
     unsigned i,segcount,startseg,bodylen;
+    Buffer* result = ttm->result; /* store accumulated segmented string */
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1501,17 +1532,19 @@ ttm_ss0(TTM* ttm, Frame* frame)
     if(str->builtin)
         fail(ttm,TTM_ENOPRIM);
 
+    resetBuffer(ttm,result);
+
     bodylen = strlen32(str->body);
     if(str->residual >= bodylen)
         return 0; /* no substitution possible */
     segcount = 0;
     startseg = str->maxsegmark;
     for(i=2;i<frame->argc;i++) {
-        utf32* arg = frame->argv[i];
+        utf8* arg = frame->argv[i];
         unsigned arglen = strlen32(arg);
         if(arglen > 0) { /* search only if possible success */
             int found;
-            utf32* p;
+            utf8* p;
             /* Search for occurrences of arg */
             p = str->body + str->residual;
             found = 0;
@@ -1628,8 +1661,8 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 {
     Function* fcn;
     unsigned delta;
-    utf32* rp;
-    utf32* rp0;
+    utf8* rp;
+    utf8* rp0;
     utf32 c32;
     int depth;
 
@@ -1642,7 +1675,7 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     rp0 = (fcn->body + fcn->residual);
     rp = rp0;
     depth = 0;
-    ttm->result->content[0] = NUL32; /* so we can strcat */
+    ttm->result->content[0] = NUL8; /* so we can strcat */
     for(;(c32=*rp);rp++) {
         if(c32 == ttm->semic) {
             if(depth == 0) break; /* reached unnested semicolon*/
@@ -1656,7 +1689,7 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     setBufferLength(ttm,ttm->result,delta);
     strncpy32(ttm->result->content,rp0,delta);
     fcn->residual += delta;
-    if(c32 != NUL32) fcn->residual++;
+    if(c32 != NUL8) fcn->residual++;
 }
 
 static void
@@ -1664,8 +1697,8 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 {
     Function* fcn;
     utf32 c32;
-    utf32* p;
-    utf32* p0;
+    utf8* p;
+    utf8* p0;
     unsigned delta;
 
     fcn = dictionaryLookup(ttm,frame->argv[1]);
@@ -1679,7 +1712,7 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
     p0 = fcn->body + fcn->residual;
     p = p0;
     for(;(c32=*p);p++) {
-        if(c32 == NUL32 || testMark(c32,SEGMARK) || testMark(c32,CREATE))
+        if(c32 == NUL8 || testMark(c32,SEGMARK) || testMark(c32,CREATE))
             break;
     }
     delta = (p - p0);
@@ -1689,17 +1722,17 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
     }
     /* set residual pointer correctly */
     fcn->residual += delta;
-    if(c32 != NUL32) fcn->residual++;
+    if(c32 != NUL8) fcn->residual++;
 }
 
 static void
 ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointer */
 {
     Function* str;
-    utf32* t;
-    utf32* f;
-    utf32* result;
-    utf32* arg;
+    utf8* t;
+    utf8* f;
+    utf8* result;
+    utf8* arg;
     unsigned arglen;
     unsigned slen;
 
@@ -1743,11 +1776,11 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
     Function* str;
     unsigned arglen;
     unsigned bodylen;
-    utf32* f;
-    utf32* result;
-    utf32* arg;
-    utf32* p;
-    utf32* p0;
+    utf8* f;
+    utf8* result;
+    utf8* arg;
+    utf8* p;
+    utf8* p0;
 
     str = dictionaryLookup(ttm,frame->argv[2]);
     if(str == NULL)
@@ -1810,9 +1843,9 @@ ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 {
     Function* str;
     unsigned bodylen;
-    utf32* t;
-    utf32* f;
-    utf32* result;
+    utf8* t;
+    utf8* f;
+    utf8* result;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1832,12 +1865,12 @@ ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
 static void
 ttm_gn(TTM* ttm, Frame* frame) /* Give n characters from argument string*/
 {
-    utf32* snum = frame->argv[1];
-    utf32* s = frame->argv[2];
+    utf8* snum = frame->argv[1];
+    utf8* s = frame->argv[2];
     unsigned slen = strlen32(s);
     TTMERR err;
     long long num;
-    utf32* startp;
+    utf8* startp;
 
     err = toInt64(snum,&num);
     if(err != TTM_ENOERR) fail(ttm,err);
@@ -1858,8 +1891,8 @@ ttm_gn(TTM* ttm, Frame* frame) /* Give n characters from argument string*/
 static void
 ttm_zlc(TTM* ttm, Frame* frame) /* Zero-level commas */
 {
-    utf32* s;
-    utf32* q;
+    utf8* s;
+    utf8* q;
     int slen,c,depth;
 
     s = frame->argv[1];
@@ -1881,7 +1914,7 @@ ttm_zlc(TTM* ttm, Frame* frame) /* Zero-level commas */
             *q++ = c;
         }
     }
-    *q = NUL32; /* make sure it is terminated */
+    *q = NUL8; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(q - ttm->result->content));
 }
 
@@ -1890,9 +1923,9 @@ ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses;
                                     exact algorithm is unknown */
 {
     /* A(B) and A,B will both give A;B and (A),(B),C will give A;B;C */
-    utf32* s;
-    utf32* p;
-    utf32* q;
+    utf8* s;
+    utf8* p;
+    utf8* q;
     utf32 c;
     int slen,depth;
 
@@ -1915,7 +1948,7 @@ ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses;
         } else if(c == RPAREN) {
             depth--;
             if(depth == 0 && p[1] == COMMA) {
-            } else if(depth == 0 && p[1] == NUL32) {/* do nothing */
+            } else if(depth == 0 && p[1] == NUL8) {/* do nothing */
             } else if(depth == 0) {
                 *q++ = ttm->semic;
             } else {/* depth > 0 */
@@ -1925,16 +1958,16 @@ ttm_zlcp(TTM* ttm, Frame* frame) /* Zero-level commas and parentheses;
             *q++ = c;      
         }
     }
-    *q = NUL32; /* make sure it is terminated */
+    *q = NUL8; /* make sure it is terminated */
     setBufferLength(ttm,ttm->result,(q-ttm->result->content));
 }
 
 static void
 ttm_flip(TTM* ttm, Frame* frame) /* Flip a string */
 {
-    utf32* s;
-    utf32* q;
-    utf32* p;
+    utf8* s;
+    utf8* q;
+    utf8* p;
     int slen,i;
 
     s = frame->argv[1];
@@ -1943,7 +1976,7 @@ ttm_flip(TTM* ttm, Frame* frame) /* Flip a string */
     p = s + slen;
     q=ttm->result->content;
     for(i=0;i<slen;i++) {*q++ = *(--p);}
-    *q = NUL32;
+    *q = NUL8;
 }
 
 static void
@@ -1952,8 +1985,8 @@ ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     Function* str = dictionaryLookup(ttm,frame->argv[2]);
     utf32 c;
-    utf32* p;
-    utf32* start;
+    utf8* p;
+    utf8* start;
     int len;
 
     if(cl == NULL || str == NULL)
@@ -1971,7 +2004,7 @@ ttm_ccl(TTM* ttm, Frame* frame) /* Call class */
     if(len > 0) {
         setBufferLength(ttm,ttm->result,len);
         strncpy32(ttm->result->content,start,len);
-        ttm->result->content[len] = NUL32;
+        ttm->result->content[len] = NUL8;
         str->residual += len;
     }
 }
@@ -2011,7 +2044,7 @@ ttm_ecl(TTM* ttm, Frame* frame) /* Erase a class */
 {
     unsigned i;
     for(i=1;i<frame->argc;i++) {
-        utf32* clname = frame->argv[i];
+        utf8* clname = frame->argv[i];
         Charclass* cl = charclassRemove(ttm,clname);
         if(cl != NULL) {
             freeCharclass(ttm,cl); /* reclaim the character class */
@@ -2025,8 +2058,8 @@ ttm_scl(TTM* ttm, Frame* frame) /* Skip class */
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     Function* str = dictionaryLookup(ttm,frame->argv[2]);
     utf32 c;
-    utf32* p;
-    utf32* start;
+    utf8* p;
+    utf8* start;
     int len;
 
     if(cl == NULL || str == NULL)
@@ -2049,10 +2082,10 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 {
     Charclass* cl = charclassLookup(ttm,frame->argv[1]);
     Function* str = dictionaryLookup(ttm,frame->argv[2]);
-    utf32* retval;
+    utf8* retval;
     int retlen;
-    utf32* t;
-    utf32* f;
+    utf8* t;
+    utf8* f;
 
     if(cl == NULL)
         fail(ttm,TTM_ENONAME);
@@ -2084,7 +2117,7 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
 static void
 ttm_abs(TTM* ttm, Frame* frame) /* Obtain absolute value */
 {
-    utf32* slhs;
+    utf8* slhs;
     long long lhs;
     TTMERR err;
     char result[32];
@@ -2103,7 +2136,7 @@ ttm_abs(TTM* ttm, Frame* frame) /* Obtain absolute value */
 static void
 ttm_ad(TTM* ttm, Frame* frame) /* Add */
 {
-    utf32* snum;
+    utf8* snum;
     long long num;
     long long total;
     TTMERR err;
@@ -2124,8 +2157,8 @@ ttm_ad(TTM* ttm, Frame* frame) /* Add */
 static void
 ttm_dv(TTM* ttm, Frame* frame) /* Divide and give quotient */
 {
-    utf32* slhs;
-    utf32* srhs;
+    utf8* slhs;
+    utf8* srhs;
     long long lhs,rhs;
     TTMERR err;
     int count;
@@ -2146,8 +2179,8 @@ ttm_dv(TTM* ttm, Frame* frame) /* Divide and give quotient */
 static void
 ttm_dvr(TTM* ttm, Frame* frame) /* Divide and give remainder */
 {
-    utf32* slhs;
-    utf32* srhs;
+    utf8* slhs;
+    utf8* srhs;
     long long lhs,rhs;
     TTMERR err;
     int count;
@@ -2168,7 +2201,7 @@ ttm_dvr(TTM* ttm, Frame* frame) /* Divide and give remainder */
 static void
 ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
 {
-    utf32* snum;
+    utf8* snum;
     long long num;
     long long total;
     TTMERR err;
@@ -2189,8 +2222,8 @@ ttm_mu(TTM* ttm, Frame* frame) /* Multiply */
 static void
 ttm_su(TTM* ttm, Frame* frame) /* Substract */
 {
-    utf32* slhs;
-    utf32* srhs;
+    utf8* slhs;
+    utf8* srhs;
     long long lhs,rhs;
     TTMERR err;
     int count;
@@ -2210,13 +2243,13 @@ ttm_su(TTM* ttm, Frame* frame) /* Substract */
 static void
 ttm_eq(TTM* ttm, Frame* frame) /* Compare numeric equal */
 {
-    utf32* slhs;
-    utf32* srhs;
-    utf32* t;
-    utf32* f;
+    utf8* slhs;
+    utf8* srhs;
+    utf8* t;
+    utf8* f;
     long long lhs,rhs;
     TTMERR err;
-    utf32* result;
+    utf8* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2236,13 +2269,13 @@ ttm_eq(TTM* ttm, Frame* frame) /* Compare numeric equal */
 static void
 ttm_gt(TTM* ttm, Frame* frame) /* Compare numeric greater-than */
 {
-    utf32* slhs;
-    utf32* srhs;
-    utf32* t;
-    utf32* f;
+    utf8* slhs;
+    utf8* srhs;
+    utf8* t;
+    utf8* f;
     long long lhs,rhs;
     TTMERR err;
-    utf32* result;
+    utf8* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2262,13 +2295,13 @@ ttm_gt(TTM* ttm, Frame* frame) /* Compare numeric greater-than */
 static void
 ttm_lt(TTM* ttm, Frame* frame) /* Compare numeric less-than */
 {
-    utf32* slhs;
-    utf32* srhs;
-    utf32* t;
-    utf32* f;
+    utf8* slhs;
+    utf8* srhs;
+    utf8* t;
+    utf8* f;
     long long lhs,rhs;
     TTMERR err;
-    utf32* result;
+    utf8* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2288,11 +2321,11 @@ ttm_lt(TTM* ttm, Frame* frame) /* Compare numeric less-than */
 static void
 ttm_eql(TTM* ttm, Frame* frame) /* ? Compare logical equal */
 {
-    utf32* slhs;
-    utf32* srhs;
-    utf32* t;
-    utf32* f;
-    utf32* result;
+    utf8* slhs;
+    utf8* srhs;
+    utf8* t;
+    utf8* f;
+    utf8* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2307,11 +2340,11 @@ ttm_eql(TTM* ttm, Frame* frame) /* ? Compare logical equal */
 static void
 ttm_gtl(TTM* ttm, Frame* frame) /* ? Compare logical greater-than */
 {
-    utf32* slhs;
-    utf32* srhs;
-    utf32* t;
-    utf32* f;
-    utf32* result;
+    utf8* slhs;
+    utf8* srhs;
+    utf8* t;
+    utf8* f;
+    utf8* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2326,11 +2359,11 @@ ttm_gtl(TTM* ttm, Frame* frame) /* ? Compare logical greater-than */
 static void
 ttm_ltl(TTM* ttm, Frame* frame) /* ? Compare logical less-than */
 {
-    utf32* slhs;
-    utf32* srhs;
-    utf32* t;
-    utf32* f;
-    utf32* result;
+    utf8* slhs;
+    utf8* srhs;
+    utf8* t;
+    utf8* f;
+    utf8* result;
 
     slhs = frame->argv[1];    
     srhs = frame->argv[2];
@@ -2354,8 +2387,8 @@ characters except '\n', and a final
 static void
 ttm_ps(TTM* ttm, Frame* frame) /* Print a Function/String */
 {
-    utf32* s = frame->argv[1];
-    utf32* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
+    utf8* s = frame->argv[1];
+    utf8* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
     FILE* target;
     if(stdxx != NULL && streq32ascii(stdxx,"stderr"))
         target=stderr;
@@ -2390,7 +2423,7 @@ ttm_psr(TTM* ttm, Frame* frame) /* Print a string and then read from input */
 static void
 ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */
 {
-    utf32* smeta = frame->argv[1];
+    utf8* smeta = frame->argv[1];
     if(strlen32(smeta) > 0) {
         if(smeta[0] > 127) fail(ttm,TTM_EASCII);
         ttm->metac = smeta[0];
@@ -2400,7 +2433,7 @@ ttm_cm(TTM* ttm, Frame* frame) /* Change meta character */
 static void
 ttm_pf(TTM* ttm, Frame* frame) /* Flush stdout and/or stderr */
 {
-    utf32* stdxx = (frame->argc == 1 ? NULL : frame->argv[1]);
+    utf8* stdxx = (frame->argc == 1 ? NULL : frame->argv[1]);
     if(stdxx == NULL || streq32ascii(stdxx,"stdout"))
         fflush(stderr);
     if(stdxx == NULL || streq32ascii(stdxx,"stderr"))
@@ -2412,8 +2445,8 @@ ttm_pf(TTM* ttm, Frame* frame) /* Flush stdout and/or stderr */
 static int
 stringveccmp32(const void* a, const void* b)
 {
-    const utf32** sa = (const utf32**)a;
-    const utf32** sb = (const utf32**)b;
+    const utf8** sa = (const utf8**)a;
+    const utf8** sb = (const utf8**)b;
     return strcmp32(*sa,*sb);
 }
 
@@ -2421,9 +2454,9 @@ static void
 ttm_names(TTM* ttm, Frame* frame) /* Obtain all dictionary instance names in sorted order */
 {
     int i,nnames,index,allnames;
-    utf32** names;
+    utf8** names;
     unsigned len;
-    utf32* p;
+    utf8* p;
 
     allnames = (frame->argc > 1 ? 1 : 0);
 
@@ -2445,7 +2478,7 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all dictionary instance names in sor
         return;
 
     /* Now collect all the names */
-    names = (utf32**)calloc(sizeof(utf32*),nnames);
+    names = (utf8**)calloc(sizeof(utf8*),nnames);
     if(names == NULL) fail(ttm,TTM_EMEMORY);
     index = 0;
     for(i=0;i<HASHSIZE;i++) {
@@ -2491,9 +2524,9 @@ static void
 ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a name is defined */
 {
     Function* str;
-    utf32* t;
-    utf32* f;
-    utf32* result;
+    utf8* t;
+    utf8* f;
+    utf8* result;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     t = frame->argv[2];
@@ -2506,7 +2539,7 @@ ttm_ndf(TTM* ttm, Frame* frame) /* Determine if a name is defined */
 static void
 ttm_norm(TTM* ttm, Frame* frame) /* Obtain the Norm of a string */
 {
-    utf32* s;
+    utf8* s;
     char result[32];
     int count;
 
@@ -2553,7 +2586,7 @@ ttm_xtime(TTM* ttm, Frame* frame) /* Obtain Execution Time */
 static void
 ttm_ctime(TTM* ttm, Frame* frame) /* Convert ##<time> to printable string */
 {
-    utf32* stod;
+    utf8* stod;
     TTMERR err;
     long long tod;
     char_t result[1024];
@@ -2655,9 +2688,9 @@ static void
 ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
 {
     int i,nclasses,index;
-    utf32** classes;
+    utf8** classes;
     unsigned len;
-    utf32* p;
+    utf8* p;
 
     /* First, figure out the number of classes */
     for(nclasses=0,i=0;i<HASHSIZE;i++) {
@@ -2672,7 +2705,7 @@ ttm_classes(TTM* ttm, Frame* frame) /* Obtain all character class names */
         return;
 
     /* Now collect all the class and their total size */
-    classes = (utf32**)calloc(sizeof(utf32*),nclasses);
+    classes = (utf8**)calloc(sizeof(utf8*),nclasses);
     if(classes == NULL) fail(ttm,TTM_EMEMORY);
     for(len=0,index=0,i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->charclasses.table[i].next;
@@ -2724,7 +2757,7 @@ ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
 static void
 ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 {
-    utf32* path;
+    utf8* path;
     FILE* finclude;
     Buffer* bb = ttm->result;
     char filename[8192];
@@ -2753,7 +2786,7 @@ and subcommands
 static void
 ttm_ttm_meta(TTM* ttm, Frame* frame)
 {
-    utf32* arg = frame->argv[2];
+    utf8* arg = frame->argv[2];
     if(strlen32(arg) != 5) fail(ttm,TTM_ETTMCMD);
     ttm->sharpc = arg[0];
     ttm->openc = arg[1];
@@ -2771,14 +2804,14 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
     Function* str;
     Buffer* result = ttm->result;
     char info[8192];
-    utf32* q;
-    utf32* p;
+    utf8* q;
+    utf8* p;
     utf32 c32;
     unsigned namelen,count,i;
 
     setBufferLength(ttm,result,result->alloc-1);
     q = result->content;
-    *q = NUL32;
+    *q = NUL8;
     for(i=3;i<frame->argc;i++) {
         str = dictionaryLookup(ttm,frame->argv[i]);
         if(str == NULL) { /* not defined*/
@@ -2846,8 +2879,8 @@ static void
 ttm_ttm_info_class(TTM* ttm, Frame* frame) /* Misc. combined actions */
 {
     Charclass* cl;
-    utf32* q;
-    utf32* p;
+    utf8* q;
+    utf8* p;
     utf32 c32;
     unsigned i,len;
     Buffer* result = ttm->result;
@@ -3061,7 +3094,7 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     int count;
 
     count = toString32(binname,bin->name,strlen(bin->name));
-    binname[count] = NUL32;
+    binname[count] = NUL8;
     /* Make sure we did not define builtin twice */
     fcn = dictionaryLookup(ttm,binname);
     if(fcn != NULL)
@@ -3169,7 +3202,7 @@ fatal(TTM* ttm, const char* msg)
         /* Since passive is not normally null terminated, we need to fake it */
         {
             utf32 save = *ttm->buffer->passive;
-            *ttm->buffer->passive = NUL32;
+            *ttm->buffer->passive = NUL8;
             dbgprint32(ttm->buffer->content,'|');
             *ttm->buffer->passive = save;
         }
@@ -3270,7 +3303,7 @@ Convert a long long to a utf32 string
 */
 
 static int
-int2string(utf32* dst, long long n)
+int2string(utf8* dst, long long n)
 {
     char result[MAXINTCHARS+1];
     int count;
@@ -3300,9 +3333,9 @@ Return TTM_ENOERR if conversion succeeded, err if failed.
 */
 
 static TTMERR
-toInt64(utf32* s, long long* lp)
+toInt64(utf8* s, long long* lp)
 {
-    utf32* p = s;
+    utf8* p = s;
     utf32 c;
     int negative = 1;
     /* skip white space */
@@ -3352,20 +3385,28 @@ toInt64(utf32* s, long long* lp)
 /* Given a char, return its escaped value.
 Zero indicates it should be elided
 */
-static utf32
-convertEscapeChar(utf32 c)
+static utf8cp
+convertEscapeChar(utf8* cp)
 {
-    /* de-escape and store */
-    switch (c) {
-    case 'r': c = '\r'; break;
-    case 'n': c = '\n'; break;
-    case 't': c = '\t'; break;
-    case 'b': c = '\b'; break;
-    case 'f': c = '\f'; break;
-    case '\n': c = 0; break; /* escaped eol is elided */
-    default: break; /* no change */
-    }
-    return c;
+    utf8cpu u;
+    u.cp = empty_cp;
+
+    if(u8size(*cp) == 1) {
+        utf8 c = *cp;
+	/* de-escape and store */
+	switch (c) {
+	case 'r': c = '\r'; break;
+	case 'n': c = '\n'; break;
+	case 't': c = '\t'; break;
+	case 'b': c = '\b'; break;
+	case 'f': c = '\f'; break;
+	case '\n': c = 0; break; /* escaped eol is elided */
+	default: break; /* no change */
+	}
+	u.cpa[0] = c;
+    } else
+	u.cp = u8cp(c);
+    return u.cp;
 }
 
 #ifdef GDB
@@ -3514,7 +3555,7 @@ dbgsprint32c(utf32 c, char quote, char* p)
 }
 
 static void
-dbgprint32(utf32* s, char quote)
+dbgprint32(utf8* s, char quote)
 {
     char sf[8192];
     dbgsprint32(s,quote,sf);
@@ -3522,7 +3563,7 @@ dbgprint32(utf32* s, char quote)
 }
 
 static void
-dbgsprint32(utf32* s, char quote, char* sf)
+dbgsprint32(utf8* s, char quote, char* sf)
 {
     unsigned i,slen;
     char* p = sf;
@@ -3595,7 +3636,7 @@ usage(const char* msg)
 static void
 readinput(TTM* ttm, const char* filename,Buffer* bb)
 {
-    utf32* content = NULL;
+    utf8* content = NULL;
     FILE* f = NULL;
     int isstdin = 0;
     unsigned i;
@@ -3646,7 +3687,7 @@ static int
 readbalanced(TTM* ttm)
 {
     Buffer* bb;
-    utf32* content;
+    utf8* content;
     utf32 c32;
     unsigned depth,i;
     unsigned buffersize;
@@ -3689,7 +3730,7 @@ static int
 readfile(TTM* ttm, FILE* file, Buffer* bb)
 {
     long filesize;
-    utf32* p;
+    utf8* p;
     int count32;
 
     fseek(file,0,SEEK_SET); /* end of the file */
@@ -3705,7 +3746,7 @@ readfile(TTM* ttm, FILE* file, Buffer* bb)
         if(c == EOF) break;
         *p++ = c;
     }        
-    *p = NUL32;
+    *p = NUL8;
     count32 = (p - bb->content);
     setBufferLength(ttm,bb,count32);
     return count32;
@@ -3927,7 +3968,7 @@ main(int argc, char** argv)
             if(!readbalanced(ttm)) break;
             scan(ttm);
             /* make sure passive is null terminated */
-            *ttm->buffer->passive = NUL32;
+            *ttm->buffer->passive = NUL8;
             if(!quiet && ttm->buffer->passive > 0)
 	        printbuffer(ttm);
             if(ttm->flags & FLAG_EXIT)
@@ -3956,9 +3997,31 @@ done:
     return (exitcode?1:0); // exit(exitcode);
 }
 
-/* Replacments for strcpy, strcmp ... */
+/* Replacments for selected string.h functions */
+
+static size_t
+strlcatx(char* dst, const char* src, size_t size)
+{
+    const char* p = src;
+    char* q = dst;
+    size_t n = size;
+    size_t dstlen,avail;
+ 
+    /* Find the end of dst and adjust bytes left but don't go past end */
+    while (n-- != 0 && *q != '\0') q++;
+    dstlen = (q - dst);
+    avail = (size - dstlen);
+    if(avail == 0) return (dstlen + strlen(s));
+    for(;*p != '\0';p++) {
+	if(n != 1) {*q++ = *p; n--;}
+    }
+    *q = '\0';
+    return (dstlen + (p - src));  /* count does not include NUL */
+}
+
+#if 0
 static unsigned 
-strlen32(const utf32* s)
+strlen32(const utf8* s)
 {
     unsigned len = 0;
     while(*s++)
@@ -3967,22 +4030,22 @@ strlen32(const utf32* s)
 }
 
 static void
-strcpy32(utf32* dst, const utf32* src)
+strcpy32(utf8* dst, const utf8* src)
 {
     while((*dst++ = *src++));
 }
 
 static void
-strncpy32(utf32* dst, const utf32* src, unsigned len)
+strncpy32(utf8* dst, const utf8* src, unsigned len)
 {
     utf32 c32 = 0;
     for(;len>0 && (c32 = *src++);len--){*dst++ = c32;}
-    if(c32 != NUL32) *dst = NUL32;
+    if(c32 != NUL8) *dst = NUL8;
 }
 
 #if 0
 static void
-strcat32(utf32* dst, const utf32* src)
+strcat32(utf8* dst, const utf8* src)
 {
     /* find end of dst */
     while(*dst++);
@@ -3990,17 +4053,17 @@ strcat32(utf32* dst, const utf32* src)
 }
 #endif
 
-static utf32*
-strdup32(const utf32* src)
+static utf8*
+strdup32(const utf8* src)
 {
     unsigned len = 0;
-    utf32* dup = 0;
+    utf8* dup = 0;
 
     len = strlen32(src);
-    dup = (utf32*)calloc((1+len),sizeof(utf32));
+    dup = (utf8*)calloc((1+len),sizeof(utf32));
 #if 0
     if(dup != NULL) {
-        utf32* dst = dup;
+        utf8* dst = dup;
         while((*dst++ = *src++));
     }
 #else
@@ -4011,18 +4074,18 @@ strdup32(const utf32* src)
 }
 
 static int
-strcmp32(const utf32* s1, const utf32* s2)
+strcmp32(const utf8* s1, const utf8* s2)
 {
     while(*s1 && *s2 && *s1 == *s2) {s1++; s2++;}
     /* Look at the last char to decide */
     if(*s1 == *s2) return 0; /* completely identical */
-    if(*s1 == NUL32) /*=>*s2!=NUL32*/ return -1; /* s1 is shorter than s2 */
-    if(*s2 == NUL32) /*=>*s1!=NUL32*/ return +1; /* s1 is longer than s2 */
+    if(*s1 == NUL8) /*=>*s2!=NUL8*/ return -1; /* s1 is shorter than s2 */
+    if(*s2 == NUL8) /*=>*s1!=NUL8*/ return +1; /* s1 is longer than s2 */
     return (*s1 < *s2 ? -1 : +1);
 }
 
 static int
-strncmp32(const utf32* s1, const utf32* s2, unsigned len)
+strncmp32(const utf8* s1, const utf8* s2, unsigned len)
 {
     utf32 c1=0;
     utf32 c2=0;
@@ -4034,14 +4097,14 @@ strncmp32(const utf32* s1, const utf32* s2, unsigned len)
     }
     /* Look at the last char to decide */
     if(c1 == c2) return 0; /* completely identical */
-    if(c1 == NUL32) /*=>c2!=NUL32*/ return -1; /* s1 is shorter than s2 */
-    if(c2 == NUL32) /*=>c1!=NUL32*/ return +1; /* s1 is longer than s2 */
+    if(c1 == NUL8) /*=>c2!=NUL8*/ return -1; /* s1 is shorter than s2 */
+    if(c2 == NUL8) /*=>c1!=NUL8*/ return +1; /* s1 is longer than s2 */
     return (c1 < c2 ? -1 : +1);
 }
 
 
 static void
-memcpy32(utf32* dst, const utf32* src, int len)
+memcpy32(utf8* dst, const utf8* src, int len)
 {
     memcpy((void*)dst,(void*)src,len*sizeof(utf32));
 }
@@ -4051,7 +4114,7 @@ memcpy32(utf32* dst, const utf32* src, int len)
 
 /* Test equality of pure ascii string to utf32 string */
 static int
-streq32ascii(utf32* s32, char* s)
+streq32ascii(utf8* s32, char* s)
 {
     while(*s && *s32) {
 	if(*s != *s32) return 0; /* not equal */
@@ -4072,9 +4135,9 @@ Return: -1 if error, # of dst chars produced otherwise.
 */
 
 static int
-toString8(char_t* dst, utf32* src, int srclen, int dstlen)
+toString8(char_t* dst, utf8* src, int srclen, int dstlen)
 {
-    utf32* p32;
+    utf8* p32;
     char_t* q8;
     int i;
     int avail = dstlen;
@@ -4084,7 +4147,7 @@ toString8(char_t* dst, utf32* src, int srclen, int dstlen)
     for(i=0;i<srclen;i++) {
         int count;
         utf32 c=*p32++;
-        if(c == NUL32) break;
+        if(c == NUL8) break;
         count = toChar8(q8,c);
         if(count == 0) return -1;
 	avail -= count;
@@ -4104,9 +4167,9 @@ WARNING: result is not nul-terminated.
 Return: -1 if error, # of dst chars produced otherwise.
 */
 static int
-toString32(utf32* dst, char_t* src, int len)
+toString32(utf8* dst, char_t* src, int len)
 {
-    utf32* q32;
+    utf8* q32;
     char_t* p8;
     int i,count;
 
@@ -4123,7 +4186,6 @@ toString32(utf32* dst, char_t* src, int len)
     return (q32 - dst);
 }
 
-#ifndef ISO_8859
 /**
 Convert a utf32 value to a sequence of char_t bytes.
 Return -1 if invalid; # chars in char_t* dst otherwise.
@@ -4133,7 +4195,7 @@ toChar8(char_t* dst, utf32 codepoint)
 {
     char_t* p = dst;
     unsigned char uchar;
-    /* assert |dst| >= MAXCHARSIZE+1 */
+    /* assert |dst| >= MAXCP8SIZE+1 */
     if(codepoint <= 0x7F) {
         uchar = (unsigned char)codepoint;
        *p++ = (char)uchar;
@@ -4172,9 +4234,9 @@ Convert a char_t multibyte code to utf32;
 return -1 if invalid, #bytes processed from src otherwise.
 */
 static int
-toChar32(utf32* codepointp, char_t* src)
+toChar32(utf8* codepointp, char_t* src)
 {
-    /* assert |src| >= MAXCHARSIZE; not necessarily null terminated */
+    /* assert |src| >= MAXCP8SIZE; not necessarily null terminated */
     char_t* p;
     utf32 codepoint;
     int charsize;
@@ -4185,7 +4247,7 @@ toChar32(utf32* codepointp, char_t* src)
 
     p = src;
     c0 = (unsigned )*p;
-    charsize = utf8count(c0);
+    charsize = u8size(c0);
     if(charsize == 0) return -1; /* invalid */
     /* Process the 1st char in the char_t codepoint */
     bytes[0] = (c0 & mask[charsize]);
@@ -4204,11 +4266,12 @@ toChar32(utf32* codepointp, char_t* src)
     if(codepointp) *codepointp = codepoint;
     return 1;    
 }
+#endif /*0*/
 
-/* Assumes ismultibyte(c) is true */
 static int
-utf8count(unsigned c)
+u8size(utf8 c)
 {
+    if(((c) == SEGMARK) return 2; /* segment|create mark */
     if(((c) & 0x80) == 0x00) return 1; /* us-ascii */
     if(((c) & 0xE0) == 0xC0) return 2;
     if(((c) & 0xF0) == 0xE0) return 3;
@@ -4216,44 +4279,136 @@ utf8count(unsigned c)
     return 0;
 }
 
-#endif /*!ISO_8859*/
-
-#ifdef ISO_8859
-static int
-toChar8(char_t* dst, utf32 codepoint)
+static const utf8cp
+ascii2u8(char c)
 {
-    /* Output codepoint as up to 3 non-0 ISO 88659 characters */
-    char_t* q = dst;
-    int shift = 16;
-    char iso[3];
-    iso[2] = (codepoint >> shift) & 0xFF; shift -= 8;
-    iso[1] = (codepoint >> shift) & 0xFF; shift -= 8;
-    iso[0] = (codepoint >> shift) & 0xFF; shift -= 8;
-    if(iso[2] != 0) *q++ = iso[2];
-    if(iso[1] != 0) *q++ = iso[1];
-    if(iso[0] != 0) *q++ = iso[0];
-    return (q - dst);
+    static utf8cpu u8;
+    u8.cp = empty_u8cp;
+    u8.cpa[0] = (char)(((unsigned)c) | 0x7F);
+    return u8.cp;
 }
 
 static int
-toChar32(utf32* codepointp, char_t* src)
+u8equal(utf8* c1, utf8* c2)
 {
-    *codepointp = (utf32)(*src);
+    int l1 = u8size(c1);
+    int l2 = u8size(c2);
+    if(l1 != l2) return 0;
+    if(memcmp((void*)c1,(void*)c2,l1)!=0) return 0;
     return 1;
 }
-#endif
+
+/**
+Convert a utfcpa codepoint as array to codepoint as unsigned integer.
+@param c8a pointer to a 1-4 byte codepoint array
+@return a 32 bit unsigned integer computed from c8 via a union.
+*/
+static utf8cp
+u8cp(utf8cpa c8a)
+{
+    utf8cpu u8;
+    u8.cp = empty_cp;
+    memcpy((void*)u8.cpa,(void*)c8a,u8size(c8));
+    return u8.cp;
+}
+
+/**
+Convert a utfcp codepoint as integer to codepoint as array
+@param dst pointer to a 1-4 byte codepoint array
+@param src 32 bit unsigned integer codepoint
+@return void
+*/
+static void
+u8cpa(utf8cpa dst, utfcp src)
+{
+    utf8cpu u8;
+    u8.cp = src;
+    memcpy((void*)dst,(void)u8.cpa,u8size(u8.cpa));
+}
+
+/**
+Copy a single codepoint from src to dst
+@param dst target for the codepoint
+@param src src for the codepoint
+@return no. of bytes in codepoint
+*/
+static int
+memcpycp(utf8cpa dst, utf8cpa src)
+{
+    int count = u8size(src);
+    memcpy(dst,src,count);
+    return count;    
+}
+
+/**
+Copy a single codepoint from src to dst
+and increment src and dst by size of codepoint.
+@param dst target for the codepoint
+@param src src for the codepoint
+@return no. of bytes in codepoint
+*/
+static int
+copycpincr(utf8cpa* dstp, utf8cpa* srcp)
+{
+    int count = u8size(*srcp);
+    memcpy(*dstp,*srcp,count);
+    *srcp += count;
+    *dstp += count;
+    return count;    
+}
+
+static utf8*
+u8ith(utf8* base, size_t n)
+{
+   utf8* p = base;
+   while(n-- > 0 && !isnul(p)) p += u8size(p);
+   return p;
+}
+
+/**
+Given a utf8 pointer, backup one codepoint.
+This is doable because we can recognize the
+start of a codepoint.
+Special case required for segment mark.
+@param p0 pointer pointer to increment
+@return pointer to codepoint after p0
+*/
+static utf8*
+u8incr(utf8** p0)
+{
+    *p0 += u8size(*p0);
+    return *p0;
+}
+
+/**
+Given a utf8 pointer, backup one codepoint.
+This is doable because we can recognize the
+start of a codepoint.
+Special case required when backing up over a segment mark
+since it assumes that the raw SEGMARK is at the beginning
+of the mark.
+@param p0 pointer to back up
+@return pointer to codepoint before p0
+*/
+static utf8*
+u8decr(utf8* p0)
+{
+    size_t count 0;
+    utf8* p = p0;
+    while(((*p & 0xB0) == 0xB0) && (*p != SEGMARK)) p--; /* back up over continuation bytes unless pure SEGMARK */
+    return p;
+}
 
 /**************************************************/
 /* Character Input/Output */ 
 
-#ifndef ISO_8859
 /* Unless you know that you are outputing ASCII,
    all output should go thru this procedure.
 */
 static void
 fputc32(utf32 c32, FILE* f)
 {
-    char_t c8[MAXCHARSIZE+1];
+    char_t c8[MAXCP8SIZE+1];
     int count,i;
     if((count = toChar8(c8,c32)) < 0) fail(NOTTM,TTM_EUTF32);
     for(i=0;i<count;i++) {fputc(c8[i],f);}
@@ -4269,9 +4424,9 @@ fgetc32(FILE* f)
     c = fgetc(f);
     if(c == EOF) return EOF;
     if(ismultibyte(c)) {
-        char_t c8[MAXCHARSIZE+1];
+        char_t c8[MAXCP8SIZE+1];
         int count,i;
-        count = utf8count(c);
+        count = u8size(c);
         i=0; c8[i++] = (char_t)c;
         while(--count > 0) {
             c=fgetc(f);
@@ -4285,13 +4440,11 @@ fgetc32(FILE* f)
         c32 = c;
     return c32;
 }
-#endif /*!ISO_8859*/
 
-#ifdef ISO_8859
 static void
 fputc32(utf32 c32, FILE* f)
 {
-    char_t c8[MAXCHARSIZE+1];
+    char_t c8[MAXCP8SIZE+1];
     int count,i;
     count = toChar8(c8,c32);
     for(i=0;i<count;i++) fputc(c8[i],f);
@@ -4305,7 +4458,6 @@ fgetc32(FILE* f)
     return c;
 }
 
-#endif
 /**************************************************/
 /**
 Implement functions that deal with Linux versus Windows

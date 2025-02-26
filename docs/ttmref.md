@@ -374,16 +374,18 @@ name of a string.
 name marked by the residual pointer.
 * Side Effect: The residual pointer is advanced by num characters.
 
+??????? Fix starting here ??????
+
 ### Initial Character Scan
 * ISC 4,4,VS
-#<SCN;string^;name;string2;string^>
-16
-Value: string2 if the characters of stringy match the
+* ````#<SCN;string1;name;string2;string3>````
+* Parameters: name is the name of the string to scan, string1, string2, and string3 are strings.
+* Value: string2 if the characters of string1 match the
 characters of the string name which imed lately follow the residual pointer stringy If there is not a match Side Effect: if the characters do match, the residual pointer is
 advanced past these characters.
 
-Character Scan
-SCN 3,3,VS
+###Character Scan
+* SCN 3,3,VS
 #<SCN;string1;name;string2>
 Value: If the string stringy is a substring of the string
 name starting at the residual pointer, then the characters from the residual pointer to the beginning of the first occurrence of this substring are returned. Otherwise string2 is returned.
