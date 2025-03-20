@@ -11,7 +11,112 @@
 <center>Programming Report No. 7</center>
 <center>July 1968</center>
 
-Note: This document corrects errors in the transcription of the original document.
+# TABLE OF CONTENTS
+
+* [Introduction](#Introduction)
+* [Language Structure](#Language_Structure)
+* [Characters and Strings](#Characters_and_Strings)
+* [Functions](#Functions)
+* [Special Delimiting](#Special_Delimiting)
+* [The Processing Algorithm](#The_Processing_Algorithm)
+* [TTM Functions](#TTM_Functions)
+    * [Dictionary Operations](#Dictionary_Operations)
+    * [Define a String (DS)](#Define_a_String)
+    * [Append to a String (AP)](#Append_to_a_String)
+    * [Erase Strings (ES)](#Erase_Strings)
+    * [Copy a Function (CF)](#Copy_a_Function)
+    * [Segment a String (SS)](#Segment_a_String)
+    * [Segment and Count (SC)](#Segment_and_Count)
+    * [Mark for Creation (CR)](#Mark_for_Creation)
+    * [String Selection](#String_Selection)
+    * [Call One Character (CC)](#Call_One_Character)
+    * [Call N Characters (CN)](#Call_N_Characters)
+    * [Initial Character Scan (ISC)](#Initial_Character_Scan)
+    * [Character Scan (SCN)](#Character_Scan)
+    * [Call Parameter (CP)](#Call_Parameter)
+    * [Call Segment (CS)](#Call_Segment)
+    * [Reset Residual Pointer (RRP)](#Reset_Residual_Pointer)
+    * [String Scanning Operations](#String_Scanning_Operations)
+    * [Give N Characters (GN)](#Give_N_Characters)
+    * [Zero-Level Commas (ZLC)](#Zero-Level_Commas)
+    * [Zero-Level Commas and Parentheses (ZLCP)](#Zero-Level_Commas_and_Parentheses)
+    * [Character Class Operations](#Character_Class_Operations)
+    * [Define a Class (DCL)](#Define_a_Class)
+    * [Define a Negative Class (DNCL)](#Define_a_Negative_Class)
+    * [Erase a Class (ECL)](#Erase_a_Class)
+    * [Call Class (CCL)](#Call_Class)
+    * [Skip Class (SCL)](#Skip_Class)
+    * [Test Class (TCL)](#Test_Class)
+    * [Arithmetic Operations](#Arithmetic_Operations)
+    * [Add (AD)](#Add)
+    * [Subtract (SU)](#Subtract)
+    * [Multiply (MU)](#Multiply)
+    * [Divide and Give Quotient (DV)](#Divide_and_Give_Quotient)
+    * [Divide and Give Remainder (DVR)](#Divide_and_Give_Remainder)
+    * [Obtain Absolute Value (ABS)](#Obtain_Absolute_Value)
+    * [Numeric Comparisons](#Numeric_Comparisons)
+    * [Compare Numeric "Equal" (EQ)](#Compare_Numeric_Equal)
+    * [Compare Numeric "Greater Than" (GT)](#Compare_Numeric_Greater_Than)
+    * [Compare Numeric "Less Than" (LT)](#Compare_Numeric_Less_Than)
+    * [Logical Comparisons](#Logical_Comparisons)
+    * [Compare Logical "Equal" (EQ?)](#Compare_Logical_Equal)
+    * [Compare Logical "Greater Than" (GT?)](#Compare_Logical_Greater_Than)
+    * [Compare Logical "Less Than" (LT?)](#Compare_Logical_Less_Than)
+    * [Peripheral Input/Output Operations](#Peripheral_Input/Output_Operations)
+    * [Read a String (RS)](#Read_a_String)
+    * [Set to Read Prom Cards (RCD)](#Set_to_Read_Prom_Cards)
+    * [Print a String (PS)](#Print_a_String)
+    * [Print String and Read (PSR)](#Print_String_and_Read)
+    * [Change Meta Character (CM)](#Change_Meta_Character)
+    * [Formated Output Operations](#Formated_Output_Operations)
+<!-- * [Format a Line or Card (FM)](#Format_a_Line_or_Card) -->
+<!-- * [Declare Tab Positions (TABS)](#Declare_Tab_Positions) -->
+<!-- * [Set Continuation Convention (SCC)](#Set_Continuation_Convention) -->
+<!-- * [Insert a Control Character (ICC)](#Insert_a_Control_Character) -->
+<!-- * [Output the Buffer (OUTB)](#Output_the_Buffer) -->
+<!-- * [Library Operations](#Library_Operations) -->
+<!-- * [Store a Program (STORE)](#Store_a_Program) -->
+<!-- * [Delete a Program (DELETE)](#Delete_a_Program) -->
+<!-- * [Copy a Program (COPf)](#Copy_a_Program) -->
+<!-- * [Show Program Names (SHOW)](#Show_Program_Names) -->
+<!-- * [Obtain String Names (NAMES)](#Obtain_String_Names) -->
+* [Utility Operations](#Utility_Operations)
+    * [Determine if a Name is Defined (NDF)](#Determine_if_a_Name_is_Defined)
+    * [Obtain the Norm of a String (NORM)](#Obtain_the_Norm_of_a_String)
+    * [Obtain Execution Time (TIME)](#Obtain_Execution_Time)
+    * [Return from TTM (EXIT)](#Return_from_TTM)
+<!-- * [Program Break (BREAK)](#Program_Break) -->
+* [Debugging Functions](#Debugging_Functions)
+    * [Turn Trace On (TN)](#Turn_Trace_On)
+    * [Turn Trace Off (TF)](#Turn_Trace_Off)
+* [Extensions (New functions not defined in either the interactive or batch TTM implementations)](#Extensions)
+    * [Set Property (PROPSET)](#Set_Property)
+    * [Clear Property (PROPCLR)](#Clear_Property)
+    * [Get Residual Pointer (RP)](#Get_residual_Pointer)
+    * [Void (throw away) a value (VOID)](#Void_Value)
+* [Examples](#Examples)
+* [Function Definition](#Function_Definition)
+* [Basic Examples](#Basic_Examples)
+* [Keyword Parameters](#Keyword_Parameters)
+* [A TTM "Operating System"](#A_TTM_Operating_System)
+* [Expression Evaluation](#Expression_Evaluation)
+* [Using the Conversational System](#Using_the_Conversational_System)
+* [Initiating a Session](#Initiating_a_Session)
+* [Calling for TTM](#Calling_for_TTM)
+* [Terminating a Session](#Terminating_a_Session)
+* [Upper and Lower Case](#Upper_and_Lower_Case)
+* [General Error Correction](#General_Error_Correction)
+* [Entering a TTM Program](#Entering_a_TTM_Program)
+* [The Attention (ATTN) Key](#The_Attention_(ATTN)_Key)
+* [System Commands](#System_Commands)
+* [Color Shift](#Color_Shift)
+* [Appendix A Error Messages](#Appendix_A_Error_Messages)
+* [Appendix B Function Attributes](#Appendix_B_Function_Attributes)
+* [Appendix C Storage Overflow](#Appendix_C_Storage_Overflow)
+
+## Notes:
+* This document corrects errors in the transcription of the original document.
+* The functions defined are mostly from the interactive TTM documentation, but also including some functions from the batch version.
 
 # INTRODUCTION
 TTM Is a recursive, interpretive language designed primarily for string manipulation, text editing, macro definition and expansion, and other applications generally classified as systems programming. It is derived, primarily, from GAP [12] and GPM [11].
@@ -381,7 +486,7 @@ name marked by the residual pointer.
 * ````#<SCN;string1;name;string2;string3>````
 * Parameters: name is the name of the string to scan, string1, string2, and string3 are strings.
 * Value: string2 if the characters of string1 match the
-characters of the string name which imed lately follow the residual pointer stringy If there is not a match Side Effect: if the characters do match, the residual pointer is
+characters of the string name which immediately follow the residual pointer stringy If there is not a match Side Effect: if the characters do match, the residual pointer is
 advanced past these characters.
 
 ###Character Scan
@@ -581,7 +686,7 @@ otherwise it is stringy.
 PERIPHERAL INPUT/OUTPUT OPERATIONS
 TTM can read a string from the controlling remote terminal or from the card reader and can type a string on the remote terminal.
 
-The various input functions will read characters, including carriage returns, until a certain special character is detected. The string will then be considered complete. The special character, known as the meta character, can be redefined by the programmer at any time. In the absence of a programmer provided definition, the single quotation mark (*) will be used as the meta character.
+The various input functions will read characters, including carriage returns, until a certain special character is detected. The string will then be considered complete. The special character, known as the meta character, can be redefined by the programmer at any time. In the absence of a programmer provided definition, the single quotation mark (') will be used as the meta character.
 
 Read a String
 RS 0,0,V #<RS>
@@ -1088,8 +1193,10 @@ The entire line can be erased by typing a backspace followed by pressing the att
 Entering a TTM Program
 When control is passed to TTM from BTSS, TTM performs certain initializing operations and then loads the program string with the idle programs ♦ The idle
 52
-program consists of:
+program consists of
+````
 #<PS;#<RS>>
+````
 The execution of this causes TTM to read from the remote terminal until a met a character is seen, execute what was read because an active call was used on RS, type the results (if any), and stop* The act of stopping, however, causes the idle program to be reloaded into the program string thus restarting the process.
 
 The Attention (ATTN) Key
@@ -1225,9 +1332,12 @@ names 0 1 V
 ndf 3 3 V
 norm 1 1 V
 outb 0 3 s
+propset 0 ARB VS
+propclr 0 ARB VS
 PS 1 1 s
 psr 1 1 VS
 red 0 2 s
+rp 1 1 V
 rrp 1 1 s
 rs 0 0 V
 sc 2 63 vs
@@ -1242,30 +1352,33 @@ tabs 1 8 s
 tel 4 4 v
 tf 0 0 s
 time 0 0 V
-tn 0 0 o tJ
-zJtc 1 1 v
-z&cp 1 1 V
-58
+tn 0 0 S
+void 0 ARB 
+zlc 1 1 v
+zlcp 1 1 V
+
 APPENDIX C STORAGE OVERFLOW
 The following simple programs show the kinds of overflow which are possible with the present implementation of TTM.
 
 The first example is
+````
 #<ds ;X;<#<X>>>#<X>
+````
 This program defines the string X. to be an active call on the string X and then does an active call on X. This program is interesting because it does not cause an overflow. It is an infinite loop. Any program which ends in a call on itself is such a loop unless it creates strings which it does not erase. Such programs are of particular importance as idle programs for conversational programs written in TTM,
 The program:
-#<ds;X;<#<X>Z>>#<X> fills the program string to the right of the scan position with ZZZ...Z and will eventually cause an input roll overflow.
+````#<ds;X;<#<X>Z>>#<X>```` fills the program string to the right of the scan position with ZZZ...Z and will eventually cause an input roll overflow.
 
 This occurs since a call on X appears before all of the characters produced by the previous call on X have been scanned. With the present implementation, X will be called about 300 times before the overflow occurs.
 
-The program:
-#<ds;X;<#<Z#<X>>>>#<X> fills the program string to the left of the scan position with {Z{Z{Z..>>{Z, and fills the program string to the right of the scan position with >>>...>. It will eventually cause a parameter roll overflow. In this function, .X is
+The program
+````#<ds;X;<#<Z#<X>>>>#<X>```` fills the program string to the left of the scan position with {Z{Z{Z..>>{Z, and fills the program string to the right of the scan position with >>>...>. It will eventually cause a parameter roll overflow. In this function, .X is
 59
 called before the right bracket of the call on Z is reached. The function X will be called about 300 times before the overflow occurs.
 
-The program:
-#<ds;X;<Z#<X>>>#<X> will fill the program string to the left of the scan position with ZZZ. - .Z and will eventually cause a dynamic storage overflow. This overflow will not occur until the entire core is filled with ZZ.. .Z. It does not cause a parameter roll overflow because it is not producing uncompleted function calls, but only a string of characters <>
 The program
-#<def ;X;Z;<#<X;ZZ>>>//<X;Z> will also cause a dynamic storage overflow by filling the program string but does it in a quite different way. The single parameter of X doubles in length each time X is called and eventually becomes too large for core.
+````#<ds;X;<Z#<X>>>#<X>```` will fill the program string to the left of the scan position with ZZZ. - .Z and will eventually cause a dynamic storage overflow. This overflow will not occur until the entire core is filled with ZZ.. .Z. It does not cause a parameter roll overflow because it is not producing uncompleted function calls, but only a string of characters <>
+The program
+````#<def ;X;Z;<#<X;ZZ>>>//<X;Z>```` will also cause a dynamic storage overflow by filling the program string but does it in a quite different way. The single parameter of X doubles in length each time X is called and eventually becomes too large for core.
 
 It is also possible to get a dynamic storage overflow by defining too many strings.
 
