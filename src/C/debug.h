@@ -4,6 +4,9 @@
 #define FAILX(ttm,eno,fmt,...) failx(ttm,eno,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__)
 #define FAIL(ttm,eno) fail(ttm,eno,__LINE__)
 
+#define SCAN1 do{if((err=scan1(ttm,&cp8,&ncp))) {stop = 1; goto done;}}while(0)
+
+/**************************************************/
 static void
 ttmbreak(TTMERR err)
 {
@@ -22,61 +25,56 @@ ttmthrow(TTMERR err)
 #endif
 
 static void
-xprintf(const char* fmt,...)
+xprintf(TTM* ttm, const char* fmt,...)
 {
     va_list ap;
     va_start(ap,fmt);
-    vxprintf(fmt,ap);
+    vxprintf(ttm,fmt,ap);
     va_end(ap);
 }
 
 static void
-vxprintf(const char* fmt,va_list ap)
+vxprintf(TTM* ttm, const char* fmt, va_list ap)
 {
-    static char xbuf[1<<14] = {'\0'};
-    size_t xlen = strlen(xbuf);
+    char* xbuf = NULL;
+    size_t xsize = 0;
+    int hasnl = 0;
+    size_t xlen = 0;
     size_t xfinal = 0;
-    char* p = &xbuf[xlen];
+    char* p = NULL;
 
-    assert(sizeof(xbuf) >= (4*xlen)+1);
-    (void)vsnprintf(p, sizeof(xbuf) - xlen, fmt, ap);
+    hasnl = ttm->debug.xpr.outnl;
+    
+    xbuf = ttm->debug.xpr.xbuf;
+    xsize = sizeof(ttm->debug.xpr.xbuf);
+    xlen = strlen(xbuf);
+    assert(xsize >= (4*xlen)+1);
+
+    p = &xbuf[xlen];
+    (void)vsnprintf(p, xsize - xlen, fmt, ap);
+
     xfinal = strlen(xbuf);
     if(xfinal > 0) {
-	utf8* segtmp = NULL;
-	utf8* ctltmp = NULL;
-	int hasnewline = (xbuf[xfinal - 1] == '\n'); /* remember this */
-	if(hasnewline) xbuf[xfinal - 1] = '\0'; /* temporarily elide the final '\n' */
-	segtmp = desegmark((utf8*)xbuf,NULL);
-	ctltmp = decontrol(segtmp,"",&xfinal); /* escape all controls */
-	strncpy(xbuf,(const char*)ctltmp,sizeof(xbuf));
-	nullfree(segtmp); nullfree(ctltmp);
-	if(hasnewline) xbuf[xfinal] = '\n'; /* restore trailing newline */
+	utf8* tmp = NULL;
+	hasnl = (xbuf[xfinal - 1] == '\n'); /* remember this */
+	if(hasnl) xbuf[xfinal - 1] = '\0'; /* temporarily elide the final '\n' */
+	tmp = printclean((utf8*)xbuf,NULL,NULL);
+	strncpy(xbuf,(const char*)tmp,xsize);
+	nullfree(tmp);
+	xfinal = strlen(xbuf);
+	if(hasnl) {
+	    /* Restore missing \n */
+	    xbuf[xfinal++] = '\n'; /* restore trailing newline */
+	}
+	xbuf[xfinal] = '\0'; /* ensure nul term */
 	fprintf(stderr,"%s",xbuf);
         xbuf[0] = '\0'; /* reset */
     }
     fflush(stderr);
+    ttm->debug.xpr.outnl = hasnl;
 }
 
 #if DEBUG > 0
-void
-scanx(TTM* ttm, utf8** cp8p, int* ncpp, int* stopp, TTMERR* errp)
-{
-    utf8* cp8 = *cp8p;
-    int ncp = u8size(cp8);
-#if DEBUG > 1
-    fprintf(stderr,"consume=%c",*(char*)cp8);
-#endif
-    if((*errp=scan1(ttm,&cp8,&ncp)))
-        {*stopp = 1; goto done;}
-#if DEBUG > 1
-    else
-        fprintf(stderr," next=%c\n",*(char*)cp8);
-#endif
-done:
-    *cp8p = cp8;
-    *ncpp = ncp;
-}
-
 void
 statetracex(TTM* ttm, utf8* cp8)
 {
@@ -104,12 +102,6 @@ statetracex(TTM* ttm, utf8* cp8)
 #define statetrace()
 #endif /*DEBUG==0*/
 
-#if DEBUG > 0
-#define SCAN1 scanx(ttm,&cp8,&ncp,&stop,&err)
-#else /*DEBUG==0*/
-#define SCAN1 do{if((err=scan1(ttm,&cp8,&ncp))) {stop = 1; goto done;}}while(0)
-#endif /*DEBUG==0*/
-
 #ifdef GDB
 /**
 Dump keys of the ttm->tables.dictionary
@@ -119,7 +111,7 @@ Dump keys of the ttm->tables.dictionary
 @return void
 */
 static void
-dumpdict0(struct HashTable* dict, int printvalues)
+dumpdict0(TTM* ttm, struct HashTable* dict, int printvalues)
 {
     int i;
     for(i=0;i<HASHSIZE;i++) {
@@ -128,29 +120,29 @@ dumpdict0(struct HashTable* dict, int printvalues)
 	for(first=1;entry != NULL;first=0) {
 	    Function* str = (Function*)entry;
 	    if(first) fprintf(stderr,"[%3d]",i);
-	    xprintf(" |%s%s|",str->entry.name,(str->builtin?"*":""));
+	    xprintf(ttm," |%s%s|",str->entry.name,(str->fcn.builtin?"*":""));
 	    if(printvalues) {
-		if(str->builtin)
-		    xprintf(" = builtin");
+		if(str->fcn.builtin)
+		    xprintf(ttm," = builtin");
 		else
-		    xprintf(" = |%s|",str->body);
+		    xprintf(ttm," = |%s|",str->fcn.body);
 	    }
 	    entry = entry->next;
 	}
-	xprintf("\n");
+	xprintf(ttm,"\n");
     }
 }
 
 static void
 dumpnames(TTM* ttm)
 {
-    dumpdict0(&ttm->tables.dictionary,0);
+    dumpdict0(ttm,&ttm->tables.dictionary,0);
 }
 
 static void
 dumpcharclasses(TTM* ttm)
 {
-    dumpdict0(&ttm->tables.charclasses,1);
+    dumpdict0(ttm,&ttm->tables.charclasses,1);
 }
 
 static const utf8*
@@ -178,15 +170,15 @@ printwithpos(VString* vs)
 #endif /*GDB*/
 
 static void
-dumpframe(Frame* frame)
+dumpframe(TTM* ttm, Frame* frame)
 {
     size_t i = 0;
 
-    xprintf("frame{active=%d argc=%zu",frame->active,frame->argc);
+    xprintf(ttm,"frame{active=%d argc=%zu",frame->active,frame->argc);
     for(i=0;i<frame->argc;i++) {
-	xprintf(" [%zu] |%s|",i,frame->argv[i]);
+	xprintf(ttm," [%zu] |%s|",i,frame->argv[i]);
     }
-    xprintf("}\n");
+    xprintf(ttm,"}\n");
     fflush(stderr);
 }
 
@@ -198,9 +190,9 @@ dumpstack(TTM* ttm)
 {
     size_t i;
     for(i=1;i<=ttm->stack.next;i++) {
-	xprintf("[%zu] ",i);
-	dumpframe(&ttm->stack.stack[i]);
-	xprintf("\n");
+	xprintf(ttm,"[%zu] ",i);
+	dumpframe(ttm,&ttm->stack.stack[i]);
+	xprintf(ttm,"\n");
     }
     fflush(stderr);
 }
@@ -214,7 +206,7 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     size_t i = 0;
 
     if(frame->argc == 0) {
-	xprintf("#<empty frame>");
+	xprintf(ttm,"#<empty frame>");
 	return;
     }
     p = tag;
@@ -226,14 +218,14 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     ncp = u8size(ttm->meta.openc);
     memcpy(p,ttm->meta.openc,ncp); p += ncp;
     *p = NUL8;
-    xprintf("%s",tag);
-    xprintf("%s",frame->argv[0]);
+    xprintf(ttm,"%s",tag);
+    xprintf(ttm,"%s",frame->argv[0]);
     if(traceargs) {
 	for(i=1;i<frame->argc;i++) {
-	    xprintf("%s%s",ttm->meta.semic,frame->argv[i]);
+	    xprintf(ttm,"%s%s",ttm->meta.semic,frame->argv[i]);
 	}
     }
-    xprintf("%s",ttm->meta.closec);
+    xprintf(ttm,"%s",ttm->meta.closec);
     fflush(stderr);
 }
 
@@ -242,23 +234,23 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
 {
     Frame* frame;
 
-    if(!ttm->flags.newline) xprintf("\n");
+    if(!ttm->debug.xpr.outnl) xprintf(ttm,"\n");
 
     if(tracing && ttm->stack.next == 0) {
-	xprintf("trace: no frame to trace\n");
+	xprintf(ttm,"trace: no frame to trace\n");
 	fflush(stderr);
 	return;
     }	
     frame = &ttm->stack.stack[depth];
-    xprintf("[%02d] ",depth);
+    xprintf(ttm,"[%02d] ",depth);
     if(tracing)
-	xprintf("%s ",(entering?"begin:":"end:  "));
+	xprintf(ttm,"%s ",(entering?"begin:":"end:  "));
     traceframe(ttm,frame,entering);
     /* Dump the contents of result if !entering */
     if(!entering) {
-	xprintf(" => |%s|",vscontents(ttm->vs.result));
+	xprintf(ttm," => |%s|",vscontents(ttm->vs.result));
     } 
-    xprintf("\n");
+    xprintf(ttm,"\n");
     fflush(stderr);
 }
 
@@ -312,7 +304,7 @@ failx(TTM* ttm, TTMERR eno, int line, const char* fmt, ...)
 
     if(fmt != NULL) {
 	va_start(ap, fmt);
-	vxprintf(fmt,ap);
+	vxprintf(ttm,fmt,ap);
 	va_end(ap);
     }
     if((err = failxcxt(ttm,eno,line))) goto done;
@@ -325,13 +317,14 @@ static TTMERR
 failxcxt(TTM* ttm, TTMERR eno, int line)
 {
     fprintf(stderr,"Fatal error:");
-    if(line >= 0) fprintf(stderr," line=%d",line);
-    fprintf(stderr," (%d) %s\n",eno,errstring(eno));
+    if(line >= 0) fprintf(stderr," code line=%d",line);
+    fprintf(stderr," input line=%d",ttm->flags.lineno);
+    fprintf(stderr," (errno = %d) %s\n",eno,errstring(eno));
     if(ttm != NULL) {
 	/* Dump the frame stack */
 	dumpstack(ttm);
 	/* Dump passive and active strings*/
-	xprintf("failx.context: passive=|%s| active=|%s|\n",
+	xprintf(ttm,"failx.context: passive=|%s| active=|%s|\n",
 		vscontents(ttm->vs.passive),
 		vscontents(ttm->vs.active)+vsindex(ttm->vs.active));
     }
@@ -350,8 +343,15 @@ static const char*
 errstring(TTMERR err)
 {
     const char* msg = NULL;
-    switch(err) {
+
+   /* System error? */
+   if(((int)err) > 0) /* System error from (usually) errno */
+   {
+      msg = (const char *) strerror((int)err);
+      if(msg == NULL) msg = "Unknown Sysem Error";
+   } else switch(err) {
     case TTM_NOERR: msg="No error"; break;
+    case TTM_ERROR: msg="Unknown Error"; break;
     case TTM_ENONAME: msg="Dictionary Name Not Found"; break;
     case TTM_EDUPNAME: msg="Attempt to create duplicate name"; break;
     case TTM_ENOPRIM: msg="Primitives Not Allowed"; break;
@@ -383,7 +383,7 @@ errstring(TTMERR err)
     case TTM_EEMPTY: msg="Empty argument"; break;
     case TTM_ENOCLASS: msg="Character Class Name Not Found"; break;
     case TTM_EINVAL: msg="Invalid argument"; break;
-    case TTM_EOTHER: msg="Unknown Error"; break;
+    case TTM_ELOCKED: msg="Attempt to modify/erase a locked function";
     }
     return msg;
 }

@@ -1,5 +1,4 @@
 top_srcdir = ../..
-
 MEM = 1
 CYGWIN = 1
 
@@ -32,7 +31,7 @@ xttm8.c: ttm8.h forward.h vsl.h state.h
 	sed -i.bak -e '/^\#include[ ][ ]*\"vsl.h\".*/r vsl.h' -e 's|^\#include[ ][ ]*\"vsl.h\".*|/*\0*/|' $@
 
 ${TTM}.exe: ${TTM}.c forward.h debug.h vsl.h state.h
-	${CC} ${CCWARN} ${CCDEBUG} -o $@ ${CCMEM} ${LASAN} $< |& head -n 30
+	${CC} ${CCWARN} ${CCDEBUG} -o $@ ${CCMEM} ${LASAN} $< 2>&1 | head -n 30
 
 # This is to check cpp (C preprocessor) expansions
 ttm.txt: ${TTM}.c
@@ -40,14 +39,15 @@ ttm.txt: ${TTM}.c
 	gcc -E -Wall -Wdeclaration-after-statement $< > ttm.txt
 
 TESTPROG = -p ${top_srcdir}/tests/test.ttm
-GDBTESTPROG = -p ${top_srcdir}/src/C/dbg.ttm
+
+GDBTESTPROG = -p ${top_srcdir}/src/C/dbgvvcfffcgtggvvvtthhhgggggjjtju,v,t,t.ttm
 TESTARGS = a b c
 TESTRFLAG = -f ${top_srcdir}/tests/test.rs
 TESTTRACE = -dt
 TESTBARE = -B
 
-TESTCMD = ./${TTM} ${TESTTRACE} ${TESTPROG} ${TESTRFLAG} ${TESTARGS}
-GDBTESTCMD = ./${TTM} ${TESTTRACE} ${GDBTESTPROG}
+TESTCMD = ./${TTM}.exe ${TESTTRACE} ${TESTPROG} ${TESTRFLAG} ${TESTARGS}
+GDBTESTCMD = ./${TTM}.exe ${TESTTRACE} ${GDBTESTPROG}
 
 check:: ${TTM}.exe
 	rm -f ./test.stdout test.stderr test.output

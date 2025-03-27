@@ -224,7 +224,7 @@ vsremoven(VString* vs, size_t dstpos, size_t elide)
         memmove(vscontents(vs)+dstpos,vscontents(vs)+srcpos,srclen);
         vssetlength(vs,vslen - elide);
     }
-    vs->index -= elide;
+    if(vs->index >= elide) vs->index -= elide; else vs->index = 0;
 done:
     newlength = vslength(vs);
     vs->content[newlength] = '\0'; /* guarantee nul term */

@@ -1,5 +1,5 @@
 [01] begin: ##<ttm;info;name;comment>
-[01] end: ##<ttm> => "comment,0,0,V residual=0 body=||\n"
+[01] end: ##<ttm> => "comment,0,0,S\n"
 [00] begin: ##<ps;xxcomment,0,0,V residual=0 body=||\nyy>
 [00] end: ##<ps> => ""
 [02] begin: ##<ttm;info;name;def;comment>

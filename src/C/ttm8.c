@@ -49,7 +49,6 @@ This is in lieu of the typical config.h.
 
 /**************************************************/
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <stdarg.h>
@@ -58,8 +57,12 @@ This is in lieu of the typical config.h.
 
 #ifdef MSWINDOWS
 #include <windows.h>  /* To get GetProcessTimes() */
+#include <cstddef.h>
 #include <ctype.h>
+#include <cstdio.h>
 #else /*!MSWINDOWS*/
+#include <stddef.h>
+#include <stdio.h>
 #include <unistd.h> /* This defines getopt */
 #include <sys/times.h> /* to get times() */
 #include <sys/time.h> /* to get gettimeofday() */
@@ -215,10 +218,10 @@ This second byte is divided as follows:
 #define RBRACKET ']'
 
 /* When encountered during scan, these non-printable characters are ignored: Must be ASCII */
-#define nonprintignore "\001\002\003\004\005\006\a\b\n\r\016\017\020\021\022\023\024\025\026\027\030\031\032\e\034\035\036\037\177"
+#define NONPRINTIGNORE "\001\002\003\004\005\006\a\b\n\r\016\017\020\021\022\023\024\025\026\027\030\031\032\e\034\035\036\037\177"
 
 /* These non-printable characters are not ignored */
-#define nonprintkeep = "\t\c\f"
+#define NONPRINTKEEP = "\t\c\f"
 
 #define DFALTSTACKSIZE 64
 #define DFALTEXECCOUNT (1<<20)
@@ -236,7 +239,7 @@ This second byte is divided as follows:
 #define ACTIVEMAX 20
 #endif
 
-/* Max number of pushback codepoints for fgetc8 */
+/* Max number of pushback codepoints for ttmgetc8 */
 #define MAXPUSHBACK 4 /*codepoints */
 
 /**************************************************/
@@ -296,49 +299,50 @@ TE_ALL
 /**************************************************/
 /* Error Numbers */
 /* Renamed TTM_EXXX because of multiple Windows conflicts */
+/* Note: use non-positive no. to allow using **nix ernno values.*/
 typedef enum TTMERR {
-TTM_NOERR	    =  0, /* No error; for completeness */
-TTM_ENONAME	    =  1, /* Dictionary Name Name Not Found */
-TTM_EDUPNAME	    =  2, /* Attempt to create duplicate name */
-TTM_ENOPRIM	    =  3, /* Primitives Not Allowed */
-TTM_EFEWPARMS	    =  4, /* Too Few Parameters Given */
-TTM_EFORMAT	    =  5, /* Incorrect Format */
-TTM_EQUOTIENT	    =  6, /* Quotient Is Too Large */
-TTM_EDECIMAL	    =  7, /* Decimal Integer Required */
-TTM_EMANYDIGITS	    =  8, /* Too Many Digits */
-TTM_EMANYSEGMARKS   =  9, /* Too Many Segment Marks */
-TTM_EMEMORY	    = 10, /* Dynamic Storage Overflow */
-TTM_EPARMROLL	    = 11, /* Parm Roll Overflow */
-TTM_EINPUTROLL	    = 12, /* Input Roll Overflow */
-TTM_EIO		    = 13, /* An I/O Error Occurred */
-TTM_ETTM	    = 14, /* A TTM Processing Error Occurred */
-TTM_ENOTNEGATIVE    = 15, /* Only unsigned decimal integer */
+TTM_NOERR		= (  0),  /* No error; for completeness */
+TTM_ERROR		= ( -1),  /* Generic unknown error */
+TTM_ENONAME		= ( -2),  /* Dictionary Name Name Not Found */
+TTM_EDUPNAME		= ( -3),  /* Attempt to create duplicate name */
+TTM_ENOPRIM		= ( -4),  /* Primitives Not Allowed */
+TTM_EFEWPARMS		= ( -5),  /* Too Few Parameters Given */
+TTM_EFORMAT		= ( -6),  /* Incorrect Format */
+TTM_EQUOTIENT		= ( -7),  /* Quotient Is Too Large */
+TTM_EDECIMAL		= ( -8),  /* Decimal Integer Required */
+TTM_EMANYDIGITS		= (-10),  /* Too Many Digits */
+TTM_EMANYSEGMARKS	= (-11),  /* Too Many Segment Marks */
+TTM_EMEMORY		= (-12),  /* Dynamic Storage Overflow */
+TTM_EPARMROLL		= (-13),  /* Parm Roll Overflow */
+TTM_EINPUTROLL		= (-14),  /* Input Roll Overflow */
+TTM_EIO			= (-15),  /* An I/O Error Occurred */
+TTM_ETTM		= (-16),  /* A TTM Processing Error Occurred */
+TTM_ENOTNEGATIVE	= (-17),  /* Only unsigned decimal integer */
 /* Error messages new to this implementation */
-TTM_ESTACKOVERFLOW  = 16, /* Leave room */
-TTM_ESTACKUNDERFLOW = 17,
-TTM_EEXECCOUNT	    = 18, /* too many execution calls */
-TTM_EMANYINCLUDES   = 19, /* Too many includes (obsolete)*/
-TTM_EINCLUDE	    = 20, /* Cannot read Include file */
-TTM_ERANGE	    = 21, /* index out of legal range */
-TTM_EMANYPARMS	    = 22, /* # parameters > MAXARGS */
-TTM_EEOS	    = 23, /* Unexpected end of string */
-TTM_EASCII	    = 24, /* ASCII characters only */
-TTM_EUTF8	    = 25, /* Illegal UTF-8 codepoint */
-TTM_ETTMCMD	    = 26, /* Illegal #<ttm> command */
-TTM_ETIME	    = 27, /* gettimeofday failed */
-TTM_EEMPTY	    = 28, /* gettimeofday failed */
-TTM_ENOCLASS	    = 29, /* Character Class Name Not Found */
-TTM_EINVAL	    = 30, /* Generic invalid argument */
-/* Default case */
-TTM_EOTHER	    = 99
-
+TTM_ESTACKOVERFLOW	= (-100), /* Function calls nested too deep */
+TTM_ESTACKUNDERFLOW	= (-101), /* Attempt to remote a non-existent function */
+TTM_EEXECCOUNT		= (-102),  /* Too many execution calls */
+TTM_EMANYINCLUDES	= (-103),  /* Too many includes (obsolete)*/
+TTM_EINCLUDE		= (-104),  /* Cannot read Include file */
+TTM_ERANGE		= (-105),  /* Index out of legal range */
+TTM_EMANYPARMS		= (-106),  /* # Parameters > MAXARGS */
+TTM_EEOS		= (-107),  /* Unexpected end of string */
+TTM_EASCII		= (-108),  /* Ascii characters only */
+TTM_EUTF8		= (-109),  /* Illegal UTF-8 codepoint */
+TTM_ETTMCMD		= (-110),  /* Illegal #<ttm> command */
+TTM_ETIME		= (-111),  /* Gettimeofday failed */
+TTM_EEMPTY		= (-112),  /* Gettimeofday failed */
+TTM_ENOCLASS		= (-113),  /* Character Class Name Not Found */
+TTM_EINVAL		= (-114),  /* Generic invalid argument */
+TTM_ELOCKED		= (-115),  /* Attempt to modify/erase a locked functon */
 #ifdef IMPLEMENTED
-TTM_EDUPLIBNAME	    = ?, /* Name Already On Library */
-TTM_ELIBNAME	    = ?, /* Name Not On Library */
-TTM_ELIBSPACE	    = ?, /* No Space On Library */
-TTM_EINITIALS	    = ?, /* Initials Not Allowed */
-TTM_EATTACH	    = ?, /* Could Not Attach */
-TTM_ESTORAGE	    = ?, /* Error In Storage Format */
+/* Errors not implemented */
+TTM_EDUPLIBNAME		= (-0),  /* Name Already On Library */
+TTM_ELIBNAME		= (-0),  /* Name Not On Library */
+TTM_ELIBSPACE		= (-0),  /* No Space On Library */
+TTM_EINITIALS		= (-0),  /* Initials Not Allowed */
+TTM_EATTACH		= (-0),  /* Could Not Attach */
+TTM_ESTORAGE		= (-0),  /* Error In Storage Format */
 #endif
 
 } TTMERR;
@@ -453,14 +457,17 @@ struct TTM {
 	/*Debug Flags */
 	int trace;   /* Forcibly trace all function executions */
 	int verbose; /* Dump more info in the fail function */
+	struct Xprint {
+	    char xbuf[1<<14];
+	    int outnl; /* current xprint line ended with newline */
+	} xpr;
     } debug;
     struct Flags {
 	int depth; /* track the depth of functions being processed */
-	int interactive;
-	int newline; /* 1 if current output has printed a newline */
 	int exit; /* Stop scanning, cleanup, and exit ttm */
 	unsigned exitcode;
 	unsigned crcounter; /* for cr marks */
+	int lineno; /* Estimate of current line no */
     } flags;
     struct MetaChars {
 	utf8cpa sharpc; /* sharp-like char */
@@ -482,58 +489,52 @@ struct TTM {
 	size_t next; /* |stack| == (stacknext) */
 	Frame* stack;
     } stack;
-    struct IO {
-	FILE* output;
-	int isstdout;
-	FILE* input;
-	int isstdin;
-    } io;
+    struct TTMFILE {
+	FILE* file;
+	int isstd;
+	int interactive;
+	/* Provide a stack of pushed codepoints */
+	int npushed; /* number of pushed codepoints -1..(MAXPUSHBACK-1)*/
+	utf8cpa stack[MAXPUSHBACK]; /* support pushback of several full codepoints */
+    } *stdin;
+    struct TTMFILE* stdout;
+    struct TTMFILE* stderr;
     /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
     struct Tables {
 	struct HashTable dictionary;
 	struct HashTable charclasses;
     } tables;
-    struct Pushback { /* Provide a stack of pushed codepoints */
-	int npushed; /* number of pushed codepoints -1..(MAXPUSHBACK-1)*/
-	utf8cpa stack[MAXPUSHBACK]; /* support pushback of several full codepoints */
-    } pushback;
 };
+
+/* Convenience */
+typedef struct TTMFILE TTMFILE;
 
 /* Temporary */
 static int
 getdepth(TTM* ttm,int line,const char* tag, int depth)
 {
-#if 0
-fprintf(stderr,">>> [%d] depth=: %d\n",line,ttm->flags.depth); fflush(stderr);
-    return ttm->flags.depth;
-#else
+#if DEPTH > 2
 fprintf(stderr,">>> [%d] %s.depth=: %d\n",line,tag,depth); fflush(stderr);
-    return depth;
 #endif
+    return depth;
 }
 
 static void
 incrdepth(TTM* ttm,int line,const char* tag,int* depthp)
 {
-#if 0
-fprintf(stderr,">>> [%d] depth++: %d=>%d\n",line,ttm->flags.depth,ttm->flags.depth+1); fflush(stderr);
-    ttm->flags.depth++;
-#else
+#if DEPTH > 2
 fprintf(stderr,">>> [%d] %s.depth++: %d=>%d\n",line,tag,(*depthp),(*depthp)+1); fflush(stderr);
-    (*depthp) = (*depthp) + 1;
 #endif
+    (*depthp) = (*depthp) + 1;
 }
 
 static void
 decrdepth(TTM* ttm,int line,const char* tag,int* depthp)
 {
-#if 0
-fprintf(stderr,">>> [%d] depth--: %d=>%d\n",line,ttm->flags.depth,ttm->flags.depth-1); fflush(stderr);
-    ttm->flags.depth++;
-#else
+#if DEBUG > 2
 fprintf(stderr,">>> [%d] %s.depth--: %d=>%d\n",line,tag,(*depthp),(*depthp)-1); fflush(stderr);
-    (*depthp) = (*depthp) - 1;
 #endif
+    (*depthp) = (*depthp) - 1;
 }
 #define INCR(ttm) incrdepth(ttm,__LINE__,__func__,&depth)
 #define DECR(ttm) decrdepth(ttm,__LINE__,__func__,&depth)
@@ -558,6 +559,7 @@ struct Frame {
   utf8* argv[MAXARGS+1]; /* Allow for final NULL arg as signal */
   size_t argc;
   int active; /* 1 => # 0 => ## */
+  VString* arg; /* collect each frame arg in turn */
 };
 
 /**
@@ -585,17 +587,19 @@ cast to a struct HashEntry.
 */
 struct Function {
     struct HashEntry entry;
-    int trace;
-    int locked;
-    int builtin;
-    size_t minargs;
-    size_t maxargs;
-    enum FcnSV sv;
-    int novalue; /* suppress return value */
-    size_t residual; /* residual index in terms of bytes not codepoints */
-    size_t maxsegmark; /* highest segment mark number in use in this string */
-    TTMFCN fcn; /* builtin == 1 */
-    utf8* body; /* builtin == 0 */
+    struct FcnData { /* structify to simplify re-use under #<ds> */
+	int trace;
+	int locked;
+	int builtin;
+	size_t minargs;
+	size_t maxargs;
+	enum FcnSV sv;
+	int novalue; /* suppress return value */
+	size_t residual; /* residual index in terms of bytes not codepoints */
+	size_t maxsegmark; /* highest segment mark number in use in this string */
+	TTMFCN fcn; /* builtin == 1 */
+	utf8* body; /* builtin == 0 */
+    } fcn;
 };
 
 /**
@@ -876,7 +880,6 @@ newTTM(struct Properties* initialprops)
 #if DEBUG > 0
     ttm->debug.trace = 1;
 #endif
-    ttm->pushback.npushed = -1;
     return ttm;
 }
 
@@ -886,9 +889,13 @@ freeTTM(TTM* ttm)
     vsfree(ttm->vs.active);
     vsfree(ttm->vs.passive);
     vsfree(ttm->vs.result);
+    vsfree(ttm->vs.tmp);
     freeFramestack(ttm,ttm->stack.stack,ttm->stack.next);
     clearDictionary(ttm,&ttm->tables.dictionary);
     clearCharclasses(ttm,&ttm->tables.charclasses);
+    ttmclose(ttm,ttm->stdin);
+    ttmclose(ttm,ttm->stdout);
+    ttmclose(ttm,ttm->stderr);
     free(ttm);
 }
 
@@ -915,6 +922,7 @@ pushFrame(TTM* ttm)
     frame->argc = 0;
     frame->active = 0;
     ttm->stack.next++;
+    frame->arg = vsnew();
     return frame;
 }
 
@@ -923,7 +931,7 @@ popFrame(TTM* ttm)
 {
     Frame* frame;
     if(ttm->stack.next == 0)
-	FAIL(ttm,TTM_ESTACKUNDERFLOW);
+	FAIL(ttm,TTM_ESTACKUNDERFLOW); /* Actually an internal error */
     ttm->stack.next--;
     if(ttm->stack.next == 0)
 	frame = NULL;
@@ -935,8 +943,11 @@ popFrame(TTM* ttm)
 static void
 clearFrame(TTM* ttm, Frame* frame)
 {
+    size_t i;
     if(frame == NULL) return;
-    /* Do not reclaim the argv because it points into ttm->buffer */
+    for(i=0;i<frame->argc;i++)
+        if(frame->argv[i] != NULL) free(frame->argv[i]);
+    vsfree(frame->arg);
 }
 
 static void
@@ -963,7 +974,7 @@ static void
 freeFunction(TTM* ttm, Function* f)
 {
     assert(f != NULL);
-    if(!f->builtin) nullfree(f->body);
+    if(!f->fcn.builtin) nullfree(f->fcn.body);
     clearHashEntry(&f->entry);
     free(f);
 }
@@ -1089,7 +1100,7 @@ statetrace();
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
-	} else if(isascii(cp8) && strchr(nonprintignore,*cp8)) {
+	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    SCAN1;
 	} else if(isescape(cp8)) {
@@ -1103,7 +1114,7 @@ statetrace();
 	    if((err = processfcn(ttm,&cp8))) goto done;
 	    ncp = u8size(cp8);
 	} else if(u8equal(cp8,ttm->meta.openc)) {/* <...> nested brackets */
-	    if((err=collectescaped(ttm,&cp8))) goto done;
+	    if((err=collectescaped(ttm,&cp8,ttm->vs.passive))) goto done;
 	    /* collected string will have been appended to end of  ttm->vs.passive */
 	} else { /* All other characters */
 	    vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
@@ -1118,8 +1129,8 @@ statetrace();
     */
     {
 	if(ttm->properties.showfinal) {
-	    printstring(ttm,(const utf8*)"\n",stdout);
-	    printstring(ttm,(const utf8*)print2len(ttm->vs.passive),stdout);
+	    printstring(ttm,(const utf8*)"\n",ttm->stdout);
+	    printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
 	}
 	vsclear(ttm->vs.passive);
     }
@@ -1147,6 +1158,7 @@ scan1(TTM* ttm, utf8** cp8p, int* ncpp)
     vsindexskip(ttm->vs.active,ncp);
     cp8 = (utf8*)vsindexp(ttm->vs.active);
     ncp = u8size(cp8);
+    if(*cp8 == '\n') ttm->flags.lineno++;
     *cp8p = cp8;
     *ncpp = ncp;
 done:
@@ -1223,7 +1235,9 @@ exec(TTM* ttm, Frame* frame)
 {
     TTMERR err = THROW(TTM_NOERR);
     Function* fcn;
-
+#if DEBUG > 0
+dumpframe(ttm,frame);
+#endif
     if(ttm->properties.execcount-- <= 0) {err = THROW(TTM_EEXECCOUNT); goto done;}
     if(ttm->flags.exit) goto done;
     /* Now execute this function, which will leave result in ttm->vs.result */
@@ -1231,33 +1245,34 @@ exec(TTM* ttm, Frame* frame)
     if(strlen((const char*)frame->argv[0])==0) {err = FAILX(ttm,TTM_EEMPTY,NULL); goto done;}
     /* Locate the function to execute */
     if((fcn = dictionaryLookup(ttm,frame->argv[0]))==NULL) {err = FAILNONAME(0); goto done;}
-    if(fcn->minargs > (frame->argc - 1)) /* -1 to account for function name*/
+    if(fcn->fcn.minargs > (frame->argc - 1)) /* -1 to account for function name*/
 	{err = THROW(TTM_EFEWPARMS); goto done;}
     /* Reset the result buffer */
     vsclear(ttm->vs.result);
-    if(ttm->debug.trace || fcn->trace)
+    if(ttm->debug.trace || fcn->fcn.trace)
 	trace(ttm,1,TRACING);
-    if(fcn->builtin) {
-	fcn->fcn(ttm,frame);
-	if(fcn->novalue) vsclear(ttm->vs.result);
+    if(fcn->fcn.builtin) {
+	fcn->fcn.fcn(ttm,frame);
+	if(fcn->fcn.novalue) vsclear(ttm->vs.result);
 	if(ttm->flags.exit) goto done;
     } else /* invoke the pseudo function "call" */
-	call(ttm,frame,fcn->body);
+	call(ttm,frame,fcn->fcn.body);
 
-    if(ttm->debug.trace || fcn->trace)
+    if(ttm->debug.trace || fcn->fcn.trace)
 	trace(ttm,0,TRACING);
 
     /* Now, put the result into the appropriate active or passive buffer */
     if(vslength(ttm->vs.result) > 0) {
 	if(frame->active) {
 	    /* insert result at current index so it will be actively scanned */
+	    /* WARNING: invalidates any pointers into active */
 	    (void)vsindexinsertn(ttm->vs.active,vscontents(ttm->vs.result),vslength(ttm->vs.result));
 	} else {/*!frame->active*/
 	    vsappendn(ttm->vs.passive,vscontents(ttm->vs.result),vslength(ttm->vs.result));
 	}
 	vsclear(ttm->vs.result);
 #if DEBUG > 1
-xprintf("context:\n\tpassive=|%s|\n\tactive=|%s|\n",
+xprintf(ttm,"context:\n\tpassive=|%s|\n\tactive=|%s|\n",
 	vscontents(ttm->vs.passive),vscontents(ttm->vs.active)+vsindex(ttm->vs.active));
 #endif
     }
@@ -1273,23 +1288,29 @@ processfcn(TTM* ttm, utf8** pcp8)
     enum FcnCallCases fcncase = FCN_UNDEF;
     utf8* cp8 = *pcp8;
     Frame* frame = NULL;
+    size_t startpos,endpos;
 
+    startpos = vsindex(ttm->vs.active); /* remember where we start parsing */
     if((err=testfcnprefix(ttm,&cp8,&fcncase))) goto done;
     /* if testfcnprefix indicates a function call, then
        cp8 should be pointing to first character of argv[0] */
     if(fcncase == FCN_PASSIVE || fcncase == FCN_ACTIVE) {
 	/* Parse and collect the args of the function call */
 	if((err=collectargs(ttm,&frame,&cp8))) goto done;
+        endpos = vsindex(ttm->vs.active); /* remember where we end parsing */
+	vsremoven(ttm->vs.active,startpos,(endpos-startpos)); /* remove the collected args from the active buffer */
     }
     switch (fcncase) {
     case FCN_PASSIVE: /* execute */
 	frame->active = 0; 
 	if((err=exec(ttm,frame))) goto done;
+	/* WARNING: invalidates pointers into active */
 	break;
     case FCN_ACTIVE: /* execute */
 	frame->active = 1;
 	/* execute the function */
 	if((err=exec(ttm,frame))) goto done;
+	/* WARNING: invalidates pointers into active */
 	break;
     case FCN_ONE: /* Pass one char */
 	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
@@ -1333,62 +1354,55 @@ collectargs(TTM* ttm, Frame** framep, utf8** cp8p)
     int stop;
     utf8* cp8 = *cp8p;
     int ncp = u8size(cp8);
-    size_t argstart,argend;
     int depth = 0;
+    VString* arg = NULL;
 
     frame = pushFrame(ttm);
+    arg = frame->arg;
 
     /* Scan() will have left the index for active buffer at the
        start of function name */
 
     INCR(ttm); /* For function opening */
     stop = 0;
-    argstart = vslength(ttm->vs.passive);
 statetrace();
 #if DEBUG > 1
 fprintf(stderr,"\targ=|%s|\n",printsubseq(ttm->vs.passive,argstart,vslength(ttm->vs.passive)));
 #endif /* DEBUG > 1 */
+    arg = vsnew();
     do { /* Collect 1 arg */
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
-	} else if(isascii(cp8) && strchr(nonprintignore,*cp8)) {
+	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    SCAN1;
 	} else if(isescape(cp8)) {
 	    SCAN1;
 	    if(isnul(cp8)) { /* escape as very last character in buffer */
-		vsappendn(ttm->vs.passive,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
+		vsappendn(arg,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
 	    } else {
-		vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
+		vsappendn(arg,(const char*)cp8,ncp);
 	    }
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {
 	    if((err = processfcn(ttm,&cp8))) goto done;
 	    ncp = u8size(cp8);
 	} else if(u8equal(cp8,ttm->meta.lbrc)) {
-	    if((err=collectescaped(ttm,&cp8))) goto done;
+	    if((err=collectescaped(ttm,&cp8,arg))) goto done;
 	} else if(u8equal(cp8,ttm->meta.semic) || u8equal(cp8,ttm->meta.rbrc)) {
-	    utf8* arg = NULL;
-	    size_t arglen;
 	    if(frame->argc >= MAXARGS) {err = THROW(TTM_EMANYPARMS); goto done;}
 	    if(u8equal(cp8,ttm->meta.rbrc))
 		DECR(ttm);
-	    argend = vslength(ttm->vs.passive);
-	    arglen = (argend - argstart);
-	    arg = (utf8*)malloc(arglen+1);
-	    memcpy(arg,vscontents(ttm->vs.passive)+argstart,arglen);
-	    arg[arglen] = '\0';
 #if DEBUG > 1
-xprintf("collectargs: argv[%d]=|%s|\n",frame->argc,arg);
+xprintf(ttm,"collectargs: argv[%d]=|%s|\n",frame->argc,vscontents(arg));
 #endif /* DEBUG > 1 */
-	    frame->argv[frame->argc++] = arg; arg = NULL;
+	    frame->argv[frame->argc++] = (utf8*)vsextract(arg);
 	    if(u8equal(cp8,ttm->meta.rbrc))
 		stop = 1;
-	    /* Remove arg from ttm->vs.passive */
-	    vssetlength(ttm->vs.passive,argstart);
+	    vsclear(arg);
 	    SCAN1; /* move past the ';' or '>' */
 	} else { /* ordinary char */
-	    vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
+	    vsappendn(arg,(const char*)cp8,ncp);
 	    SCAN1;
 	}
     } while(!stop);
@@ -1408,11 +1422,12 @@ points just past the bracketed string openc.
 @param ttm
 @param dst where to store bracketed string
 @param src from where to get bracketed string
+@param dst where to append the collect string
 @return TTMERR
 Note: on entry, the src points to the codepoint just after the opening bracket
 */
 static TTMERR
-collectescaped(TTM* ttm, utf8** cp8p)
+collectescaped(TTM* ttm, utf8** cp8p, VString* dst)
 {
     TTMERR err = THROW(TTM_NOERR);
     int stop = 0;
@@ -1424,33 +1439,32 @@ collectescaped(TTM* ttm, utf8** cp8p)
     /* Assume the initial LBRACKET was not consumed by caller */
     do {
 	stop = 0;
-statetrace();
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
-	} else if(isascii(cp8) && strchr(nonprintignore,*cp8)) {
+	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    SCAN1;
 	} else if(isescape(cp8)) {
 	    SCAN1;
 	    if(DEPTH(ttm) > 0 || isnul(cp8)) /* escape nested or very last character in buffer */
-		vsappendn(ttm->vs.passive,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
+		vsappendn(dst,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
 	    if(!isnul(cp8))
-		vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
+		vsappendn(dst,(const char*)cp8,ncp);
 	} else if(u8equal(cp8,ttm->meta.lbrc)) {/* <... nested brackets */
 	    if(DEPTH(ttm) > 0)
-		vsappendn(ttm->vs.passive,(const char*)ttm->meta.lbrc,u8size(ttm->meta.lbrc));
+		vsappendn(dst,(const char*)ttm->meta.lbrc,u8size(ttm->meta.lbrc));
 	    SCAN1;
 	    INCR(ttm);
 	} else if(u8equal(cp8,ttm->meta.rbrc)) {/* ...> nested brackets */
 	    DECR(ttm);
 	    if(DEPTH(ttm) > 0)
-		vsappendn(ttm->vs.passive,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
+		vsappendn(dst,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
 	    if(DEPTH(ttm) == 0)
 		stop = 1;
 	    SCAN1;
 	} else { /* All other characters */
-	    vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
+	    vsappendn(dst,(const char*)cp8,ncp);
 	    SCAN1;
 	}
     } while(!stop);
@@ -1510,7 +1524,7 @@ In order to a void spoofing, the string to be output is modified
 to escape all control characters except '\n' and '\r'.
 */
 static TTMERR
-printstring(TTM* ttm, const utf8* s8, FILE* output)
+printstring(TTM* ttm, const utf8* s8, TTMFILE* output)
 {
     TTMERR err = THROW(TTM_NOERR);
     int slen = 0;
@@ -1521,20 +1535,23 @@ printstring(TTM* ttm, const utf8* s8, FILE* output)
 	if(issegmark(s8)) {
 	    char info[16];
 	    size_t segindex = (size_t)segmarkindex(s8);
-	    snprintf(info,sizeof(info),"^%02u",(unsigned)segindex);
-	    fputs(info,output);
+	    if(iscreateindex(segindex))
+		snprintf(info,sizeof(info),"^%02x",(unsigned)segindex);
+	    else
+		snprintf(info,sizeof(info),"^CR");
+	    fputs(info,output->file);
 	} else {
 #ifdef NO
 	    if(deescape(s8,cpa) < 0) {err = THROW(TTM_EUTF8); goto done;}
 	    /* print codepoint */
-	    fputc8(ttm,cpa,output);
+	    ttmputc8(ttm,cpa,output);
 #else
 	    /* print codepoint */
-	    fputc8(ttm,s8,output);
+	    ttmputc8(ttm,s8,output);
 #endif
 	}
     }
-    fflush(output);
+    fflush(output->file);
 done:
     return THROW(err);
 }
@@ -1563,85 +1580,51 @@ printsubseq(VString* vs, size_t argstart , size_t argend)
 }
 
 /**
-It is sometimes useful to print a string, but to convert
-segment/create marks to printable form.	 So, given a pointer, s8,
-to a utf8 char string, this function computes the value where
-the segment/create marks are converted to printable form and all
-other characters are left as is. The result is returned.
-@param src utf8 string
-@param pfinallen store the final length of result
-@return copy of s8 with segment/create marks modified || NULL if non codepoint encountered
-*/
-static utf8*
-desegmark(const utf8* s8, size_t* pfinallen)
-{
-    utf8* deseg = NULL;
-    char* p = NULL;
-    char* q = NULL;
-    size_t len = 0;
-
-    len = strlen((const char*)s8);
-    deseg = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
-    for(p=(char*)s8,q=(char*)deseg;*p;) {
-	len = u8size((const utf8*)p);
-	switch (len) {
-	case 0: /* illegal utf8 char */
-	    nullfree(deseg);
-	    deseg = NULL;
-	    goto done;
-	case 2: /* possible segmark */
-	    if(issegmark(p)) {
-		char info[16];
-		size_t segindex = (size_t)segmarkindex(p);
-		snprintf(info,sizeof(info),"^%02d",(unsigned)segindex);
-		memcpy(q,info,strlen(info));
-		p += SEGMARKSIZE; q += strlen(info);
-		break;
-	    }
-	    /* else non-segmark => fall thru */
-	case 1: case 3: case 4: /* non-segmark utf8 char */
-	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
-	    p += len; q += len;
-	    break;
-	default: abort(); /* bad len */
-	}
-    }
-    *q = '\0';
-    if(pfinallen) {*pfinallen = (size_t)(q - (char*)deseg);}
-done:
-    return deseg;
-}
-
-/**
-It is sometimes useful to print a string, but to
-convert selected control chars to escaped form: e.g <cr> to '\n'.
-So, given a pointer, s8, to a utf8 char and ctrls, a string of control chars,
-this function computes the escaped value where the characters in ctrl
-are left as is, but all other controls are converted to escaped form.
-The result is returned.
+It is sometimes useful to print a string, but to convert selected
+control chars to escaped form: e.g <cr> to '\n'.  Same goes for
+encountered segment and creation marks.  So, given a pointer, s8, to a
+utf8 char and ctrls, a string of control chars, this function creates
+a modified copy of the string where where the characters in ctrl are
+left as is, but all other controls are converted to escaped form.  In
+addition, any segment/creation marks are converted to printable form.
+The resulting copy is returned.
 @param src utf8 string
 @param ctrls specify control chars to leave unchanged
 @param pfinallen store the final length of result
 @return copy of s8 with controls modified || NULL if non codepoint encountered
 */
 static utf8*
-decontrol(const utf8* s8, char* ctrls, size_t* pfinallen)
+printclean(const utf8* s8, char* ctrls, size_t* pfinallen)
 {
-    utf8* dectrl = NULL;
+    utf8* clean = NULL;
     char* p = NULL;
     char* q = NULL;
     size_t len = 0;
 
     len = strlen((const char*)s8);
-    dectrl = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
-    for(p=(char*)s8,q=(char*)dectrl;*p;) {
+    clean = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
+    for(p=(char*)s8,q=(char*)clean;*p;) {
 	len = u8size((const utf8*)p);
 	switch (len) {
 	case 0: /* illegal utf8 char */
-	    nullfree(dectrl);
-	    dectrl = NULL;
+	    nullfree(clean);
+	    clean = NULL;
 	    goto done;
-	case 2: case 3: case 4: /* non-ascii utf8 char */
+	case 2: /* either non-ascii utf8 char or segment/creation mark */
+	    if(issegmark(p)) {
+		char info[16];
+		size_t segindex = (size_t)segmarkindex(p);
+		if(iscreateindex(segindex))
+		    snprintf(info,sizeof(info),"^CR");
+		else
+		    snprintf(info,sizeof(info),"^%02x",(unsigned)segindex);
+		memcpy(q,info,strlen(info));
+		p += SEGMARKSIZE; q += strlen(info);
+		break;
+	    }
+	    /* else non-segmark => fall thru */
+
+	case 3: case 4: /* non-ascii utf8 char */
 	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
 	    p += len; q += len;
 	    break;
@@ -1674,9 +1657,9 @@ decontrol(const utf8* s8, char* ctrls, size_t* pfinallen)
 	}
     }
     *q = '\0';
-    if(pfinallen) {*pfinallen = (size_t)(q - (char*)dectrl);}
+    if(pfinallen) {*pfinallen = (size_t)(q - (char*)clean);}
 done:
-    return dectrl;
+    return clean;
 }
 
 /* Convert '\\' escaped characters using standard C conventions.
@@ -1694,6 +1677,7 @@ deescape(const utf8* s8, size_t* pfinallen)
     char* q = NULL;
     size_t len = 0;
 
+    if(s8 == NULL) goto done;
     len = strlen((const char*)s8);
     deesc = (utf8*)malloc(sizeof(utf8)*(len+1)); /* max possible */
     for(p=(char*)s8,q=(char*)deesc;*p;) {
@@ -1753,7 +1737,7 @@ getdictstr(TTM* ttm, const Frame* frame, size_t i)
     Function* str = NULL;
 
     if((str = dictionaryLookup(ttm,frame->argv[i]))==NULL) FAILNONAME(i);
-    if(str->builtin) FAIL(ttm,TTM_ENOPRIM);
+    if(str->fcn.builtin) FAIL(ttm,TTM_ENOPRIM);
     return str;
 }
 
@@ -1776,10 +1760,10 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
 	ttm_ds(ttm,frame);
 	return;
     }
-    if(str->builtin) FAIL(ttm,TTM_ENOPRIM);
+    if(str->fcn.builtin) FAIL(ttm,TTM_ENOPRIM);
     apstring = frame->argv[2];
     aplen = strlen((const char*)apstring);
-    body = str->body;
+    body = str->fcn.body;
     bodylen = strlen((const char*)body);
     totallen = bodylen + aplen;
     /* Fake realloc because windows realloc is flawed */
@@ -1790,9 +1774,9 @@ ttm_ap(TTM* ttm, Frame* frame) /* Append to a string */
 	newbody[bodylen] = NUL8;
     }
     strncpy((char*)newbody,(const char*)apstring,aplen);
-    str->residual = totallen;
-    nullfree(str->body);
-    str->body = newbody; newbody = NULL;
+    str->fcn.residual = totallen;
+    nullfree(str->fcn.body);
+    str->fcn.body = newbody; newbody = NULL;
 }
 
 /**
@@ -1822,8 +1806,8 @@ ttm_cf(TTM* ttm, Frame* frame) /* Copy a function */
     /* Keep new hash entry */
     newfcn->entry = saveentry;
     /* Do pointer fixup */
-    if(newfcn->body != NULL)
-	newfcn->body = (utf8*)strdup((const char*)newfcn->body);
+    if(newfcn->fcn.body != NULL)
+	newfcn->fcn.body = (utf8*)strdup((const char*)newfcn->fcn.body);
 }
 
 static void
@@ -1834,18 +1818,18 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
     size_t bodylen,remainder;
 
     if((str = getdictstr(ttm,frame,1))==NULL) FAILNONAME(1);
-    bodylen = strlen((const char*)str->body);
-    if(str->residual >= bodylen) return; /* no substitution possible */
-    /* copy the remainder of str->body to ttm->vs.tmp for repeated scanning */
-    remainder = bodylen - str->residual;
+    bodylen = strlen((const char*)str->fcn.body);
+    if(str->fcn.residual >= bodylen) return; /* no substitution possible */
+    /* copy the remainder of str->fcn.body to ttm->vs.tmp for repeated scanning */
+    remainder = bodylen - str->fcn.residual;
     vsclear(ttm->vs.tmp);
-    vsappendn(ttm->vs.tmp,(const char*)(str->body+str->residual),remainder);
+    vsappendn(ttm->vs.tmp,(const char*)(str->fcn.body+str->fcn.residual),remainder);
 
     crstring = frame->argv[2];
     (void)ttm_mark1(ttm,ttm->vs.tmp,crstring,CREATEINDEX);
     /* Replace the str body with contents of ttm->vs.tmp */
-    nullfree(str->body);
-    str->body = (utf8*)vsextract(ttm->vs.tmp);
+    nullfree(str->fcn.body);
+    str->fcn.body = (utf8*)vsextract(ttm->vs.tmp);
 }
 
 static void
@@ -1853,24 +1837,23 @@ ttm_ds(TTM* ttm, Frame* frame)
 {
     Function* str = NULL;
     str = dictionaryLookup(ttm,frame->argv[1]);
-    if(str == NULL) {
+    if(str != NULL && str->fcn.locked) FAIL(ttm,TTM_ELOCKED);
+    if(str != NULL) { /* clean for re-use */
+	nullfree(str->fcn.body);
+        memset(&str->fcn,0,sizeof(struct FcnData));
+    } else {
 	/* create a new string object */
 	str = newFunction(ttm);
 	assert(str->entry.name == NULL);
 	str->entry.name = (utf8*)strdup((const char*)frame->argv[1]);
 	dictionaryInsert(ttm,str);
-    } else {
-	/* reset as needed */
-	str->builtin = 0;
-	str->minargs = 0;
-	str->maxargs = 0;
-	str->residual = 0;
-	str->maxsegmark = 0;
-	str->fcn = NULL;
-	nullfree(str->body);
     }
-    nullfree(str->body);
-    str->body = (utf8*)strdup((const char*)frame->argv[2]);
+    str->fcn.trace = ttm->debug.trace;
+    str->fcn.builtin = 0;
+    str->fcn.maxargs = ARB;
+    str->fcn.sv = SV_SV;
+    str->fcn.novalue = 0;
+    str->fcn.body = (utf8*)strdup((const char*)frame->argv[2]);
 }
 
 static void
@@ -1880,7 +1863,8 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
     for(i=1;i<frame->argc;i++) {
 	utf8* strname = frame->argv[i];
 	Function* str = dictionaryLookup(ttm,strname);
-	if(str != NULL && !str->locked) {
+	if(str != NULL) {
+	    if(str->fcn.locked) FAIL(ttm,TTM_ELOCKED);
 	    dictionaryRemove(ttm,strname);
 	    freeFunction(ttm,str); /* reclaim the string */
 	}
@@ -1889,7 +1873,7 @@ ttm_es(TTM* ttm, Frame* frame) /* Erase string */
 
 /**
 Helper function for #<sc> and #<ss> and #<cr>.
-Copies from str->body to ttm->vs.result
+Copies from str->fcn.body to ttm->vs.result
 while substituting segment or creation marks.
 @param ttm
 @param frame
@@ -1906,15 +1890,15 @@ ttm_ss0(TTM* ttm, Frame* frame, size_t* segcountp)
     size_t remainder;
 
     if((str = getdictstr(ttm,frame,1))==NULL) FAILNONAME(1);
-    bodylen = strlen((const char*)str->body);
-    if(str->residual >= bodylen) return; /* no substitution possible */
-    /* copy the remainder of str->body to ttm->vs.tmp for repeated scanning */
-    remainder = bodylen - str->residual;
+    bodylen = strlen((const char*)str->fcn.body);
+    if(str->fcn.residual >= bodylen) return; /* no substitution possible */
+    /* copy the remainder of str->fcn.body to ttm->vs.tmp for repeated scanning */
+    remainder = bodylen - str->fcn.residual;
     vsclear(ttm->vs.tmp);
-    vsappendn(ttm->vs.tmp,(const char*)(str->body+str->residual),remainder);
+    vsappendn(ttm->vs.tmp,(const char*)(str->fcn.body+str->fcn.residual),remainder);
 
     segcount = 0;
-    segindex = str->maxsegmark;
+    segindex = str->fcn.maxsegmark;
 
     for(i=2;i<frame->argc;i++) {
 	size_t segcount1 = 0; /* no. of hits for this arg */
@@ -1924,10 +1908,10 @@ ttm_ss0(TTM* ttm, Frame* frame, size_t* segcountp)
 	if(segcount1 > 0) segindex++;
 	segcount += segcount1;
     }
-    str->maxsegmark = segindex; /* Remember the next segment mark to use */
+    str->fcn.maxsegmark = segindex; /* Remember the next segment mark to use */
     /* Replace the str body with contents of ttm->vs.tmp */
-    nullfree(str->body);
-    str->body = (utf8*)vsextract(ttm->vs.tmp);
+    nullfree(str->fcn.body);
+    str->fcn.body = (utf8*)vsextract(ttm->vs.tmp);
     if(segcountp) *segcountp = segcount;
 }
 
@@ -1997,12 +1981,12 @@ ttm_cc(TTM* ttm, Frame* frame) /* Call one character */
 
     if((fcn = getdictstr(ttm,frame,1))==NULL) FAILNONAME(1);
     /* Check for pointing at trailing NUL */
-    if(fcn->residual < strlen((const char*)fcn->body)) {
+    if(fcn->fcn.residual < strlen((const char*)fcn->fcn.body)) {
 	int ncp;
-	utf8* p = fcn->body+fcn->residual;
+	utf8* p = fcn->fcn.body+fcn->fcn.residual;
 	if((ncp = u8size(p))<0) FAIL(ttm,TTM_EUTF8);
 	vsappendn(ttm->vs.result,(const char*)p,ncp);
-	fcn->residual += ncp;
+	fcn->fcn.residual += ncp;
     }
 }
 
@@ -2032,7 +2016,7 @@ ttm_cn(TTM* ttm, Frame* frame) /* Call n characters (codepoints) */
 	if(*p) break; /* EOS */
 	if((ncp = u8size(p))<0) FAIL(ttm,TTM_EUTF8);
 	vsappendn(ttm->vs.result,(const char*)p,ncp);
-	fcn->residual += ncp;
+	fcn->fcn.residual += ncp;
     }
     return;
 nullreturn:
@@ -2051,12 +2035,12 @@ ttm_sn(TTM* ttm, Frame* frame) /* Skip n characters */
     if(1 != sscanf((const char*)frame->argv[1],"%lld",&num)) FAIL(ttm,TTM_EDECIMAL);
     if(num < 0) FAIL(ttm,TTM_ENOTNEGATIVE);
 
-    for(p=str->body+str->residual;num-- > 0;) {
+    for(p=str->fcn.body+str->fcn.residual;num-- > 0;) {
 	int ncp = u8size(p);
 	if(ncp < 0) FAIL(ttm,TTM_EUTF8);
 	if(isnul(p)) break;
 	p += ncp;
-	str->residual+=ncp;
+	str->fcn.residual+=ncp;
     }
 }
 
@@ -2079,11 +2063,11 @@ ttm_isc(TTM* ttm, Frame* frame) /* Initial character scan; moves residual pointe
     f = frame->argv[4];
 
     /* check for initial string match */
-    if(strncmp((const char*)str->body+str->residual,(const char*)arg,arglen)==0) {
+    if(strncmp((const char*)str->fcn.body+str->fcn.residual,(const char*)arg,arglen)==0) {
 	result = t;
-	str->residual += arglen;
-	slen = strlen((const char*)str->body);
-	if(str->residual > slen) str->residual = slen;
+	str->fcn.residual += arglen;
+	slen = strlen((const char*)str->fcn.body);
+	if(str->fcn.residual > slen) str->fcn.residual = slen;
     } else
 	result = f;
     vsclear(ttm->vs.result);
@@ -2107,7 +2091,7 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
     f = frame->argv[3];
 
     /* check for sub string match */
-    p0 = str->body+str->residual;
+    p0 = str->fcn.body+str->fcn.residual;
     p = (utf8*)strstr((const char*)p0,(const char*)arg);
     vsclear(ttm->vs.result);
     if(p == NULL) {/* no match; return argv[3] */
@@ -2116,7 +2100,7 @@ ttm_scn(TTM* ttm, Frame* frame) /* Character scan */
 	ptrdiff_t len = (p - p0);
 	vsappendn(ttm->vs.result,(const char*)p0,(size_t)len);
 	/* move rp past matched string */
-	str->residual += (len + arglen);
+	str->fcn.residual += (len + arglen);
     }
 }
 
@@ -2131,7 +2115,7 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
 
     fcn = getdictstr(ttm,frame,1);
 
-    rp0 = (fcn->body + fcn->residual);
+    rp0 = (fcn->fcn.body + fcn->fcn.residual);
     rp = rp0;
     depth = 0;
     for(;;) {
@@ -2148,8 +2132,8 @@ ttm_cp(TTM* ttm, Frame* frame) /* Call parameter */
     delta = (rp - rp0);
     vsclear(ttm->vs.result);
     vsappendn(ttm->vs.result,(const char*)rp0,delta);
-    fcn->residual += delta;
-    if(*rp != NUL8) fcn->residual++;
+    fcn->fcn.residual += delta;
+    if(*rp != NUL8) fcn->fcn.residual++;
 }
 
 static void
@@ -2164,7 +2148,7 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 
     /* Locate the next segment mark */
     /* Unclear if create marks also qualify; assume yes */
-    p0 = fcn->body + fcn->residual;
+    p0 = fcn->fcn.body + fcn->fcn.residual;
     p = p0;
     for(;;) {
 	int ncp;
@@ -2179,15 +2163,15 @@ ttm_cs(TTM* ttm, Frame* frame) /* Call segment */
 	vsappendn(ttm->vs.result,(const char*)p0,delta);
     }
     /* set residual pointer correctly */
-    fcn->residual += delta;
-    if(*p != NUL8) fcn->residual++;
+    fcn->fcn.residual += delta;
+    if(*p != NUL8) fcn->fcn.residual++;
 }
 
 static void
 ttm_rrp(TTM* ttm, Frame* frame) /* Reset residual pointer */
 {
     Function* str = getdictstr(ttm,frame,1);
-    str->residual = 0;
+    str->fcn.residual = 0;
 }
 
 static void
@@ -2202,8 +2186,8 @@ ttm_eos(TTM* ttm, Frame* frame) /* Test for end of string */
     str = getdictstr(ttm,frame,1);
     t = frame->argv[2];
     f = frame->argv[3];
-    bodylen = strlen((const char*)str->body);
-    result = (str->residual >= bodylen ? t : f);
+    bodylen = strlen((const char*)str->fcn.body);
+    result = (str->fcn.residual >= bodylen ? t : f);
     vsclear(ttm->vs.result);
     vsappendn(ttm->vs.result,(const char*)result,strlen((const char*)result));
 }
@@ -2428,17 +2412,17 @@ ttm_ccl(TTM* ttm, Frame* frame) /* call class */
     if((str = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
     if((cl = charclassLookup(ttm,frame->argv[1]))==NULL) FAILNOCLASS(1);
 
-    /* Starting at str->residual, locate first char not in class (or negative) */
+    /* Starting at str->fcn.residual, locate first char not in class (or negative) */
     vsclear(ttm->vs.result);
-    rr0 = str->residual;
+    rr0 = str->fcn.residual;
     for(;;) {
-	p = str->body + str->residual;
+	p = str->fcn.body + str->fcn.residual;
 	if(cl->negative && charclassMatch(p,cl->characters)) break;
 	if(!cl->negative && !charclassMatch(p,cl->characters)) break;
-	str->residual += u8size(p);
+	str->fcn.residual += u8size(p);
     }
-    vsappendn(ttm->vs.result,(const char*)str->body + rr0,(str->residual - rr0));
-    str->residual = rr0;
+    vsappendn(ttm->vs.result,(const char*)str->fcn.body + rr0,(str->fcn.residual - rr0));
+    str->fcn.residual = rr0;
 }
 
 static void
@@ -2451,14 +2435,14 @@ ttm_scl(TTM* ttm, Frame* frame) /* skip class */
     if((cl = charclassLookup(ttm,frame->argv[1]))==NULL) FAILNOCLASS(1);
     if((str = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
 
-    /* Starting at str->residual, locate first char not in class */
+    /* Starting at str->fcn.residual, locate first char not in class */
     for(;;) {
 	int count;
-	p = str->body + str->residual;
+	p = str->fcn.body + str->fcn.residual;
 	if(cl->negative && charclassMatch(p,cl->characters)) break;
 	if(!cl->negative && !charclassMatch(p,cl->characters)) break;
 	count = u8size(p);
-	str->residual += count;
+	str->fcn.residual += count;
     }
 }
 
@@ -2479,8 +2463,8 @@ ttm_tcl(TTM* ttm, Frame* frame) /* Test class */
     if(str == NULL)
 	retval = f;
     else {
-	utf8* p = str->body + str->residual;
-	/* see if char at str->residual is in class */
+	utf8* p = str->fcn.body + str->fcn.residual;
+	/* see if char at str->fcn.residual is in class */
 	if(cl->negative && !charclassMatch(p,cl->characters))
 	    retval = t;
 	else if(!cl->negative && charclassMatch(p,cl->characters))
@@ -2769,22 +2753,23 @@ ttm_ltl(TTM* ttm, Frame* frame) /* ? Compare logical less-than */
 /**
 In order to a void spoofing, the string to be output is modified
 to convert all control characters except '\n' and '\r' ('\t').
+Also, segment and create marks, are converted to a printable form.
 */
 static void
 ttm_ps(TTM* ttm, Frame* frame) /* Print a Function/String */
 {
     utf8* stdxx = (frame->argc == 2 ? NULL : frame->argv[2]);
-    FILE* target;
+    TTMFILE* target;
     size_t i;
 
     if(stdxx != NULL && strcmp((const char*)stdxx,"stderr")==0)
-	target=stderr;
+	target=ttm->stderr;
     else
-	target = stdout;
+	target = ttm->stdout;
     for(i=1;i<frame->argc;i++) {
-	utf8* decontrolled = decontrol(frame->argv[i],"\n\r\t",NULL);
-	printstring(ttm,decontrolled,target);
-	nullfree(decontrolled);
+	utf8* cleaned = printclean(frame->argv[i],"\n\r\t",NULL);
+	printstring(ttm,cleaned,target);
+	nullfree(cleaned);
     }
 }
 
@@ -2795,7 +2780,7 @@ ttm_rs(TTM* ttm, Frame* frame) /* Read a Function/String */
     for(len=0;;len++) {
 	int ncp;
 	utf8cpa cp8;
-	ncp = fgetc8(ttm,ttm->io.input,cp8);
+	ncp = ttmnonl(ttm,ttm->stdin,cp8);
 	if(isnul(cp8)) break;
 	if(u8equal(cp8,ttm->meta.eofc)) break;
 	vsappendn(ttm->vs.result,(const char*)cp8,ncp);
@@ -2855,8 +2840,8 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all dictionary instance names in sor
     for(nnames=0,i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 	while(entry != NULL) {
-	    Function* name = (Function*)entry;
-	    if(!name->builtin) { /* I read the documentation to ignore builtin functions */
+	    Function* str = (Function*)entry;
+	    if(!str->fcn.builtin) { /* I read the documentation to ignore builtin functions */
 		nnames++;
 	    }
 	    entry = entry->next;
@@ -2872,9 +2857,9 @@ ttm_names(TTM* ttm, Frame* frame) /* Obtain all dictionary instance names in sor
     for(i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 	while(entry != NULL) {
-	    Function* name = (Function*)entry;
-	    if(!name->builtin) {
-		names[index++] = (const utf8*)name->entry.name;
+	    Function* str = (Function*)entry;
+	    if(!str->fcn.builtin) {
+		names[index++] = (const utf8*)str->entry.name;
 	    }
 	    entry = entry->next;
 	}
@@ -2995,14 +2980,14 @@ ttm_tf(TTM* ttm, Frame* frame) /* Turn Trace Off */
 	    for(i=0;i<HASHSIZE;i++) {
 		struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 		while(entry != NULL) {
-		    Function* name = (Function*)entry;
-		    name->trace = 0;
+		    Function* str = (Function*)entry;
+		    str->fcn.trace = 0;
 		    entry = entry->next;
 		}
 	    }
 	} else for(i=1;i<frame->argc;i++) {
 	    Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL) fcn->trace = 0;
+	    if(fcn != NULL) fcn->fcn.trace = 0;
 	}
     } else { /* turn off global tracing */
 	ttm->debug.trace = 0;
@@ -3018,14 +3003,14 @@ ttm_tn(TTM* ttm, Frame* frame) /* Turn Trace On */
 	    for(i=0;i<HASHSIZE;i++) {
 		struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 		while(entry != NULL) {
-		    Function* name = (Function*)entry;
-		    name->trace = 1;
+		    Function* str = (Function*)entry;
+		    str->fcn.trace = 1;
 		    entry = entry->next;
 		}
 	    }
 	} else for(i=1;i<frame->argc;i++) {
 	    Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL) fcn->trace = 1;
+	    if(fcn != NULL) fcn->fcn.trace = 1;
 	}
     } else { /* turn off global tracing */
 	ttm->debug.trace = 1;
@@ -3117,13 +3102,13 @@ ttm_lf(TTM* ttm, Frame* frame) /* Lock a list of function from being deleted; nu
 		struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 		while(entry != NULL) {
 		    fcn = (Function*)entry;
-		    if(!fcn->builtin) fcn->locked = 1;
+		    if(!fcn->fcn.builtin) fcn->fcn.locked = 1;
 		    entry = entry->next;
 		}
 	    }
 	} else for(i=1;i<frame->argc;i++) {
 	    fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL && !fcn->builtin) fcn->trace = 1;
+	    if(fcn != NULL && !fcn->fcn.builtin) fcn->fcn.trace = 1;
 	}
     }
 }
@@ -3139,13 +3124,13 @@ ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
 		struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 		while(entry != NULL) {
 		    fcn = (Function*)entry;
-		    if(!fcn->builtin) fcn->locked = 0;
+		    if(!fcn->fcn.builtin) fcn->fcn.locked = 0;
 		    entry = entry->next;
 		}
 	    }
 	} else for(i=1;i<frame->argc;i++) {
 	    fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL && !fcn->builtin) fcn->trace = 0;
+	    if(fcn != NULL && !fcn->fcn.builtin) fcn->fcn.trace = 0;
 	}
     }
 }
@@ -3153,18 +3138,14 @@ ttm_uf(TTM* ttm, Frame* frame) /* Un-Lock a function from being deleted */
 static void
 ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
 {
-    utf8* path;
-    FILE* finclude;
-    char filename[8192];
+    const char* path;
 
-    path = frame->argv[1];
-    if(strlen((const char*)path) == 0) FAIL(ttm,TTM_EINCLUDE);
-    finclude = fopen((const char*)filename,"rb");
-    if(finclude == NULL) FAIL(ttm,TTM_EINCLUDE);
-    readfile(ttm,finclude,ttm->vs.tmp);
-    fclose(finclude);
+    path = (const char*)frame->argv[1];
+    if(path == NULL || strlen(path) == 0) FAIL(ttm,TTM_EINCLUDE);
+    readfile(ttm,path,ttm->vs.tmp);
     /* Append ttm->vs.passive or insert into ttm->vs.active at index */
     if(frame->active) {
+        /* WARNING: invalidates any pointers into active */
 	vsindexinsertn(ttm->vs.active,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
     } else {
 	vsappendn(ttm->vs.passive,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
@@ -3252,33 +3233,32 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame)
     str = dictionaryLookup(ttm,arg);
     if(str == NULL) { /* not defined*/
 	vsappendn(ttm->vs.result,(const char*)arg,arglen);
-	vsappendn(ttm->vs.result,",-,-,-",0);
+	vsappendn(ttm->vs.result,"|,-,-,-|",0);
 	goto done;
     }
     /* assert(str != NULL) */
     vsappendn(ttm->vs.result,(const char*)str->entry.name,strlen((const char*)str->entry.name));
-    if(str->builtin) {
+    if(str->fcn.builtin) {
 	char digits[64];
-	snprintf(digits,sizeof(digits),"%zu",str->maxargs);
+	snprintf(digits,sizeof(digits),"%zu",str->fcn.maxargs);
 	snprintf(info,sizeof(info),",%zu,%s,%s",
-		 str->minargs,(str->maxargs == ARB?"*":digits),sv(str));
+		 str->fcn.minargs,(str->fcn.maxargs == ARB?"*":digits),sv(str));
 	vsappendn(ttm->vs.result,info,strlen(info));
-    } else {/*!str->builtin*/
-	snprintf(info,sizeof(info),",0,%zu,V",str->maxsegmark);
+    } else {/*!str->fcn.builtin*/
+	snprintf(info,sizeof(info),",0,%zu,V",str->fcn.maxsegmark);
 	vsappendn(ttm->vs.result,info,strlen(info));
     }
-    if(!str->builtin && ttm->debug.verbose) {
-	utf8* deseg = NULL;
-	size_t ndeseg = 0;
-	snprintf(info,sizeof(info)," residual=%zu body=|",str->residual);
+    if(!str->fcn.builtin && ttm->debug.verbose) {
+	utf8* cleaned = NULL;
+	size_t ncleaned = 0;
+	snprintf(info,sizeof(info)," residual=%zu body=|",str->fcn.residual);
 	vsappendn(ttm->vs.result,info,strlen(info));
-	deseg = desegmark(str->body,&ndeseg); /* Fix seg/create marks */
-	vsappendn(ttm->vs.result,(const char*)deseg,ndeseg);
-	vsappend(ttm->vs.result,'|');
+	cleaned = printclean(str->fcn.body,NULL,&ncleaned);
+	vsappendn(ttm->vs.result,(const char*)cleaned,ncleaned);
     }
 done:
 #if DEBUG > 0
-xprintf("info.name: |%s|\n",vscontents(ttm->vs.result));
+xprintf(ttm,"info.name: |%s|\n",vscontents(ttm->vs.result));
 #endif
     return;
 }
@@ -3311,7 +3291,7 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame) /* Misc. combined actions */
 	vsappend(ttm->vs.result,'\n');
     }
 #if DEBUG > 0
-    xprintf("info.class: |%s|\n",vscontents(ttm->vs.result));
+    xprintf(ttm,"info.class: |%s|\n",vscontents(ttm->vs.result));
 #endif
 }
 
@@ -3332,8 +3312,8 @@ ttm_ttm_info_string(TTM* ttm, Frame* frame) /* Misc. combined actions */
     str = dictionaryLookup(ttm,arg);
     /* Surround the body with <...> */
     vsappendn(ttm->vs.result,(const char*)ttm->meta.lbrc,u8size(ttm->meta.lbrc));
-    if(str != NULL ||! str->builtin) {
-	vsappendn(ttm->vs.result,(const char*)str->body,strlen((const char*)str->body));
+    if(str != NULL ||! str->fcn.builtin) {
+	vsappendn(ttm->vs.result,(const char*)str->fcn.body,strlen((const char*)str->fcn.body));
     } else { /* Use "" */
 	/* append nothing */
     }
@@ -3382,17 +3362,20 @@ ttm_ttm_list(TTM* ttm, Frame* frame) /* Misc. combined actions */
 	    vlpush(vl,strdup((const char*)fcn->entry.name));
 	    break;
 	case TE_BUILTIN:	
-	    if(fcn->builtin) vlpush(vl,strdup((const char*)fcn->entry.name));
+	    if(fcn->fcn.builtin) vlpush(vl,strdup((const char*)fcn->entry.name));
 	    break;
 	case TE_STRING:	
-	    if(!fcn->builtin) vlpush(vl,strdup((const char*)fcn->entry.name));
+	    if(!fcn->fcn.builtin) vlpush(vl,strdup((const char*)fcn->entry.name));
 	    break;
 	default: FAIL(ttm,TTM_EINVAL);
 	}
     }
     hashwalkstop(walker);
+    {
+    void* contents = vlcontents(vl); /* suppress gcc warning */
     /* Sort the names */
-    qsort((void*)vlcontents(vl),(size_t)vllength(vl),sizeof(utf8*),stringcmp);
+    qsort(contents,(size_t)vllength(vl),sizeof(utf8*),stringcmp);
+    }
     /* construct the final result */
     for(first=1,i=0;i<vllength(vl);i++,first=0) {
 	if(!first)
@@ -3610,17 +3593,17 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     if(fcn != NULL) FAIL(ttm,TTM_EDUPNAME);
     /* create a new function object */
     fcn = newFunction(ttm);
-    fcn->builtin = 1;
-    fcn->locked = 1;
-    fcn->minargs = bin->minargs;
-    fcn->maxargs = bin->maxargs;
-    fcn->sv = bin->sv;
+    fcn->fcn.builtin = 1;
+    fcn->fcn.locked = 1;
+    fcn->fcn.minargs = bin->minargs;
+    fcn->fcn.maxargs = bin->maxargs;
+    fcn->fcn.sv = bin->sv;
     switch (bin->sv) {
-    case SV_S:	fcn->novalue = 1; break;
-    case SV_V:	fcn->novalue = 0; break;
-    case SV_SV: fcn->novalue = 0; break;
+    case SV_S:	fcn->fcn.novalue = 1; break;
+    case SV_V:	fcn->fcn.novalue = 0; break;
+    case SV_SV: fcn->fcn.novalue = 0; break;
     }
-    fcn->fcn = bin->fcn;
+    fcn->fcn.fcn = bin->fcn;
     /* Convert name to utf8 */
     fcn->entry.name = (utf8*)strdup(bin->name);
     if(!dictionaryInsert(ttm,fcn)) {
@@ -3640,13 +3623,16 @@ defineBuiltinFunctions(TTM* ttm)
 }
 
 /**************************************************/
+
+/* Reset the ttm state to execute the next full line of text. */
 static void
-ttmreread(TTM* ttm)
+ttmreset(TTM* ttm)
 {
     vsclear(ttm->vs.active);
     vsclear(ttm->vs.passive);
     vsclear(ttm->vs.result);
     vsclear(ttm->vs.tmp);
+    ttm->flags.lineno = 0;
 }
 
 /**
@@ -3665,12 +3651,12 @@ execstring(TTM* ttm, const char* cmd)
 #else
     ttm->debug.trace = 0;
 #endif
-    ttmreread(ttm);
+    ttmreset(ttm);
     vsinsertn(ttm->vs.active,0,cmd,cmdlen);
     vsindexset(ttm->vs.active,0);
     cp8 = (utf8*)vsindexp(ttm->vs.active);
     if((err = scan(ttm,&cp8))) goto done;
-    ttmreread(ttm);
+    ttmreset(ttm);
     ttm->debug.trace = savetrace;
 done:
     return THROW(err);
@@ -3716,8 +3702,8 @@ lockup(TTM* ttm)
     for(i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->tables.dictionary.table[i].next;
 	while(entry != NULL) {
-	    Function* name = (Function*)entry;
-	    name->locked = 1;
+	    Function* str = (Function*)entry;
+	    str->fcn.locked = 1;
 	    entry = entry->next;
 	}
     }
@@ -3757,7 +3743,7 @@ debash(const char* s)
 static const char*
 sv(Function* f)
 {
-    switch (f->sv) {
+    switch (f->fcn.sv) {
     case SV_S: return "S";
     case SV_V: return "V";
     case SV_SV: return "SV";
@@ -3817,6 +3803,66 @@ peek(VString* vs, size_t n, utf8** pp)
     return err;
 }
 
+static TTMFILE*
+ttmopen(TTM* ttm, const char* fname, const char* mode)
+{
+    int eno = 0;
+    TTMFILE* tfile = NULL;
+    tfile = (TTMFILE*)calloc(1,sizeof(TTMFILE));
+    if(tfile == NULL) FAIL(ttm,TTM_EMEMORY);
+    tfile->file = fopen(fname,mode);
+    if(tfile->file == NULL) {eno = errno; goto done;}
+    tfile->npushed = -1;
+
+done:;
+    errno = eno;
+    return tfile;
+}
+
+static int
+ttmclose(TTM* ttm, TTMFILE* tfile)
+{
+    int ret = 0;
+    int eno = 0;
+    if(tfile != NULL) {
+	ret = fclose(tfile->file);
+	if(ret == EOF) eno = errno;
+        free(tfile);
+    }
+    errno = eno;
+    return ret;
+}
+
+#ifdef GDB
+int
+ttmflush(TTM* ttm, TTMFILE* tfile)
+{
+    int ret = 0;
+    if(tfile == NULL) FAIL(ttm,TTM_ETTM);
+    ret = fflush(tfile->file);
+    return ret;
+}
+#endif
+
+static int
+ttmerror(TTM* ttm, TTMFILE* tfile)
+{
+    int ret = 0;
+    if(tfile == NULL) FAIL(ttm,TTM_ETTM);
+    ret = ferror(tfile->file);
+    clearerr(tfile->file);
+    return ret;
+}
+
+static int
+ttmeof(TTM* ttm, TTMFILE* tfile)
+{
+    int ret = 0;
+    if(tfile == NULL) FAIL(ttm,TTM_ETTM);
+    ret = feof(tfile->file);
+    return ret;
+}
+
 /**************************************************/
 /* Main() Support functions */
 
@@ -3860,47 +3906,46 @@ usage(const char* msg)
     if(msg != NULL) exit(1); else exit(0);
 }
 
-static void
-readinput(TTM* ttm, const char* filename, VString* buf)
+/**
+Read one full line of iput from stdin.
+Note for each line read if it ends in an escapechar+newline
+then another line is read and appended to current line.
+This repeats until a line is read that does not end in escapechar+newline.
+Note that encountering a bare EOF/EOS also terminates the line.
+@param ttm
+@param f file from which to read
+@param buf - hold line(s) read from stdin
+@return 0 if data; EOF otherwise
+*/
+static int
+readline(TTM* ttm, TTMFILE* f, VString* buf)
 {
-    FILE* f = NULL;
-    int isstdin = 0;
-
-    if(strcmp(filename,"-") == 0) {
-	/* Read from stdinput */
-	isstdin = 1;
-	f = stdin;
-    } else {
-	f = fopen(filename,"rb");
-	if(f == NULL) {
-	    fprintf(stderr,"Cannot read file: %s\n",filename);
-	    exit(1);
-	}
-    }
+    int ncp;
+    utf8cpa cp8;
+    int ret = 0;
 
     vssetlength(buf,0);
-    for(;;) {
-	int count;
-	utf8cpa cp8;
-
-	if((count=fgetc8(ttm,f,cp8)) < 0) FAIL(ttm,TTM_EUTF8);
-	if(isnul(cp8)) break;
-	/* Convert \r\n to \n */
-	if(u8equal(cp8,(const utf8*)"\r")) {
-	    if((count=fgetc8(ttm,f,cp8)) < 0) FAIL(ttm,TTM_EUTF8);
-	    if(!u8equal(cp8,(const utf8*)"\n")) {
-		/* \rX => re-process \r and pushback X */
-		fpushbackc(ttm,cp8);
-		vsappendn(buf,(const char*)"\r",u8size((const utf8*)"\r"));
-	    } else { /* \r\n => suppress \r and scan \n */
-		vsappendn(buf,"\n",1);
+    for(;;) { /* Read thru next \n or \0 (EOF) */
+        if((ncp=ttmnonl(ttm,f,cp8)) <= 0) FAIL(ttm,TTM_EUTF8);
+	if(isnul(cp8)) {if(vslength(buf) == 0) ret = EOF; break;}
+	if(isescape(cp8)) {
+	    /* peek to see if this escape at end of line: '\''\n' */
+	    if((ncp=ttmnonl(ttm,f,cp8)) <= 0) FAIL(ttm,TTM_EUTF8);
+	    if(u8equal(cp8,(utf8*)"\n")) {
+	        /* escape of \n => elide escape and \n and continue reading */
+	        continue;
+	    } else { /* pass the escape and the escaped char */
+		vsappendn(ttm->vs.passive,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
+		vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
 	    }
-	} else { /* char other than '\r' */
-	    if(ttm->flags.interactive && u8equal(cp8,ttm->meta.eofc)) break;
-	    vsappendn(buf,(const char*)cp8,count);
-	}
+	} if(u8equal(cp8,(const utf8*)"\n")) {
+	    vsappendn(buf,(const char*)cp8,ncp);
+	    break;
+	} else { /* char other than nul or escape */
+	    vsappendn(buf,(const char*)cp8,ncp);
+        }
     }
-    if(!isstdin) fclose(f);
+    return ret;
 }
 
 #if 0
@@ -3948,16 +3993,27 @@ readbalanced(TTM* ttm)
 }
 #endif
 
+/**
+Read a file to EOF
+@param ttn
+@param file to read
+@param buf hold text of file
+@return void
+*/
 static void
-readfile(TTM* ttm, FILE* file, VString* buf)
+readfile(TTM* ttm, const char* fname, VString* buf)
 {
+    TTMFILE* f = NULL;
+    VString* oneline = vsnew();
+    f = ttmopen(ttm,(const char*)fname,"rb");
+    if(f == NULL) FAIL(ttm,TTM_EINCLUDE);
     for(;;) {
-	int count;
-	utf8cpa cp8;
-	if((count=fgetc8(ttm,file,cp8)) < 0) FAIL(ttm,TTM_EUTF8);
-	if(isnul(cp8)) break;
-	vsappendn(buf,(const char*)cp8,count);
+	vsclear(oneline);
+	if(readline(ttm,f,oneline)==EOF) break;
+	vsappendn(buf,vscontents(oneline),vslength(oneline));
     }
+    ttmclose(ttm,f);
+    vsfree(oneline);
 }
 
 /* This will be more complex if/when some fields are allocated space
@@ -4046,6 +4102,80 @@ processdebugargs(TTM* ttm, const char* debugargs)
 
 
 /**************************************************/
+/* Helper functions for main */
+
+static int
+setupio(TTM* ttm, const char* outfile, const char* infile, int forceinteractive)
+{
+    TTMERR err = TTM_NOERR;
+    TTMFILE* io = NULL;
+
+    assert(ttm != NULL);
+    if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
+    if(infile == NULL) {
+	io->file = stdin;
+	io->isstd = 1;
+    } else {
+	io->file = fopen(infile,"wb");
+	if(io->file == NULL) {
+	    fprintf(stderr,"File cannot be accessed: %s\n",infile);
+	    err = errno;
+	    free(io);
+	    goto done;
+	}
+	io->isstd = 0;
+    }
+    if(forceinteractive || isatty(fileno(io->file))) io->interactive = 1;
+    ttm->stdin = io; io = NULL;
+
+    if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
+    if(outfile == NULL) {
+	io->file = stdout;
+	io->isstd = 1;
+    } else {
+	io->file = fopen(outfile,"wb");
+	if(io->file == NULL) {
+	    fprintf(stderr,"File cannot be accessed: %s\n",outfile);
+	    err = errno;
+	    free(io);
+	    goto done;
+	}
+	io->isstd = 0;
+    }
+    if(forceinteractive || isatty(fileno(io->file))) io->interactive = 1;
+    ttm->stdout = io; io = NULL;
+
+    if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
+    if(1) {
+	io->file = stderr;
+	io->isstd = 1;
+    } else {
+	io->file = fopen(NULL,"wb");
+	if(io->file == NULL) {
+	    fprintf(stderr,"File cannot be accessed: %s\n",outfile);
+	    err = errno;
+	    free(io);
+	    goto done;
+	}
+	io->isstd = 0;
+    }
+    if(forceinteractive || isatty(fileno(io->file))) io->interactive = 1;
+    ttm->stderr = io; io = NULL;
+
+done:
+    errno = 0; /* reset */
+    return err;
+}
+
+static void
+closeio(TTM* ttm)
+{
+    if(ttm != NULL && ttm->stdin != NULL && !ttm->stdin->isstd) ttmclose(ttm,ttm->stdin);
+    if(ttm != NULL && ttm->stdout != NULL && !ttm->stdout->isstd) ttmclose(ttm,ttm->stdout);\
+    if(ttm != NULL && ttm->stderr != NULL && !ttm->stderr->isstd) ttmclose(ttm,ttm->stderr);
+}
+
+/**************************************************/
 /* Main() */
 
 int
@@ -4061,10 +4191,6 @@ main(int argc, char** argv)
     char* outputfilename = NULL;
     char* executefilename = NULL; /* This is the ttm file to execute */
     char* inputfilename = NULL; /* This is data for #<rs> */
-    int isstdout = 1;
-    FILE* outputfile = NULL;
-    int isstdin = 1;
-    FILE* inputfile = NULL;
     int c;
     char* p;
     char* q;
@@ -4170,41 +4296,16 @@ main(int argc, char** argv)
     if(execcount < DFALTEXECCOUNT)
 	execcount = DFALTEXECCOUNT;
 
-    if(outputfilename == NULL) {
-	outputfile = stdout;
-	isstdout = 1;
-    } else {
-	outputfile = fopen(outputfilename,"wb");
-	if(outputfile == NULL) {
-	    fprintf(stderr,"Output file is not writable: %s\n",outputfilename);
-	    exit(1);
-	}
-	isstdout = 0;
-    }
-
-    if(inputfilename == NULL) {
-	inputfile = stdin;
-	isstdin = 1;
-    } else {
-	inputfile = fopen(inputfilename,"rb");
-	if(inputfile == NULL) {
-	    fprintf(stderr,"-f file is not readable: %s\n",inputfilename);
-	    exit(1);
-	}
-	isstdin = 0;
-    }
-
     /* Create the ttm state */
     /* Modify from various options */
     ttm = newTTM(&option_props);
-    ttm->io.output = outputfile;
-    ttm->io.isstdout = isstdout;
-    ttm->io.input = inputfile;
-    ttm->io.isstdin = isstdin;
-    ttm->flags.interactive = interactive;
-    ttm->flags.interactive = 1;
     processdebugargs(ttm,debugargs);
     defineBuiltinFunctions(ttm);
+
+    if((err=setupio(ttm,outputfilename,inputfilename,interactive))) {
+	fprintf(stderr,"IO setup failure: (%d) %s\n",(int)err,errstring(err));
+	exit(1);
+    }
 
     if(!bare) {
       startupcommands(ttm);
@@ -4223,8 +4324,8 @@ main(int argc, char** argv)
     if(executefilename != NULL) {
 	for(;;) {
 	    size_t esclen = 0;
-	    ttmreread(ttm);
-	    readinput(ttm,executefilename,ttm->vs.active);
+	    ttmreset(ttm);
+	    readfile(ttm,executefilename,ttm->vs.active); /* read whole execute file */
 	    /* Remove '\\' escaped */
 	    escactive = deescape((const utf8*)vscontents(ttm->vs.active),&esclen);
 	    if(escactive == NULL) {err = TTM_EUTF8; goto done;}
@@ -4233,13 +4334,13 @@ main(int argc, char** argv)
 	    nullfree(escactive); escactive = NULL;
 	    /* prime the pump for scan */
 	    cp8 = (utf8*)vsindexp(ttm->vs.active);
-    #if DEBUG > 0
+#if DEBUG > 0
 	    if(ttm->debug.trace) {
-		char* tmp = (char*)decontrol((const utf8*)vscontents(ttm->vs.active),"\t",NULL);
-		xprintf("scan: %s\n",tmp);
+		char* tmp = (char*)printclean((const utf8*)vscontents(ttm->vs.active),"\t",NULL);
+		xprintf(ttm,"scan: %s\n",tmp);
 		nullfree(tmp);
 	    }
-    #endif
+#endif
 	    if((err = scan(ttm,&cp8))) goto done;
 	    if(ttm->flags.exit) goto done;
 	}
@@ -4248,13 +4349,13 @@ main(int argc, char** argv)
     /* If interactive, start read-eval loop */
     if(interactive) {
 	for(;;) {
-	    ttmreread(ttm);
-	    readfile(ttm,ttm->io.input,ttm->vs.active); break;
+	    ttmreset(ttm);
+	    readline(ttm,ttm->stdin,ttm->vs.active); break;
 	    /* prime the pump for scan */
 	    cp8 = (utf8*)vsindexp(ttm->vs.active);
 	    if((err = scan(ttm,&cp8))) goto done;
 	    if(!quiet)
-		printstring(ttm,(const utf8*)print2len(ttm->vs.passive),stdout);
+		printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
 	    if(ttm->flags.exit)
 		goto done;
 	}
@@ -4262,8 +4363,8 @@ main(int argc, char** argv)
 
 done:
     /* Dump any output left in the buffer */
-    if(!quiet && vslength(ttm->vs.passive) > 0) {
-	printstring(ttm,(const utf8*)print2len(ttm->vs.passive),stdout);
+    if(!quiet && vslength(ttm->vs.passive) > 0 && vscontents(ttm->vs.passive)[0] != '\n') {
+	printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
     }
 
     exitcode = ttm->flags.exitcode;
@@ -4271,8 +4372,7 @@ done:
     if(err) FAIL(ttm,err);
 
     /* cleanup */
-    if(!ttm->io.isstdout) fclose(ttm->io.output);
-    if(!ttm->io.isstdin) fclose(ttm->io.input);
+    closeio(ttm);
 
     /* Clean up misc state */
     nullfree(outputfilename);
@@ -4445,34 +4545,38 @@ u8backup(const utf8* p)
 Reads one codepoint
 All reading of characters should go thru this procedure.
 Provides an upto 4 character backup for peeking.
+Note that '\r\n' is converted to just '\n' to simplify
+code for higher levels.
+@param ttm
 @param f FILE* from which to read.
 @param cp8 dst for the codepoint (not nul terminated)
 @return size of the codepoint
 */
 static int
-fgetc8(TTM* ttm, FILE* f, utf8* cp8)
+ttmgetc8(TTM* ttm, TTMFILE* f, utf8* cp8)
 {
     int c;
     int i, cplen;
 
-    if(ttm->pushback.npushed >= 0) {
-	memcpycp(cp8,ttm->pushback.stack[ttm->pushback.npushed--]);
+    if(f->npushed >= 0) {
+	memcpycp(cp8,f->stack[f->npushed--]);
 	cplen = u8size(cp8);
     } else {
-	c = fgetc(f);
-	if(ferror(f)) FAIL(ttm,TTM_EIO);
-	if(c == EOF) {cp8[0] = NUL8; return 0;}
+	c = fgetc(f->file); /* read first char of codepoint */
+	if(ttmeof(ttm,f)) c = '\0';
+	if(ttmerror(ttm,f)) FAIL(ttm,errno);
 	cp8[0] = c;
 	cplen = u8sizec(c);
-	if(cplen == 0) FAIL(ttm,TTM_EUTF8);
-	for(i=1;i<cplen;i++) {
-	    c=fgetc(f);
-	    if(ferror(f)) FAIL(ttm,TTM_EIO);
-	    if(c == EOF) FAIL(ttm,TTM_EEOS);
+	for(i=1;i<cplen;i++) { /* read rest of the codepoint */
+	    c=fgetc(f->file);
 	    cp8[i] = (char)c;
-	}
+	    if(c == EOF) {cp8[0] = NUL8; cplen = 1; break;}
+	}	    
+        if(ttmerror(ttm,f)) FAIL(ttm,TTM_EIO);
+	cplen = u8size(cp8);
+	if(cplen == 0) FAIL(ttm,TTM_EUTF8);
+	if(u8validcp(cp8) < 0) FAIL(ttm,TTM_EUTF8);
     }
-    if(u8validcp(cp8) < 0) FAIL(ttm,TTM_EUTF8);
     return cplen;
 }
 
@@ -4483,10 +4587,38 @@ Push back a codepoint; the pushed codepoints form a stack.
 @return void
 */
 static void
-fpushbackc(TTM* ttm, utf8* cp8)
+ttmpushbackc(TTM* ttm, TTMFILE* f, utf8* cp8)
 {
-    if(ttm->pushback.npushed >= (MAXPUSHBACK-1)) FAIL(ttm,TTM_EIO); /* too many pushes */
-    memcpycp(ttm->pushback.stack[++ttm->pushback.npushed],cp8); /* push to stack */
+    if(f->npushed >= (MAXPUSHBACK-1)) FAIL(ttm,TTM_EIO); /* too many pushes */
+    memcpycp(f->stack[++f->npushed],cp8); /* push to stack */
+}
+
+/**
+Convert occurrences of \r\n -> \n.
+A wrapper arount ttmgetc8, so has same signature.
+Uses pushback.
+@param ttm
+@param f FILE* from which to read.
+@param cp8 dst for the codepoint (not nul terminated)
+@return size of the codepoint
+*/
+static int
+ttmnonl(TTM* ttm, TTMFILE* f, utf8* cp8)
+{
+    size_t ncp1,ncp2;
+    utf8cpa char1;
+    utf8cpa char2;
+    ncp1 = ttmgetc8(ttm,f,char1);
+    if(ncp1 == 1 && char1[0] == '\r') {
+        /* check for following '\n' */
+        ncp2 = ttmgetc8(ttm,f,char2);	
+	if(ncp2 != 1 || char2[0] != '\n') {
+	   ttmpushbackc(ttm,f,char2); /* pushback second char if not \n and let \r pass  thru */
+	}
+    }
+    /* send the original char */
+    memcpy(cp8,char1,ncp1); /* send the \r or \n */
+    return ncp1;
 }
 
 /*
@@ -4497,7 +4629,7 @@ All writing of characters should go thru this procedure.
 @return size of the codepoint
 */
 static int
-fputc8(TTM* ttm, const utf8* c8, FILE* f)
+ttmputc8(TTM* ttm, const utf8* c8, TTMFILE* f)
 {
     int i, cplen;
     int c;
@@ -4507,8 +4639,7 @@ fputc8(TTM* ttm, const utf8* c8, FILE* f)
     for(i=0;i<cplen;i++) {
 	c = (c8[i] & 0xFF);
 	/* Track if current output is at newline */
-	if(c == '\n') ttm->flags.interactive = 1; else ttm->flags.interactive = 0;
-	fputc(c,f);
+	fputc(c,f->file);
     }
     return cplen;
 }
