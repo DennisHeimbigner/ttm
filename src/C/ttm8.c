@@ -509,37 +509,6 @@ struct TTM {
 /* Convenience */
 typedef struct TTMFILE TTMFILE;
 
-/* Temporary */
-static int
-getdepth(TTM* ttm,int line,const char* tag, int depth)
-{
-#if DEPTH > 2
-fprintf(stderr,">>> [%d] %s.depth=: %d\n",line,tag,depth); fflush(stderr);
-#endif
-    return depth;
-}
-
-static void
-incrdepth(TTM* ttm,int line,const char* tag,int* depthp)
-{
-#if DEPTH > 2
-fprintf(stderr,">>> [%d] %s.depth++: %d=>%d\n",line,tag,(*depthp),(*depthp)+1); fflush(stderr);
-#endif
-    (*depthp) = (*depthp) + 1;
-}
-
-static void
-decrdepth(TTM* ttm,int line,const char* tag,int* depthp)
-{
-#if DEBUG > 2
-fprintf(stderr,">>> [%d] %s.depth--: %d=>%d\n",line,tag,(*depthp),(*depthp)-1); fflush(stderr);
-#endif
-    (*depthp) = (*depthp) - 1;
-}
-#define INCR(ttm) incrdepth(ttm,__LINE__,__func__,&depth)
-#define DECR(ttm) decrdepth(ttm,__LINE__,__func__,&depth)
-#define DEPTH(ttm) getdepth(ttm,__LINE__,__func__,depth)
-
 const struct Properties dfalt_properties = {
 .stacksize	= DFALTSTACKSIZE,
 .execcount	= DFALTEXECCOUNT,
@@ -624,6 +593,14 @@ of a pointer argument.
 #define THUNKREF(type,var) type* var = (*((type**)(var##p)))
 #define THUNKCLAIM(var) *var##p = NULL
 #define THUNKIFY(var) ((void**)&(var))
+
+#define SCAN1 do{if((err=scan1(ttm,&cp8))) {stop = 1; goto done;}}while(0)
+
+/* The reason for these macros is to get around the fact that changing ttm->vs.acive->index invalidates cp8 pointers */
+#define TTMGETPTR(cp8) do{(cp8)=(utf8*)vsindexp(ttm->vs.active);}while(0)	/* ttm->vs.active->index->cp8 */
+#define TTMSETPTR(pcp8) do{vsindexset(ttm->vs.active,\
+			 ((cp8)-(utf8*)vsindexp(ttm->vs.active)));}while(0)	/* cp8->ttm->vs.active->index */
+#define TTMPTRARG(pcp8) do{*(pcp8)=cp8;}while(0)					/* cp8->*pcp8 */
 
 /**************************************************/
 /* Forward */
@@ -1087,13 +1064,14 @@ ttmenumdetect(const utf8* s)
 This is basic top level scanner.
 */
 static TTMERR
-scan(TTM* ttm, utf8** cp8p)
+scan(TTM* ttm)
 {
     TTMERR err = TTM_NOERR;
     int stop = 0;
-    utf8* cp8 = *cp8p;
-    int ncp = u8size(cp8);
+    utf8* cp8;
+    int ncp;
 
+    TTMGETPTR(cp8); ncp = u8size(cp8);
     do {
 	stop = 0;
 statetrace();
@@ -1102,28 +1080,32 @@ statetrace();
 	    stop = 1;
 	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
-	    SCAN1;
+	    cp8 += ncp;
 	} else if(isescape(cp8)) {
-	    SCAN1;
+	    cp8 += ncp; ncp = u8size(cp8);
 	    if(isnul(cp8)) { /* escape as very last character in buffer */
 		vsappendn(ttm->vs.passive,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
 	    } else {
 		vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
 	    }
+	    cp8 += ncp;
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {/* possible fcn call */
-	    if((err = processfcn(ttm,&cp8))) goto done;
-	    ncp = u8size(cp8);
+	    if((err = processfcn(ttm))) goto done;
+	    TTMGETPTR(cp8); ncp = u8size(cp8);
 	} else if(u8equal(cp8,ttm->meta.openc)) {/* <...> nested brackets */
-	    if((err=collectescaped(ttm,&cp8,ttm->vs.passive))) goto done;
+	    if((err=collectescaped(ttm,ttm->vs.passive))) goto done;
+	    TTMGETPTR(cp8); ncp = u8size(cp8);
 	    /* collected string will have been appended to end of  ttm->vs.passive */
 	} else { /* All other characters */
 	    vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
-	    SCAN1;
+	    cp8 += ncp;
 	}
     } while(!stop);
 
     /** When we get here, we are finished, so clean up. */
-
+//    TTMSETPTR(cp8); /* make sure ttm->vs.active->index is set */
+    vsetindex(ttm->vs.active,0); /* make sure ttm->vs.active->index is set */
+    
     /** The TTM documentation is silent about what to do with
 	the final content of the passive buffer.
     */
@@ -1134,7 +1116,6 @@ statetrace();
 	}
 	vsclear(ttm->vs.passive);
     }
-    *cp8p = cp8;
 done:
     return THROW(err);
 }
@@ -1148,19 +1129,19 @@ and move past that codepoint.
 @return TTMERR
 */
 static TTMERR
-scan1(TTM* ttm, utf8** cp8p, int* ncpp)
+scan1(TTM* ttm,utf8** pcp8)
 {
     TTMERR err = THROW(TTM_NOERR);
-    utf8* cp8 = *cp8p;
-    int ncp = u8size(cp8);
+    utf8* cp8;
+    int ncp;
+
+    TTMGETPTR(cp8); ncp = u8size(cp8);
     /* If already at EOS, then attempt to move past it is an error */
     if(isnul(cp8)) {err = THROW(TTM_EEOS); goto done;}
-    vsindexskip(ttm->vs.active,ncp);
-    cp8 = (utf8*)vsindexp(ttm->vs.active);
+    cp8 = (utf8*)vsindexskip(ttm->vs.active,ncp);
     ncp = u8size(cp8);
     if(*cp8 == '\n') ttm->flags.lineno++;
-    *cp8p = cp8;
-    *ncpp = ncp;
+    TTMPTRARG(pcp8);
 done:
     return THROW(err);
 }
@@ -1185,18 +1166,19 @@ the a sharp character (as represented by ttm->meta.sharpc).
 @return
 */
 static TTMERR
-testfcnprefix(TTM* ttm, utf8** pcp8, enum FcnCallCases* pfcncase)
+testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase)
 {
     TTMERR err = THROW(TTM_NOERR);
-    utf8* cp8 = *pcp8;
-    utf8* shorops = NULL; /* sharp or open */
-    utf8* opens = NULL;
+    utf8* cp8;
+    utf8cpa shorops = empty_u8cpa;
+    utf8cpa opens = empty_u8cpa;
     enum FcnCallCases fcncase = FCN_UNDEF;
 
+    TTMGETPTR(cp8); /* ptr to # */
     assert(u8equal(cp8,ttm->meta.sharpc));
     /* peek the next two chars after initial sharp */
-    if((err=peek(ttm->vs.active,1,&shorops))) goto done;
-    if((err=peek(ttm->vs.active,2,&opens))) goto done;
+    if((err=peek(ttm->vs.active,1,shorops))) goto done; /* peek a # or < */
+    if((err=peek(ttm->vs.active,2,opens))) goto done;   /* peek at > */
     if(u8equal(shorops,ttm->meta.openc)) /* #< active call */
 	fcncase = FCN_ACTIVE;
     else if(u8equal(shorops,ttm->meta.sharpc) && u8equal(opens,ttm->meta.openc)) /* ##< passive call */
@@ -1213,18 +1195,18 @@ testfcnprefix(TTM* ttm, utf8** pcp8, enum FcnCallCases* pfcncase)
     switch (fcncase) {
     case FCN_PASSIVE:
 	/* skip '#' */
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(ttm->meta.sharpc));
+	cp8 += u8size(ttm->meta.sharpc);
 	/* fall thru */
     case FCN_ACTIVE:
 	/* ship '#' and '<' */
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(ttm->meta.sharpc)+u8size(ttm->meta.openc));
+	cp8 += (u8size(ttm->meta.sharpc)+u8size(ttm->meta.openc));
 	/* Should now be at the start of argv[0] (the fcn name) */
 	break;
     case FCN_ONE: case FCN_TWO: case FCN_THREE:
 	break;
     case FCN_UNDEF: break;
     }
-    *pcp8 = cp8;
+    TTMSETPTR(cp8);
     *pfcncase = fcncase;
 done:
     return err;
@@ -1282,21 +1264,24 @@ done:
 }
 
 static TTMERR
-processfcn(TTM* ttm, utf8** pcp8)
+processfcn(TTM* ttm)
 {
     TTMERR err = THROW(TTM_NOERR);
     enum FcnCallCases fcncase = FCN_UNDEF;
-    utf8* cp8 = *pcp8;
     Frame* frame = NULL;
     size_t startpos,endpos;
+    utf8* cp8;
 
+    TTMGETPTR(cp8);
     startpos = vsindex(ttm->vs.active); /* remember where we start parsing */
-    if((err=testfcnprefix(ttm,&cp8,&fcncase))) goto done;
+    if((err=testfcnprefix(ttm,&fcncase))) goto done;
     /* if testfcnprefix indicates a function call, then
        cp8 should be pointing to first character of argv[0] */
+    TTMGETPTR(cp8);
     if(fcncase == FCN_PASSIVE || fcncase == FCN_ACTIVE) {
 	/* Parse and collect the args of the function call */
-	if((err=collectargs(ttm,&frame,&cp8))) goto done;
+	if((err=collectargs(ttm,&frame))) goto done;
+	TTMGETPTR(cp8);
         endpos = vsindex(ttm->vs.active); /* remember where we end parsing */
 	vsremoven(ttm->vs.active,startpos,(endpos-startpos)); /* remove the collected args from the active buffer */
     }
@@ -1311,6 +1296,7 @@ processfcn(TTM* ttm, utf8** pcp8)
 	/* execute the function */
 	if((err=exec(ttm,frame))) goto done;
 	/* WARNING: invalidates pointers into active */
+	TTMGETPTR(cp8);
 	break;
     case FCN_ONE: /* Pass one char */
 	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
@@ -1332,7 +1318,6 @@ processfcn(TTM* ttm, utf8** pcp8)
 	break;
     case FCN_UNDEF: abort(); /* Should never happen */
     }
-    *pcp8 = cp8;
 done:
    return err;
 }
@@ -1347,15 +1332,16 @@ Construct a frame; leave ttm->vs.active pointing just past the closing '>'
 @return TTMERR
 */
 static TTMERR
-collectargs(TTM* ttm, Frame** framep, utf8** cp8p)
+collectargs(TTM* ttm, Frame** framep)
 {
     TTMERR err = TTM_NOERR;
     Frame* frame = NULL;
     int stop;
-    utf8* cp8 = *cp8p;
-    int ncp = u8size(cp8);
-    int depth = 0;
+    utf8* cp8;
+    int ncp;
     VString* arg = NULL;
+
+    TTMGETPTR(cp8); ncp = u8size(cp8);
 
     frame = pushFrame(ttm);
     arg = frame->arg;
@@ -1363,7 +1349,7 @@ collectargs(TTM* ttm, Frame** framep, utf8** cp8p)
     /* Scan() will have left the index for active buffer at the
        start of function name */
 
-    INCR(ttm); /* For function opening */
+    ttm->flags.depth++;
     stop = 0;
 statetrace();
 #if DEBUG > 1
@@ -1385,14 +1371,15 @@ fprintf(stderr,"\targ=|%s|\n",printsubseq(ttm->vs.passive,argstart,vslength(ttm-
 		vsappendn(arg,(const char*)cp8,ncp);
 	    }
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {
-	    if((err = processfcn(ttm,&cp8))) goto done;
-	    ncp = u8size(cp8);
+	    if((err = processfcn(ttm))) goto done;
+	    TTMGETPTR(cp8); ncp = u8size(cp8);
 	} else if(u8equal(cp8,ttm->meta.lbrc)) {
-	    if((err=collectescaped(ttm,&cp8,arg))) goto done;
+	    if((err=collectescaped(ttm,arg))) goto done;
+	    TTMGETPTR(cp8); ncp = u8size(cp8);
 	} else if(u8equal(cp8,ttm->meta.semic) || u8equal(cp8,ttm->meta.rbrc)) {
 	    if(frame->argc >= MAXARGS) {err = THROW(TTM_EMANYPARMS); goto done;}
 	    if(u8equal(cp8,ttm->meta.rbrc))
-		DECR(ttm);
+		ttm->flags.depth--;
 #if DEBUG > 1
 xprintf(ttm,"collectargs: argv[%d]=|%s|\n",frame->argc,vscontents(arg));
 #endif /* DEBUG > 1 */
@@ -1409,7 +1396,7 @@ xprintf(ttm,"collectargs: argv[%d]=|%s|\n",frame->argc,vscontents(arg));
     /* add null to end of the arg list as signal */
     frame->argv[frame->argc] = NULL;
     *framep = frame; frame = NULL;
-    *cp8p = cp8;
+    TTMSETPTR(cp8);
 done:
     if(frame != NULL) popFrame(ttm);
     return THROW(err);
@@ -1427,13 +1414,15 @@ points just past the bracketed string openc.
 Note: on entry, the src points to the codepoint just after the opening bracket
 */
 static TTMERR
-collectescaped(TTM* ttm, utf8** cp8p, VString* dst)
+collectescaped(TTM* ttm, VString* dst)
 {
     TTMERR err = THROW(TTM_NOERR);
     int stop = 0;
-    utf8* cp8 = *cp8p;
-    int ncp = u8size(cp8); 
+    utf8* cp8;
     int depth = 0;
+    int ncp;
+    
+    TTMGETPTR(cp8); ncp = u8size(cp8);
 
     /* Accumulate the bracketed string in dst */
     /* Assume the initial LBRACKET was not consumed by caller */
@@ -1444,34 +1433,33 @@ collectescaped(TTM* ttm, utf8** cp8p, VString* dst)
 	    stop = 1;
 	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
-	    SCAN1;
+	    cp8 += ncp;
 	} else if(isescape(cp8)) {
-	    SCAN1;
-	    if(DEPTH(ttm) > 0 || isnul(cp8)) /* escape nested or very last character in buffer */
+	    cp8 += ncp; ncp = u8size(cp8);
+	    if(depth > 0 || isnul(cp8)) /* escape nested or very last character in buffer */
 		vsappendn(dst,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
 	    if(!isnul(cp8))
-		vsappendn(dst,(const char*)cp8,ncp);
+		vsappendn(dst,(const char*)cp8,u8size(cp8));
+	    cp8 += ncp;
 	} else if(u8equal(cp8,ttm->meta.lbrc)) {/* <... nested brackets */
-	    if(DEPTH(ttm) > 0)
+	    if(depth > 0)
 		vsappendn(dst,(const char*)ttm->meta.lbrc,u8size(ttm->meta.lbrc));
-	    SCAN1;
-	    INCR(ttm);
+	    depth++;
+	    cp8 += ncp;
 	} else if(u8equal(cp8,ttm->meta.rbrc)) {/* ...> nested brackets */
-	    DECR(ttm);
-	    if(DEPTH(ttm) > 0)
+	    depth--;
+	    if(depth > 0)
 		vsappendn(dst,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
-	    if(DEPTH(ttm) == 0)
+	    if(depth == 0)
 		stop = 1;
-	    SCAN1;
+	    cp8 += ncp;
 	} else { /* All other characters */
-	    vsappendn(dst,(const char*)cp8,ncp);
-	    SCAN1;
+	    vsappendn(dst,(const char*)cp8,u8size(cp8));
+	    cp8 += ncp;
 	}
     } while(!stop);
-    *cp8p = cp8;
-#if DEBUG == 0
+    TTMSETPTR(cp8);
 done:
-#endif
     return err;
 }
 
@@ -1601,6 +1589,7 @@ printclean(const utf8* s8, char* ctrls, size_t* pfinallen)
     char* q = NULL;
     size_t len = 0;
 
+    if(ctrls == NULL) ctrls = "";
     len = strlen((const char*)s8);
     clean = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
     for(p=(char*)s8,q=(char*)clean;*p;) {
@@ -3644,7 +3633,6 @@ execstring(TTM* ttm, const char* cmd)
     TTMERR err = THROW(TTM_NOERR);
     int savetrace = ttm->debug.trace;
     size_t cmdlen = strlen(cmd);
-    utf8* cp8 = NULL;
 
 #ifdef GDB
     ttm->debug.trace = 1;
@@ -3654,8 +3642,7 @@ execstring(TTM* ttm, const char* cmd)
     ttmreset(ttm);
     vsinsertn(ttm->vs.active,0,cmd,cmdlen);
     vsindexset(ttm->vs.active,0);
-    cp8 = (utf8*)vsindexp(ttm->vs.active);
-    if((err = scan(ttm,&cp8))) goto done;
+    if((err = scan(ttm))) goto done;
     ttmreset(ttm);
     ttm->debug.trace = savetrace;
 done:
@@ -3781,11 +3768,11 @@ Leave index unchanged.
 If EOS is encountered, then no advancement occurs
 @param vs
 @param n number of codepoint to peek ahead
-@param pp store the pointer to the peek'd codepoint
+@param cpa store the peek'd codepoint
 @return TTMERR
 */
 static TTMERR
-peek(VString* vs, size_t n, utf8** pp)
+peek(VString* vs, size_t n, utf8* cpa)
 {
     TTMERR err = THROW(TTM_NOERR);
     size_t saveindex = vsindex(vs);
@@ -3795,10 +3782,9 @@ peek(VString* vs, size_t n, utf8** pp)
     p = (utf8*)vsindexp(vs);
     for(i=0;i<n;i++) {
 	if(isnul(p)) break;
-	vsindexskip(vs,(size_t)u8size(p));
-	p = (utf8*)vsindexp(vs);
+	p = (utf8*)vsindexskip(vs,(size_t)u8size(p));
     }
-    *pp = p;
+    memcpy(cpa,p,u8size(p));
     vsindexset(vs,saveindex);
     return err;
 }
@@ -3935,8 +3921,8 @@ readline(TTM* ttm, TTMFILE* f, VString* buf)
 	        /* escape of \n => elide escape and \n and continue reading */
 	        continue;
 	    } else { /* pass the escape and the escaped char */
-		vsappendn(ttm->vs.passive,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
-		vsappendn(ttm->vs.passive,(const char*)cp8,ncp);
+		vsappendn(buf,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
+		vsappendn(buf,(const char*)cp8,ncp);
 	    }
 	} if(u8equal(cp8,(const utf8*)"\n")) {
 	    vsappendn(buf,(const char*)cp8,ncp);
@@ -4197,7 +4183,6 @@ main(int argc, char** argv)
     int quiet = 0;
     int bare = 0;
     struct Properties option_props;
-    utf8* cp8 = NULL;
     utf8* escactive = NULL;
 #ifndef TTMGLOBAL
     TTM* ttm = NULL;
@@ -4217,7 +4202,7 @@ main(int argc, char** argv)
 #ifdef MSWINDOWS
     interactive = (_isatty(fileno(stdin)) ? 1 : 0);
 #else /*!MSWINDOWS*/
-    interactive = (isatty(fileno(stdin)) ? 1 : 0);
+//    interactive = (isatty(fileno(stdin)) ? 1 : 0);
 #endif /*!MSWINDOWS*/
 
     while ((c = getopt(argc, argv, "d:e:f:io:p:qVB-")) != EOF) {
@@ -4332,8 +4317,6 @@ main(int argc, char** argv)
 	    vsclear(ttm->vs.active);
 	    vsappendn(ttm->vs.active,(const char*)escactive,esclen);
 	    nullfree(escactive); escactive = NULL;
-	    /* prime the pump for scan */
-	    cp8 = (utf8*)vsindexp(ttm->vs.active);
 #if DEBUG > 0
 	    if(ttm->debug.trace) {
 		char* tmp = (char*)printclean((const utf8*)vscontents(ttm->vs.active),"\t",NULL);
@@ -4341,7 +4324,7 @@ main(int argc, char** argv)
 		nullfree(tmp);
 	    }
 #endif
-	    if((err = scan(ttm,&cp8))) goto done;
+	    if((err = scan(ttm))) goto done;
 	    if(ttm->flags.exit) goto done;
 	}
     }
@@ -4351,9 +4334,7 @@ main(int argc, char** argv)
 	for(;;) {
 	    ttmreset(ttm);
 	    readline(ttm,ttm->stdin,ttm->vs.active); break;
-	    /* prime the pump for scan */
-	    cp8 = (utf8*)vsindexp(ttm->vs.active);
-	    if((err = scan(ttm,&cp8))) goto done;
+	    if((err = scan(ttm))) goto done;
 	    if(!quiet)
 		printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
 	    if(ttm->flags.exit)

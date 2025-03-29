@@ -4,8 +4,6 @@
 #define FAILX(ttm,eno,fmt,...) failx(ttm,eno,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__)
 #define FAIL(ttm,eno) fail(ttm,eno,__LINE__)
 
-#define SCAN1 do{if((err=scan1(ttm,&cp8,&ncp))) {stop = 1; goto done;}}while(0)
-
 /**************************************************/
 static void
 ttmbreak(TTMERR err)
@@ -176,7 +174,7 @@ dumpframe(TTM* ttm, Frame* frame)
 
     xprintf(ttm,"frame{active=%d argc=%zu",frame->active,frame->argc);
     for(i=0;i<frame->argc;i++) {
-	xprintf(ttm," [%zu] |%s|",i,frame->argv[i]);
+	xprintf(ttm," %zu:|%s|",i,frame->argv[i]);
     }
     xprintf(ttm,"}\n");
     fflush(stderr);

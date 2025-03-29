@@ -40,7 +40,7 @@ ttm.txt: ${TTM}.c
 
 TESTPROG = -p ${top_srcdir}/tests/test.ttm
 
-GDBTESTPROG = -p ${top_srcdir}/src/C/dbgvvcfffcgtggvvvtthhhgggggjjtju,v,t,t.ttm
+GDBTESTPROG = -p ${top_srcdir}/src/C/dbg.ttm
 TESTARGS = a b c
 TESTRFLAG = -f ${top_srcdir}/tests/test.rs
 TESTTRACE = -dt
