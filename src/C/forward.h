@@ -18,13 +18,6 @@ static Frame* pushFrame(TTM* ttm);
 static void popFrame(TTM* ttm);
 static void clearFrame(TTM* ttm, Frame* frame);
 static void freeFramestack(TTM* ttm, Frame* stack, size_t stacksize);
-static TTMERR scan(TTM* ttm);
-static TTMERR testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase);
-static TTMERR collectargs(TTM* ttm, Frame** framep);
-static TTMERR exec(TTM* ttm, Frame* frame);
-static TTMERR call(TTM* ttm, Frame* frame, utf8* body);
-static TTMERR processfcn(TTM* ttm);
-
 static Function* newFunction(TTM* ttm);
 static void freeFunction(TTM* ttm, Function* f);
 static void clearDictionary(TTM* ttm, struct HashTable* dict);
@@ -32,8 +25,13 @@ static Charclass* newCharclass(TTM* ttm);
 static void freeCharclass(TTM* ttm, Charclass* cl);
 static void clearCharclasses(TTM* ttm, struct HashTable* charclasses);
 static int charclassMatch(utf8* cp, utf8* charclass);
-
-
+static TTMERR scan(TTM* ttm);
+static TTMERR testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase);
+static TTMERR scan1(TTM* ttm, utf8**);
+static TTMERR collectargs(TTM* ttm, Frame** framep);
+static TTMERR exec(TTM* ttm, Frame* frame);
+static TTMERR call(TTM* ttm, Frame* frame, utf8* body);
+static TTMERR processfcn(TTM* ttm);
 static TTMERR printstring(TTM* ttm, const utf8* s8, TTMFILE* output);
 static const char* print2len(VString* vs);
 static const char* printsubseq(VString* vs, size_t argstart , size_t argend);

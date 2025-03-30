@@ -302,6 +302,7 @@ vsindexp(VString* vs)
 {
     char* p;
     assert(vs != NULL && vs->index <= vs->length); 
+    vssetalloc(vs,0);
     p = vs->content + vs->index;
     return p;
 }
