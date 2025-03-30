@@ -381,7 +381,8 @@ errstring(TTMERR err)
     case TTM_EEMPTY: msg="Empty argument"; break;
     case TTM_ENOCLASS: msg="Character Class Name Not Found"; break;
     case TTM_EINVAL: msg="Invalid argument"; break;
-    case TTM_ELOCKED: msg="Attempt to modify/erase a locked function";
+    case TTM_ELOCKED: msg="Attempt to modify/erase a locked function"; break;
+    case TTM_EEOF: msg = "EOF encountered on input"; break;
     }
     return msg;
 }

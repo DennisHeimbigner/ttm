@@ -242,6 +242,18 @@ This second byte is divided as follows:
 /* Max number of pushback codepoints for ttmgetc8 */
 #define MAXPUSHBACK 4 /*codepoints */
 
+/**
+Startup commands: execute before any -e or -f arguments.
+If -R command is defined, then do not execute startup commands (raw execution).
+Beware that only the defaults instance variables are defined.
+*/
+
+static char* startup_commands[] = {
+"#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>##<ss;def;name;subs;text>",
+"#<def;defcr;<name;subs;crs;text>;<##<ds;name;<text>>##<ss;name;subs>##<cr;name;crs>>>",
+NULL
+};
+
 /**************************************************/
 /* Enumeration types; mostly to simplify switch statements. */
 
@@ -335,14 +347,16 @@ TTM_EEMPTY		= (-112),  /* Gettimeofday failed */
 TTM_ENOCLASS		= (-113),  /* Character Class Name Not Found */
 TTM_EINVAL		= (-114),  /* Generic invalid argument */
 TTM_ELOCKED		= (-115),  /* Attempt to modify/erase a locked functon */
+TTM_EEOF		= (-116),  /* EOF encountered on input*/
+
 #ifdef IMPLEMENTED
 /* Errors not implemented */
-TTM_EDUPLIBNAME		= (-0),  /* Name Already On Library */
-TTM_ELIBNAME		= (-0),  /* Name Not On Library */
-TTM_ELIBSPACE		= (-0),  /* No Space On Library */
-TTM_EINITIALS		= (-0),  /* Initials Not Allowed */
-TTM_EATTACH		= (-0),  /* Could Not Attach */
-TTM_ESTORAGE		= (-0),  /* Error In Storage Format */
+TTM_EDUPLIBNAME		= (-0),	 /* Name Already On Library */
+TTM_ELIBNAME		= (-0),	 /* Name Not On Library */
+TTM_ELIBSPACE		= (-0),	 /* No Space On Library */
+TTM_EINITIALS		= (-0),	 /* Initials Not Allowed */
+TTM_EATTACH		= (-0),	 /* Could Not Attach */
+TTM_ESTORAGE		= (-0),	 /* Error In Storage Format */
 #endif
 
 } TTMERR;
@@ -469,6 +483,7 @@ struct TTM {
 	unsigned crcounter; /* for cr marks */
 	int lineno; /* Estimate of current line no */
     } flags;
+    struct OPTS {int quiet; int bare; int interactive; char* executefilename;} opts;
     struct MetaChars {
 	utf8cpa sharpc; /* sharp-like char */
 	utf8cpa semic; /* ;-like char */
@@ -489,16 +504,18 @@ struct TTM {
 	size_t next; /* |stack| == (stacknext) */
 	Frame* stack;
     } stack;
-    struct TTMFILE {
-	FILE* file;
-	int isstd;
-	int interactive;
-	/* Provide a stack of pushed codepoints */
-	int npushed; /* number of pushed codepoints -1..(MAXPUSHBACK-1)*/
-	utf8cpa stack[MAXPUSHBACK]; /* support pushback of several full codepoints */
-    } *stdin;
-    struct TTMFILE* stdout;
-    struct TTMFILE* stderr;
+    struct IO {
+	struct TTMFILE {
+	    FILE* file;
+	    int isstd;
+	    int interactive;
+	    /* Provide a stack of pushed codepoints */
+	    int npushed; /* number of pushed codepoints -1..(MAXPUSHBACK-1)*/
+	    utf8cpa stack[MAXPUSHBACK]; /* support pushback of several full codepoints */
+	} *stdin;
+	struct TTMFILE* stdout;
+	struct TTMFILE* stderr;
+    } io;
     /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
     struct Tables {
 	struct HashTable dictionary;
@@ -596,7 +613,8 @@ of a pointer argument.
 
 #define SCAN1 do{if((err=scan1(ttm,&cp8))) {stop = 1; goto done;}}while(0)
 
-/* The reason for these macros is to get around the fact that changing ttm->vs.acive->index invalidates cp8 pointers */
+/* The reason for these macros is to get around the fact that changing ttm->vs.active->index invalidates cp8 pointers */
+#define TTMINIT(cp8) do{(cp8)=(utf8*)vsindexp(ttm->vs.active);}while(0)	/* ttm->vs.active->index->cp8 */
 #define TTMGETPTR(cp8) do{(cp8)=(utf8*)vsindexp(ttm->vs.active);}while(0)	/* ttm->vs.active->index->cp8 */
 #define TTMSETPTR(pcp8) do{vsindexset(ttm->vs.active,\
 			 ((cp8)-(utf8*)vsindexp(ttm->vs.active)));}while(0)	/* cp8->ttm->vs.active->index */
@@ -870,9 +888,10 @@ freeTTM(TTM* ttm)
     freeFramestack(ttm,ttm->stack.stack,ttm->stack.next);
     clearDictionary(ttm,&ttm->tables.dictionary);
     clearCharclasses(ttm,&ttm->tables.charclasses);
-    ttmclose(ttm,ttm->stdin);
-    ttmclose(ttm,ttm->stdout);
-    ttmclose(ttm,ttm->stderr);
+    ttmclose(ttm,ttm->io.stdin);
+    ttmclose(ttm,ttm->io.stdout);
+    ttmclose(ttm,ttm->io.stderr);
+    nullfree(ttm->opts.executefilename);
     free(ttm);
 }
 
@@ -923,7 +942,7 @@ clearFrame(TTM* ttm, Frame* frame)
     size_t i;
     if(frame == NULL) return;
     for(i=0;i<frame->argc;i++)
-        if(frame->argv[i] != NULL) free(frame->argv[i]);
+	if(frame->argv[i] != NULL) free(frame->argv[i]);
     vsfree(frame->arg);
 }
 
@@ -1104,15 +1123,15 @@ statetrace();
 
     /** When we get here, we are finished, so clean up. */
 //    TTMSETPTR(cp8); /* make sure ttm->vs.active->index is set */
-    vsetindex(ttm->vs.active,0); /* make sure ttm->vs.active->index is set */
+    vsindexset(ttm->vs.active,0); /* make sure ttm->vs.active->index is set */
     
     /** The TTM documentation is silent about what to do with
 	the final content of the passive buffer.
     */
     {
 	if(ttm->properties.showfinal) {
-	    printstring(ttm,(const utf8*)"\n",ttm->stdout);
-	    printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
+	    printstring(ttm,(const utf8*)"\n",ttm->io.stdout);
+	    printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->io.stdout);
 	}
 	vsclear(ttm->vs.passive);
     }
@@ -1131,7 +1150,7 @@ and move past that codepoint.
 static TTMERR
 scan1(TTM* ttm,utf8** pcp8)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     utf8* cp8;
     int ncp;
 
@@ -1168,7 +1187,7 @@ the a sharp character (as represented by ttm->meta.sharpc).
 static TTMERR
 testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     utf8* cp8;
     utf8cpa shorops = empty_u8cpa;
     utf8cpa opens = empty_u8cpa;
@@ -1178,7 +1197,7 @@ testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase)
     assert(u8equal(cp8,ttm->meta.sharpc));
     /* peek the next two chars after initial sharp */
     if((err=peek(ttm->vs.active,1,shorops))) goto done; /* peek a # or < */
-    if((err=peek(ttm->vs.active,2,opens))) goto done;   /* peek at > */
+    if((err=peek(ttm->vs.active,2,opens))) goto done;	/* peek at > */
     if(u8equal(shorops,ttm->meta.openc)) /* #< active call */
 	fcncase = FCN_ACTIVE;
     else if(u8equal(shorops,ttm->meta.sharpc) && u8equal(opens,ttm->meta.openc)) /* ##< passive call */
@@ -1215,7 +1234,7 @@ done:
 static TTMERR
 exec(TTM* ttm, Frame* frame)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     Function* fcn;
 #if DEBUG > 0
 dumpframe(ttm,frame);
@@ -1266,7 +1285,7 @@ done:
 static TTMERR
 processfcn(TTM* ttm)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     enum FcnCallCases fcncase = FCN_UNDEF;
     Frame* frame = NULL;
     size_t startpos,endpos;
@@ -1282,7 +1301,7 @@ processfcn(TTM* ttm)
 	/* Parse and collect the args of the function call */
 	if((err=collectargs(ttm,&frame))) goto done;
 	TTMGETPTR(cp8);
-        endpos = vsindex(ttm->vs.active); /* remember where we end parsing */
+	endpos = vsindex(ttm->vs.active); /* remember where we end parsing */
 	vsremoven(ttm->vs.active,startpos,(endpos-startpos)); /* remove the collected args from the active buffer */
     }
     switch (fcncase) {
@@ -1416,7 +1435,7 @@ Note: on entry, the src points to the codepoint just after the opening bracket
 static TTMERR
 collectescaped(TTM* ttm, VString* dst)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     int stop = 0;
     utf8* cp8;
     int depth = 0;
@@ -1459,7 +1478,6 @@ collectescaped(TTM* ttm, VString* dst)
 	}
     } while(!stop);
     TTMSETPTR(cp8);
-done:
     return err;
 }
 
@@ -1473,7 +1491,7 @@ Execute a non-builtin function
 static TTMERR
 call(TTM* ttm, Frame* frame, utf8* body)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     utf8* p;
     char crval[CREATELEN+1];
     int crlen;
@@ -1514,7 +1532,7 @@ to escape all control characters except '\n' and '\r'.
 static TTMERR
 printstring(TTM* ttm, const utf8* s8, TTMFILE* output)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     int slen = 0;
 
     if(s8 == NULL) goto done;
@@ -1570,7 +1588,7 @@ printsubseq(VString* vs, size_t argstart , size_t argend)
 /**
 It is sometimes useful to print a string, but to convert selected
 control chars to escaped form: e.g <cr> to '\n'.  Same goes for
-encountered segment and creation marks.  So, given a pointer, s8, to a
+encountered segment and creation marks.	 So, given a pointer, s8, to a
 utf8 char and ctrls, a string of control chars, this function creates
 a modified copy of the string where where the characters in ctrl are
 left as is, but all other controls are converted to escaped form.  In
@@ -1829,7 +1847,7 @@ ttm_ds(TTM* ttm, Frame* frame)
     if(str != NULL && str->fcn.locked) FAIL(ttm,TTM_ELOCKED);
     if(str != NULL) { /* clean for re-use */
 	nullfree(str->fcn.body);
-        memset(&str->fcn,0,sizeof(struct FcnData));
+	memset(&str->fcn,0,sizeof(struct FcnData));
     } else {
 	/* create a new string object */
 	str = newFunction(ttm);
@@ -2752,9 +2770,9 @@ ttm_ps(TTM* ttm, Frame* frame) /* Print a Function/String */
     size_t i;
 
     if(stdxx != NULL && strcmp((const char*)stdxx,"stderr")==0)
-	target=ttm->stderr;
+	target=ttm->io.stderr;
     else
-	target = ttm->stdout;
+	target = ttm->io.stdout;
     for(i=1;i<frame->argc;i++) {
 	utf8* cleaned = printclean(frame->argv[i],"\n\r\t",NULL);
 	printstring(ttm,cleaned,target);
@@ -2769,7 +2787,7 @@ ttm_rs(TTM* ttm, Frame* frame) /* Read a Function/String */
     for(len=0;;len++) {
 	int ncp;
 	utf8cpa cp8;
-	ncp = ttmnonl(ttm,ttm->stdin,cp8);
+	ncp = ttmnonl(ttm,ttm->io.stdin,cp8);
 	if(isnul(cp8)) break;
 	if(u8equal(cp8,ttm->meta.eofc)) break;
 	vsappendn(ttm->vs.result,(const char*)cp8,ncp);
@@ -3134,7 +3152,7 @@ ttm_include(TTM* ttm, Frame* frame)  /* Include text of a file */
     readfile(ttm,path,ttm->vs.tmp);
     /* Append ttm->vs.passive or insert into ttm->vs.active at index */
     if(frame->active) {
-        /* WARNING: invalidates any pointers into active */
+	/* WARNING: invalidates any pointers into active */
 	vsindexinsertn(ttm->vs.active,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
     } else {
 	vsappendn(ttm->vs.passive,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
@@ -3624,62 +3642,6 @@ ttmreset(TTM* ttm)
     ttm->flags.lineno = 0;
 }
 
-/**
-Execute a string for side effects and throw away any result.
-*/
-static TTMERR
-execstring(TTM* ttm, const char* cmd)
-{
-    TTMERR err = THROW(TTM_NOERR);
-    int savetrace = ttm->debug.trace;
-    size_t cmdlen = strlen(cmd);
-
-#ifdef GDB
-    ttm->debug.trace = 1;
-#else
-    ttm->debug.trace = 0;
-#endif
-    ttmreset(ttm);
-    vsinsertn(ttm->vs.active,0,cmd,cmdlen);
-    vsindexset(ttm->vs.active,0);
-    if((err = scan(ttm))) goto done;
-    ttmreset(ttm);
-    ttm->debug.trace = savetrace;
-done:
-    return THROW(err);
-}
-
-/**
-Startup commands: execute before any -e or -f arguments.
-If -R command is defined, then do not execute startup commands (raw execution).
-Beware that only the defaults instance variables are defined.
-*/
-
-static char* startup_commands[] = {
-"#<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>##<ss;def;name;subs;text>",
-"#<def;defcr;<name;subs;crs;text>;<##<ds;name;<text>>##<ss;name;subs>##<cr;name;crs>>>",
-NULL
-};
-
-static void
-startupcommands(TTM* ttm)
-{
-    char* cmd;
-    char** cmdp;
-
-#ifdef GDB
-    fprintf(stderr,"Begin startup commands\n");
-#endif
-    for(cmdp=startup_commands;*cmdp != NULL;cmdp++) {
-	cmd = *cmdp;
-	execstring(ttm,cmd);
-    }
-#ifdef GDB
-    fprintf(stderr,"End startup commands\n");
-    fflush(stderr);
-#endif
-}
-
 /**************************************************/
 /* Lock all the names in the dictionary */
 static void
@@ -3774,7 +3736,7 @@ If EOS is encountered, then no advancement occurs
 static TTMERR
 peek(VString* vs, size_t n, utf8* cpa)
 {
-    TTMERR err = THROW(TTM_NOERR);
+    TTMERR err = TTM_NOERR;
     size_t saveindex = vsindex(vs);
     size_t i;
     utf8* p = NULL;
@@ -3813,7 +3775,7 @@ ttmclose(TTM* ttm, TTMFILE* tfile)
     if(tfile != NULL) {
 	ret = fclose(tfile->file);
 	if(ret == EOF) eno = errno;
-        free(tfile);
+	free(tfile);
     }
     errno = eno;
     return ret;
@@ -3901,25 +3863,25 @@ Note that encountering a bare EOF/EOS also terminates the line.
 @param ttm
 @param f file from which to read
 @param buf - hold line(s) read from stdin
-@return 0 if data; EOF otherwise
+@return TTM_NOERR if data; TTM_EXXX if error
 */
-static int
+static TTMERR
 readline(TTM* ttm, TTMFILE* f, VString* buf)
 {
+    TTMERR err = TTM_NOERR;
     int ncp;
     utf8cpa cp8;
-    int ret = 0;
 
     vssetlength(buf,0);
     for(;;) { /* Read thru next \n or \0 (EOF) */
-        if((ncp=ttmnonl(ttm,f,cp8)) <= 0) FAIL(ttm,TTM_EUTF8);
-	if(isnul(cp8)) {if(vslength(buf) == 0) ret = EOF; break;}
+	if((ncp=ttmnonl(ttm,f,cp8)) <= 0) {err = TTM_EUTF8; goto done;}
+	if(isnul(cp8)) {err = TTM_EEOF; goto done;}
 	if(isescape(cp8)) {
 	    /* peek to see if this escape at end of line: '\''\n' */
-	    if((ncp=ttmnonl(ttm,f,cp8)) <= 0) FAIL(ttm,TTM_EUTF8);
+	    if((ncp=ttmnonl(ttm,f,cp8)) <= 0) {err = TTM_EUTF8; goto done;}
 	    if(u8equal(cp8,(utf8*)"\n")) {
-	        /* escape of \n => elide escape and \n and continue reading */
-	        continue;
+		/* escape of \n => elide escape and \n and continue reading */
+		continue;
 	    } else { /* pass the escape and the escaped char */
 		vsappendn(buf,(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
 		vsappendn(buf,(const char*)cp8,ncp);
@@ -3929,9 +3891,10 @@ readline(TTM* ttm, TTMFILE* f, VString* buf)
 	    break;
 	} else { /* char other than nul or escape */
 	    vsappendn(buf,(const char*)cp8,ncp);
-        }
+	}
     }
-    return ret;
+done:
+    return err;
 }
 
 #if 0
@@ -3984,22 +3947,28 @@ Read a file to EOF
 @param ttn
 @param file to read
 @param buf hold text of file
-@return void
+@return TTM_NOERR or TTM_EXXX if error
 */
-static void
+static TTMERR
 readfile(TTM* ttm, const char* fname, VString* buf)
 {
+    TTMERR err = TTM_NOERR;
     TTMFILE* f = NULL;
     VString* oneline = vsnew();
     f = ttmopen(ttm,(const char*)fname,"rb");
-    if(f == NULL) FAIL(ttm,TTM_EINCLUDE);
+    if(f == NULL) {err = errno; goto done;}
     for(;;) {
 	vsclear(oneline);
-	if(readline(ttm,f,oneline)==EOF) break;
-	vsappendn(buf,vscontents(oneline),vslength(oneline));
+	switch (err=readline(ttm,f,oneline)) {
+	case TTM_NOERR: vsappendn(buf,vscontents(oneline),vslength(oneline)); break;
+	case TTM_EEOF: break; /* no more input */
+	default: goto done;
+	}
     }
     ttmclose(ttm,f);
     vsfree(oneline);
+done:
+    return err;
 }
 
 /* This will be more complex if/when some fields are allocated space
@@ -4112,7 +4081,7 @@ setupio(TTM* ttm, const char* outfile, const char* infile, int forceinteractive)
 	io->isstd = 0;
     }
     if(forceinteractive || isatty(fileno(io->file))) io->interactive = 1;
-    ttm->stdin = io; io = NULL;
+    ttm->io.stdin = io; io = NULL;
 
     if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
     if(outfile == NULL) {
@@ -4129,7 +4098,7 @@ setupio(TTM* ttm, const char* outfile, const char* infile, int forceinteractive)
 	io->isstd = 0;
     }
     if(forceinteractive || isatty(fileno(io->file))) io->interactive = 1;
-    ttm->stdout = io; io = NULL;
+    ttm->io.stdout = io; io = NULL;
 
     if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
     if(1) {
@@ -4146,7 +4115,7 @@ setupio(TTM* ttm, const char* outfile, const char* infile, int forceinteractive)
 	io->isstd = 0;
     }
     if(forceinteractive || isatty(fileno(io->file))) io->interactive = 1;
-    ttm->stderr = io; io = NULL;
+    ttm->io.stderr = io; io = NULL;
 
 done:
     errno = 0; /* reset */
@@ -4156,9 +4125,128 @@ done:
 static void
 closeio(TTM* ttm)
 {
-    if(ttm != NULL && ttm->stdin != NULL && !ttm->stdin->isstd) ttmclose(ttm,ttm->stdin);
-    if(ttm != NULL && ttm->stdout != NULL && !ttm->stdout->isstd) ttmclose(ttm,ttm->stdout);\
-    if(ttm != NULL && ttm->stderr != NULL && !ttm->stderr->isstd) ttmclose(ttm,ttm->stderr);
+    if(ttm != NULL && ttm->io.stdin != NULL && !ttm->io.stdin->isstd) ttmclose(ttm,ttm->io.stdin);
+    if(ttm != NULL && ttm->io.stdout != NULL && !ttm->io.stdout->isstd) ttmclose(ttm,ttm->io.stdout);\
+    if(ttm != NULL && ttm->io.stderr != NULL && !ttm->io.stderr->isstd) ttmclose(ttm,ttm->io.stderr);
+}
+
+/**************************************************/
+
+/**
+Execute a string for side effects and throw away any result.
+*/
+static TTMERR
+execcmd(TTM* ttm, const char* cmd)
+{
+    TTMERR err = TTM_NOERR;
+    int savetrace = ttm->debug.trace;
+    size_t cmdlen = strlen(cmd);
+    utf8* cp8;
+
+#ifdef GDB
+    ttm->debug.trace = 1;
+#else
+    ttm->debug.trace = 0;
+#endif
+    ttmreset(ttm);
+    vsinsertn(ttm->vs.active,0,cmd,cmdlen);
+    vsindexset(ttm->vs.active,0);
+    TTMINIT(cp8);
+    if((err = scan(ttm))) goto done;
+    ttmreset(ttm);
+    ttm->debug.trace = savetrace;
+done:
+    return THROW(err);
+}
+
+#if 0
+static void
+startupcommands(TTM* ttm)
+{
+    char* cmd;
+    char** cmdp;
+
+#ifdef GDB
+    fprintf(stderr,"Begin startup commands\n");
+#endif
+    for(cmdp=startup_commands;*cmdp != NULL;cmdp++) {
+	cmd = *cmdp;
+	execstring(ttm,cmd);
+    }
+#ifdef GDB
+    fprintf(stderr,"End startup commands\n");
+    fflush(stderr);
+#endif
+}
+#endif
+
+static TTMERR
+execall(TTM* ttm)
+{
+    TTMERR err = TTM_NOERR;
+    char* cmd = NULL;
+
+    if(!ttm->opts.bare) {
+	char** cmdp;
+#ifdef GDB
+	fprintf(stderr,"Begin startup commands\n");
+#endif
+	for(cmdp=startup_commands;*cmdp != NULL;cmdp++) {
+	    cmd = strdup(*cmdp);
+	    if((err = execcmd(ttm,cmd))) goto done;
+	    nullfree(cmd); cmd = NULL;
+	}
+#ifdef GDB
+	fprintf(stderr,"End startup commands\n");
+	fflush(stderr);
+#endif
+    }
+
+    /* Execute the -e strings in turn */
+    while(vllength(eoptions)> 0) {
+	cmd = vlget(eoptions,0);
+	if((err=execcmd(ttm,cmd))) goto done;
+	nullfree(cmd); cmd = NULL;
+	if(ttm->flags.exit) goto done;
+    }
+
+    /* Now execute the executefile, if any, and discard output */
+    if(ttm->opts.executefilename != NULL) {
+        size_t cmdlen = 0;
+	readfile(ttm,ttm->opts.executefilename,ttm->vs.tmp); /* read whole execute file */
+	/* Remove '\\' escaped */
+	cmd = (char*)deescape((const utf8*)vscontents(ttm->vs.tmp),&cmdlen);
+	if(cmd == NULL) {err = TTM_EUTF8; goto done;}
+#if DEBUG > 0
+	if(ttm->debug.trace) {
+	    char* tmp = (char*)printclean((const utf8*)cmd,"\t",NULL);
+	    xprintf(ttm,"scan: %s\n",tmp);
+	    nullfree(tmp); tmp = NULL;
+	}
+#endif
+	if((err=execcmd(ttm,cmd))) goto done;
+        if(ttm->flags.exit) goto done;
+    }
+
+    /* If interactive, start read-eval loop */
+    if(ttm->opts.interactive) {
+	int quit = 0;
+	while(!quit) {
+	    switch (err=readline(ttm,ttm->io.stdin,ttm->vs.tmp)) {
+	    case TTM_NOERR: break;
+	    case TTM_EEOF: quit = 1; break;
+	    default: goto done;
+	    }
+	    cmd = vsextract(ttm->vs.tmp);
+	    if((err=execcmd(ttm,cmd))) goto done;
+	    if(!ttm->opts.quiet)
+		printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->io.stdout);
+	    if(ttm->flags.exit) goto done;
+	}
+    }
+done:
+    nullfree(cmd);
+    return THROW(err);
 }
 
 /**************************************************/
@@ -4167,26 +4255,23 @@ closeio(TTM* ttm)
 int
 main(int argc, char** argv)
 {
-    TTMERR err = THROW(TTM_NOERR);
-    size_t i;
+    TTMERR err = TTM_NOERR;
     int exitcode;
     long stacksize = 0;
     long execcount = 0;
     char debugargs[16] = {'\0'};
-    int interactive = 0;
     char* outputfilename = NULL;
-    char* executefilename = NULL; /* This is the ttm file to execute */
     char* inputfilename = NULL; /* This is data for #<rs> */
     int c;
     char* p;
     char* q;
-    int quiet = 0;
-    int bare = 0;
+    struct OPTS opts;
     struct Properties option_props;
-    utf8* escactive = NULL;
 #ifndef TTMGLOBAL
     TTM* ttm = NULL;
 #endif
+
+    memset(&opts,0,sizeof(struct OPTS));
 
     if(argc == 1)
 	usage(NULL);
@@ -4200,9 +4285,9 @@ main(int argc, char** argv)
 
     /* Special/Platform initializations */
 #ifdef MSWINDOWS
-    interactive = (_isatty(fileno(stdin)) ? 1 : 0);
+    ttm->opts.interactive = (_isatty(fileno(stdin)) ? 1 : 0);
 #else /*!MSWINDOWS*/
-//    interactive = (isatty(fileno(stdin)) ? 1 : 0);
+//    ttm->opts.interactive = (isatty(fileno(stdin)) ? 1 : 0);
 #endif /*!MSWINDOWS*/
 
     while ((c = getopt(argc, argv, "d:e:f:io:p:qVB-")) != EOF) {
@@ -4222,20 +4307,20 @@ main(int argc, char** argv)
 	case 'f':
 	    if(inputfilename == NULL)
 		inputfilename = strdup(optarg);
-	    interactive = 0;
+	    ttm->opts.interactive = 0;
 	    break;
 	case 'i':
-	    interactive = 1;
+	    ttm->opts.interactive = 1;
 	    break;
 	case 'o':
 	    if(outputfilename == NULL)
 		outputfilename = strdup(optarg);
 	    break;
 	case 'p':
-	    if(executefilename == NULL)
-		executefilename = strdup(optarg);
+	    if(ttm->opts.executefilename == NULL)
+		ttm->opts.executefilename = strdup(optarg);
 	    break;
-	case 'q': quiet = 1; break;
+	case 'q': ttm->opts.quiet = 1; break;
 	case 'P': /* Set properties*/
 	    if(optarg == NULL) usage("Illegal -P key");
 	    if(strlen(optarg) == 0) {
@@ -4251,7 +4336,7 @@ main(int argc, char** argv)
 		setproperty(debkey,debval,&option_props);
 	    }
 	    break;
-	case 'B': bare = 1; break;
+	case 'B': ttm->opts.bare = 1; break;
 	case 'V':
 	    printf("ttm version: %s\n",VERSION);
 	    exit(0);
@@ -4271,7 +4356,7 @@ main(int argc, char** argv)
     }
 
     /* Complain if interactive and output file name specified */
-    if(outputfilename != NULL && interactive) {
+    if(outputfilename != NULL && ttm->opts.interactive) {
 	fprintf(stderr,"Interactive is illegal if output file specified\n");
 	exit(1);
     }
@@ -4287,67 +4372,24 @@ main(int argc, char** argv)
     processdebugargs(ttm,debugargs);
     defineBuiltinFunctions(ttm);
 
-    if((err=setupio(ttm,outputfilename,inputfilename,interactive))) {
+    /* Lock up all the currently defined functions */
+    lockup(ttm);
+
+    if((err=setupio(ttm,outputfilename,inputfilename,ttm->opts.interactive))) {
 	fprintf(stderr,"IO setup failure: (%d) %s\n",(int)err,errstring(err));
 	exit(1);
     }
 
-    if(!bare) {
-      startupcommands(ttm);
-      /* Lock up all the currently defined functions */
-      lockup(ttm);
-    }
+    if((err = execall(ttm))) goto fail;
 
-    /* Execute the -e strings in turn */
-    for(i=0;i<vllength(eoptions);i++) {
-	char* eopt = vlget(eoptions,i);
-	execstring(ttm,eopt);
-	if(ttm->flags.exit) goto done;
-    }
-
-    /* Now execute the executefile, if any, and discard output */
-    if(executefilename != NULL) {
-	for(;;) {
-	    size_t esclen = 0;
-	    ttmreset(ttm);
-	    readfile(ttm,executefilename,ttm->vs.active); /* read whole execute file */
-	    /* Remove '\\' escaped */
-	    escactive = deescape((const utf8*)vscontents(ttm->vs.active),&esclen);
-	    if(escactive == NULL) {err = TTM_EUTF8; goto done;}
-	    vsclear(ttm->vs.active);
-	    vsappendn(ttm->vs.active,(const char*)escactive,esclen);
-	    nullfree(escactive); escactive = NULL;
-#if DEBUG > 0
-	    if(ttm->debug.trace) {
-		char* tmp = (char*)printclean((const utf8*)vscontents(ttm->vs.active),"\t",NULL);
-		xprintf(ttm,"scan: %s\n",tmp);
-		nullfree(tmp);
-	    }
-#endif
-	    if((err = scan(ttm))) goto done;
-	    if(ttm->flags.exit) goto done;
-	}
-    }
-
-    /* If interactive, start read-eval loop */
-    if(interactive) {
-	for(;;) {
-	    ttmreset(ttm);
-	    readline(ttm,ttm->stdin,ttm->vs.active); break;
-	    if((err = scan(ttm))) goto done;
-	    if(!quiet)
-		printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
-	    if(ttm->flags.exit)
-		goto done;
-	}
-    }
-
-done:
+#if 0
     /* Dump any output left in the buffer */
     if(!quiet && vslength(ttm->vs.passive) > 0 && vscontents(ttm->vs.passive)[0] != '\n') {
-	printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->stdout);
+	printstring(ttm,(const utf8*)print2len(ttm->vs.passive),ttm->io.stdout);
     }
+#endif
 
+done:
     exitcode = ttm->flags.exitcode;
 
     if(err) FAIL(ttm,err);
@@ -4357,15 +4399,17 @@ done:
 
     /* Clean up misc state */
     nullfree(outputfilename);
-    nullfree(executefilename);
     nullfree(inputfilename);
-    nullfree(escactive);
 
     freeTTM(ttm);
 
     reclaimglobals();
 
     return (exitcode?1:0); // exit(exitcode);
+
+fail:
+    exitcode = 1;
+    goto done;
 }
 
 static int
@@ -4553,7 +4597,7 @@ ttmgetc8(TTM* ttm, TTMFILE* f, utf8* cp8)
 	    cp8[i] = (char)c;
 	    if(c == EOF) {cp8[0] = NUL8; cplen = 1; break;}
 	}	    
-        if(ttmerror(ttm,f)) FAIL(ttm,TTM_EIO);
+	if(ttmerror(ttm,f)) FAIL(ttm,TTM_EIO);
 	cplen = u8size(cp8);
 	if(cplen == 0) FAIL(ttm,TTM_EUTF8);
 	if(u8validcp(cp8) < 0) FAIL(ttm,TTM_EUTF8);
@@ -4591,10 +4635,10 @@ ttmnonl(TTM* ttm, TTMFILE* f, utf8* cp8)
     utf8cpa char2;
     ncp1 = ttmgetc8(ttm,f,char1);
     if(ncp1 == 1 && char1[0] == '\r') {
-        /* check for following '\n' */
-        ncp2 = ttmgetc8(ttm,f,char2);	
+	/* check for following '\n' */
+	ncp2 = ttmgetc8(ttm,f,char2);	
 	if(ncp2 != 1 || char2[0] != '\n') {
-	   ttmpushbackc(ttm,f,char2); /* pushback second char if not \n and let \r pass  thru */
+	   ttmpushbackc(ttm,f,char2); /* pushback second char if not \n and let \r pass	 thru */
 	}
     }
     /* send the original char */
