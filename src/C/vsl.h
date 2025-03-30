@@ -29,7 +29,9 @@ static int vsremoven(VString* vs, size_t dstpos, size_t elide);
 static char* vsextract(VString* vs);
 static char* vsindexset(VString* vs, size_t pos);
 static char* vsindexskip(VString* vs, size_t skip);
-static size_t vsindex(VString* vs);
+static size_t vsindexpi(VString* vs,const char* p);
+static char* vsindexip(VString* vs,size_t idx);
+static char* vsindexp(VString* vs);
 static char* vsindexp(VString* vs);
 static int vsindexinsertn(VString* vs, const char* s, size_t slen);
 
@@ -289,7 +291,7 @@ static size_t
 vsindex(VString* vs)
 {
     assert(vs != NULL);
-    vssetalloc(vs,0);
+    vssetalloc(vs,vs->alloc); /* force vs->content exists */
     return vs->index;
 }
 
@@ -301,9 +303,40 @@ static char*
 vsindexp(VString* vs)
 {
     char* p;
-    assert(vs != NULL && vs->index <= vs->length); 
+    vssetalloc(vs,vs->alloc); /* guarantee existence of vs->content */
+    assert(vs != NULL && vs->content != NULL && vs->index <= vs->length); 
     p = vs->content + vs->index;
     return p;
+}
+
+/**
+Convert ptr to index
+@param vs
+@param p ptr into content
+@return index of ptr v-a-v content[vs->index]
+*/
+static size_t
+vsindexpi(VString* vs,const char* p)
+{
+    assert(vs != NULL);
+    vssetalloc(vs,vs->alloc); /* force vs->content exists */
+    assert(p >= vsindexp(vs) && p < (vs->content + vs->length));
+    return p - vsindexp(vs);
+}
+
+/**
+nConvert index to ptr
+@param vs
+@nparam p index into content
+@return ptr corresponding to index
+*/
+static char*
+vsindexip(VString* vs, size_t idx)
+{
+    assert(vs != NULL);
+    vssetalloc(vs,vs->alloc); /* force vs->content exists */
+    assert(idx < vs->length);
+    return (vs->content + idx);
 }
 
 /**
