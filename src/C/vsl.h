@@ -202,7 +202,7 @@ Remove n characters at position pos and move the remainder down to compress out 
 @param dstpos where to remove; if dstpos > |vs->contents| then do nothing
 @param elide no. of chars to remove
 @return final new length
-Side effect: reduce index by elided amount
+Side effect: reduce index by elided amount if index is past dstpos
 */
 static int
 vsremoven(VString* vs, size_t dstpos, size_t elide)
@@ -216,6 +216,7 @@ vsremoven(VString* vs, size_t dstpos, size_t elide)
     if(elide == 0) goto done; /* nothing to move */
     vslen = vslength(vs);
     srcpos = dstpos + elide;
+    if(vs->index > dstpos) {vs->index = dstpos;} else {}
     /* edge cases */
     if(srcpos >= vslen) { /* remove everything from dstpos to vslen */
 	vssetlength(vs,dstpos);
@@ -224,7 +225,6 @@ vsremoven(VString* vs, size_t dstpos, size_t elide)
         memmove(vscontents(vs)+dstpos,vscontents(vs)+srcpos,srclen);
         vssetlength(vs,vslen - elide);
     }
-    if(vs->index >= elide) vs->index -= elide; else vs->index = 0;
 done:
     newlength = vslength(vs);
     vs->content[newlength] = '\0'; /* guarantee nul term */

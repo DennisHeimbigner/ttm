@@ -1,9 +1,5 @@
 #ifdef CATCH
 
-#define THROW(err) ttmthrow(err)
-#define FAILX(ttm,eno,fmt,...) failx(ttm,eno,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__)
-#define FAIL(ttm,eno) fail(ttm,eno,__LINE__)
-
 /**************************************************/
 static void
 ttmbreak(TTMERR err)
@@ -14,14 +10,14 @@ ttmbreak(TTMERR err)
 static TTMERR
 ttmthrow(TTMERR err)
 {
-    if(err != TTM_NOERR)
+    if(err != TTM_NOERR) {
 	ttmbreak(err);
+    }
     return err;
 }
-#else
-#define THROW(err) (err)
 #endif
 
+/* Wrap vxprintf same way fprintf wraps vprintf */
 static void
 xprintf(TTM* ttm, const char* fmt,...)
 {
@@ -31,6 +27,16 @@ xprintf(TTM* ttm, const char* fmt,...)
     va_end(ap);
 }
 
+/**
+Similar to vprintf, but:
+1. calls printclean on the outgoing text.
+2. leaves the trailing '\n'
+3. remembers that output did/did-not end with a newline.
+@param ttm
+@param fmt
+@param ap
+@return void
+*/
 static void
 vxprintf(TTM* ttm, const char* fmt, va_list ap)
 {
@@ -186,13 +192,29 @@ Dump the stack
 static void
 dumpstack(TTM* ttm)
 {
-    size_t i;
-    for(i=1;i<=ttm->stack.next;i++) {
+    int i;
+    for(i=0;i<=ttm->frames.top;i++) {
 	xprintf(ttm,"[%zu] ",i);
-	dumpframe(ttm,&ttm->stack.stack[i]);
+	dumpframe(ttm,&ttm->frames.stack[i]);
 	xprintf(ttm,"\n");
     }
     fflush(stderr);
+}
+
+/* Traceframe helper */
+static int
+chintersects(const char* s1, const char* s2)
+{
+    int isects = 0;
+    const char* p = s1;
+    for(;*p;p++) {
+	const char* q = s2;
+        for(;*q;q++) {
+	    if(*p == *q) {isects = 1; goto done;}
+	}
+    }
+done:
+    return isects;
 }
 
 static void
@@ -220,7 +242,14 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     xprintf(ttm,"%s",frame->argv[0]);
     if(traceargs) {
 	for(i=1;i<frame->argc;i++) {
-	    xprintf(ttm,"%s%s",ttm->meta.semic,frame->argv[i]);
+	    char* cleaned = (char*)printclean(frame->argv[i],"\t",NULL);
+	    int significant = chintersects(METACHARS,cleaned);
+	    xprintf(ttm,"%s%s%s%s",
+		ttm->meta.semic,
+		significant?"<":"",
+		cleaned,
+		significant?">":"");
+	    nullfree(cleaned);
 	}
     }
     xprintf(ttm,"%s",ttm->meta.closec);
@@ -234,19 +263,19 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
 
     if(!ttm->debug.xpr.outnl) xprintf(ttm,"\n");
 
-    if(tracing && ttm->stack.next == 0) {
+    if(tracing && ttm->frames.top < 0) {
 	xprintf(ttm,"trace: no frame to trace\n");
 	fflush(stderr);
 	return;
     }	
-    frame = &ttm->stack.stack[depth];
+    frame = &ttm->frames.stack[depth];
     xprintf(ttm,"[%02d] ",depth);
     if(tracing)
 	xprintf(ttm,"%s ",(entering?"begin:":"end:  "));
     traceframe(ttm,frame,entering);
     /* Dump the contents of result if !entering */
     if(!entering) {
-	xprintf(ttm," => |%s|",vscontents(ttm->vs.result));
+	xprintf(ttm," => |%s|",vscontents(frameresult(ttm)));
     } 
     xprintf(ttm,"\n");
     fflush(stderr);
@@ -258,7 +287,7 @@ Trace a top frame in the frame stack.
 static void
 trace(TTM* ttm, int entering, int tracing)
 {
-    trace1(ttm, ttm->stack.next-1, entering, tracing);
+    trace1(ttm, ttm->frames.top, entering, tracing);
 }
 
 void
@@ -295,27 +324,26 @@ fprintf(stderr,"%08x\n",x);
 /* Error reporting */
 
 static TTMERR
-failx(TTM* ttm, TTMERR eno, int line, const char* fmt, ...)
+failx(TTM* ttm, TTMERR eno, const char* file, int line, const char* fmt, ...)
 {
     TTMERR err = TTM_NOERR;
     va_list ap;
 
+    err = failxcxt(ttm,eno,file,line);
     if(fmt != NULL) {
 	va_start(ap, fmt);
-	vxprintf(ttm,fmt,ap);
+	vfprintf(stderr,fmt,ap);
 	va_end(ap);
     }
-    if((err = failxcxt(ttm,eno,line))) goto done;
-done:
     return err;
 }
 
 /* Print context */
 static TTMERR
-failxcxt(TTM* ttm, TTMERR eno, int line)
+failxcxt(TTM* ttm, TTMERR eno, const char* file, int line)
 {
     fprintf(stderr,"Fatal error:");
-    if(line >= 0) fprintf(stderr," code line=%d",line);
+    fprintf(stderr," where: %s:%d",file,line);
     fprintf(stderr," input line=%d",ttm->flags.lineno);
     fprintf(stderr," (errno = %d) %s\n",eno,errstring(eno));
     if(ttm != NULL) {
@@ -331,9 +359,9 @@ failxcxt(TTM* ttm, TTMERR eno, int line)
 }
 
 static void
-fail(TTM* ttm, TTMERR eno, int line)
+fail(TTM* ttm, TTMERR eno, const char* file, int line)
 {
-    failx(ttm,eno,line,NULL);
+    failx(ttm,eno,file,line,NULL);
     exit(1);
 }
 
@@ -383,6 +411,7 @@ errstring(TTMERR err)
     case TTM_EINVAL: msg="Invalid argument"; break;
     case TTM_ELOCKED: msg="Attempt to modify/erase a locked function"; break;
     case TTM_EEOF: msg = "EOF encountered on input"; break;
+    case TTM_EACCESS: msg = "File not accessible or wrong mode"; break;
     }
     return msg;
 }
