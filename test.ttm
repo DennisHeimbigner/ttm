@@ -1,10 +1,12 @@
 ##<ps;xx##<ttm;info;name;comment>yy>
 #<comment;##<ps;##<ttm;info;name;def;comment>>>
+
 #<ds;greek;<ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>>
 #<ds;kanji;龥>
 #<ds;katakana;キャク>
 #<ds;有為の;奥山>
-##<ttm;info;name;greek;kanji;katakana;有為の>
+#<ds;emojis;<😁✊🆚>>
+##<ttm;info;name;greek;kanji;katakana;有為の,emojis>
 #<ds;x;12θ34>
 #<ap;x;567890>
 #<rrp;x>

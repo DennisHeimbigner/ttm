@@ -42,15 +42,15 @@ This is in lieu of the typical config.h.
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <stdarg.h>
+#include <errno.h>
 #include <assert.h>
 
 #ifdef MSWINDOWS
 #include <windows.h>  /* To get GetProcessTimes() */
-#include <time.h> /* to get ctime() */
 #else /*!MSWINDOWS*/
 #include <unistd.h> /* This defines getopt */
-#include <sys/times.h> /* to get times() */
-#include <sys/time.h> /* to get gettimeofday() */
 #endif /*!MSWINDOWS*/
 
 /**************************************************/
@@ -1277,7 +1277,7 @@ static void
 ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
 {
     Name* str;
-    int bodylen,crlen;
+    int crlen;
     utf32* body;
     utf32* crstring;
 
@@ -1288,7 +1288,6 @@ ttm_cr(TTM* ttm, Frame* frame) /* Mark for creation */
         fail(ttm,ENOPRIM);
 
     body = str->body;
-    bodylen = strlen32(body);
     crstring = frame->argv[2];
     crlen = strlen32(crstring);
 
@@ -1351,7 +1350,6 @@ ttm_ss0(TTM* ttm, Frame* frame)
 {
     Name* str;
     unsigned int i,segcount,startseg,bodylen;
-    utf32* startp;
 
     str = dictionaryLookup(ttm,frame->argv[1]);
     if(str == NULL)
@@ -1364,7 +1362,6 @@ ttm_ss0(TTM* ttm, Frame* frame)
         return 0; /* no substitution possible */
     segcount = 0;
     startseg = str->maxsegmark;
-    startp = str->body + str->residual;
     for(i=2;i<frame->argc;i++) {
         utf32* arg = frame->argv[i];
         unsigned int arglen = strlen32(arg);
