@@ -20,7 +20,7 @@ clean::
 	rm -f ${TTM}.exe ttm ttm.txt test.output test.stderr test.stdout
 
 # Assemble ttm8.c from pieces
-HFILES = const.h types.h decls.h forward.h builtins.h debug.h io.h types.h vsl.h
+HFILES = const.h types.h decls.h forward.h builtins.h debug.h io.h types.h utf8.h vsl.h
 
 xttm8.c: ttm8.h forward.h vsl.h state.h builtins.h io.h
 	rm -f $@ $@.bak
