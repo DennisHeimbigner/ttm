@@ -226,7 +226,7 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     size_t i = 0;
 
     if(frame->argc == 0) {
-	xprintf(ttm,"#<empty frame>");
+	xprintf(ttm,"#<empty>");
 	return;
     }
     p = tag;

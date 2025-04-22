@@ -32,14 +32,7 @@ static char* vsindexskip(VString* vs, size_t skip);
 static size_t vsindex(VString* vs);
 static char* vsindexp(VString* vs);
 static int vsindexinsertn(VString* vs, const char* s, size_t slen);
-
-/*************************/
-/* "Inlined" */
-#define vscontents(vs)  ((vs)==NULL?NULL:(vs)->content)
-#define vslength(vs)  ((vs)==NULL?0:(vs)->length)
-#define vsalloc(vs)  ((vs)==NULL?0:(vs)->alloc)
-#define vscat(vs,s)  vsappendn(vs,s,0)
-#define vsclear(vs)  vssetlength(vs,0)
+static VString* vsclone(VString* vs);
 
 /*************************/
 /* "Inlined" */
@@ -247,6 +240,14 @@ vsextract(VString* vs)
     vs->length = 0;
     vs->alloc = 0;
     return x;
+}
+
+static VString*
+vsclone(VString* vs)
+{
+   VString* clone = vsnew();
+   vsappendn(clone,vscontents(vs),vslength(vs));
+   return clone;
 }
 
 /** Index Management Functions */

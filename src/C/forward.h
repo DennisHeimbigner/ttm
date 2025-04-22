@@ -34,7 +34,7 @@ static TTMERR scan(TTM* ttm);
 static TTMERR testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase);
 static TTMERR collectargs(TTM* ttm, Frame* frame);
 static TTMERR exec(TTM* ttm, Frame* frame);
-static TTMERR call(TTM* ttm, Frame* frame, VString*, utf8* body);
+static TTMERR call(TTM* ttm, Frame* frame, VString*, VString* body);
 static TTMERR processfcn(TTM* ttm);
 static TTMERR printstring(TTM* ttm, const utf8* s8, TTMFILE* output);
 static utf8* printclean(const utf8* s8, char* ctrls, size_t* pfinallen);
@@ -58,10 +58,12 @@ static int u8validcp(utf8* cp);
 static void ascii2u8(char c, utf8* u8);
 static int u8equal(const utf8* c1, const utf8* c2);
 static int memcpycp(utf8* dst, const utf8* src);
-static int u8cpcount(const utf8* src, size_t n);
 static const utf8* u8ithcp(const utf8* base, size_t n);
 static int u8ith(const utf8* base, size_t n);
-static const utf8* u8backup(const utf8* p0);
+static const utf8* u8backup(const utf8* p0, const utf8* base);
+static TTMERR strsubcp(const utf8* sstart, size_t send, size_t* pncp);
+static TTMERR u8peek(utf8* s, size_t n, utf8* cpa);
+
 static int ttmgetc8(TTM* ttm, TTMFILE* f, utf8* cp8);
 static int ttmnonl(TTM* ttm, TTMFILE* f, utf8* cp8);
 static void ttmpushbackc(TTM* ttm, TTMFILE* f, utf8* cp8);
@@ -84,9 +86,8 @@ static const char* printsubseq(VString* vs, size_t argstart , size_t argend);
 #ifdef HAVE_MEMMOVE
 static void memmovex(char* dst, char* src, size_t len);
 #else
-#define memovex(dst,src,len) memmove(dst,src,len)
+#define memmovex(dst,src,len) memmove(dst,src,len)
 #endif
-static TTMERR removeframearg(TTM* ttm, Frame* frame, int pos);
 
 /* HashTable operations */
 static int hashLocate(struct HashTable* table, const utf8* name, struct HashEntry** prevp);

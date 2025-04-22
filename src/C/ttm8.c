@@ -28,7 +28,7 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 This is in lieu of the typical config.h.
 */
 
-/* Define if the equivalent of the standard Unix memove() is available */
+/* Define if the equivalent of the standard Unix memmove() is available */
 #define HAVE_MEMMOVE
 
 /**************************************************/
@@ -98,121 +98,14 @@ static int timeofday(struct timeval *tv);
 #include "const.h"
 #include "types.h"
 #include "decls.h"
+#include "macros.h"
 #include "forward.h"
+#include "hash.h"
 #include "vsl.h"
+#include "io.h"
+#include "utf8.h"
 #include "debug.h"
-
-/**************************************************/
-/**
-HashTable Management:
-The table is only pseudo-hash simplified by making it an array
-of chains indexed by the low order n bits of the name[0].  The
-hashcode is just the simple sum of the characters in the name
-shifted by 1 bit each.
-*/
-
-/* Define a hash computing macro */
-static unsigned
-computehash(const utf8* name)
-{
-    unsigned hash;
-    const utf8* p;
-    for(hash=0,p=name;*p!=NUL8;p++) hash = hash + (*p <<1);
-    if(hash==0) hash=1;
-    return hash;
-}
-
-/* Locate a named entry in the hashtable;
-   return 1 if found; 0 otherwise.
-   prev is a pointer to HashEntry "before" the found entry.
-*/
-
-static int
-hashLocate(struct HashTable* table, const utf8* name, struct HashEntry** prevp)
-{
-    struct HashEntry* prev;
-    struct HashEntry* next;
-    unsigned index;
-    unsigned hash;
-
-    hash = computehash(name);
-    if(!(table != NULL && name != NULL))
-    assert(table != NULL && name != NULL);
-    index = (((unsigned)(name[0])) & HASHTABLEMASK);
-    prev = &table->table[index];
-    next = prev->next;
-    while(next != NULL) {
-	if(next->hash == hash
-	   && strcmp((char*)name,(char*)next->name)==0)
-	    break;
-	prev = next;
-	next = next->next;
-    }
-    if(prevp) *prevp = prev;
-    return (next == NULL ? 0 : 1);
-}
-
-/* Remove an entry specified by argument 'entry'.
-   Assumes that the predecessor of entry is specified
-   by 'prev' as returned by hashLocate.
-*/
-
-static void
-hashRemove(struct HashTable* table, struct HashEntry* prev, struct HashEntry* entry)
-{
-   assert(table != NULL && prev != NULL && entry != NULL);
-   assert(prev->next == entry); /* validate the removal */
-   prev->next = entry->next;
-}
-
-
-/* Insert an entry specified by argument 'entry'.
-   Assumes that the predecessor of entry is specified
-   by 'prev' as returned by hashLocate.
-*/
-
-static void
-hashInsert(struct HashTable* table, struct HashEntry* prev, struct HashEntry* entry)
-{
-   assert(table != NULL && prev != NULL && entry != NULL);
-   assert(entry->hash != 0);
-   entry->next = prev->next;
-   prev->next = entry;
-}
-
-static void*
-hashwalk(struct HashTable* table)
-{
-    struct HashWalk* walker = NULL;
-    if((walker = calloc(sizeof(struct HashWalk),1))==NULL) return NULL;
-    assert(walker != NULL);
-    walker->table = table;
-    walker->chain = 0;
-    walker->entry = walker->table->table[walker->chain].next;
-    return (void*)walker;
-}
-
-static void
-hashwalkstop(void* walkstate)
-{
-    if(walkstate != NULL) {
-	free(walkstate);
-    }
-}
-
-static int
-hashnext(void* walkstate, struct HashEntry** ithentryp)
-{
-    struct HashWalk* walker = (struct HashWalk*)walkstate;
-    while(walker->entry == NULL) { /* Find next non-empty chain */
-	walker->chain++;
-	if(walker->chain >= HASHSIZE) return 0; /* No more chains to search */
-	walker->entry = walker->table->table[walker->chain].next;
-    }
-    if(ithentryp) *ithentryp = walker->entry;
-    walker->entry = walker->entry->next;
-    return 1;
-}
+#include "builtins.h"
 
 /**************************************************/
 /* Provide subtype specific wrappers for the HashTable operations. */
@@ -351,16 +244,6 @@ freeTTM(TTM* ttm)
 
 /**************************************************/
 
-static void
-clearHashEntry(struct HashEntry* entry)
-{
-    if(entry == NULL) return;
-    nullfree(entry->name);
-    memset(entry,0,sizeof(struct HashEntry));
-}
-
-/**************************************************/
-
 /* Manage the frame stack */
 static Frame*
 pushFrame(TTM* ttm)
@@ -434,7 +317,7 @@ static void
 freeFunction(TTM* ttm, Function* f)
 {
     assert(f != NULL);
-    if(!f->fcn.builtin) nullfree(f->fcn.body);
+    if(!f->fcn.builtin) vsfree(f->fcn.body);
     clearHashEntry(&f->entry);
     free(f);
 }
@@ -562,7 +445,7 @@ statetrace();
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
-	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
+	} else if(ttm->frames.top < 0 && isascii(cp8) && strchr(NPIDEPTH0,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    cp8 += ncp;
 	} else if(isescape(cp8)) {
@@ -675,6 +558,7 @@ exec(TTM* ttm, Frame* frame)
 {
     TTMERR err = TTM_NOERR;
     Function* fcn;
+    int tracebefore = ttm->debug.trace; /* remember this */
 
 #if DEBUG > 0
 dumpframe(ttm,frame);
@@ -705,8 +589,8 @@ dumpframe(ttm,frame);
 	call(ttm,frame,frameresult(ttm),fcn->fcn.body);
 
     /* Trace exit result */
-    if(ttm->debug.trace || fcn->fcn.trace)
-	trace(ttm,0,TRACING);
+    if(tracebefore || fcn->fcn.trace)
+	    trace(ttm,0,TRACING);
 
 #if DEBUG > 1
 xprintf(ttm,"context:\n\result=|%s|\n\tactive=|%s|\n",
@@ -828,7 +712,7 @@ fprintf(stderr,"\targ=|%s|\n",printsubseq(frameresult(ttm),argstart,vslength(fra
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
-	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
+	} else if(isascii(cp8) && strchr(NPI,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    cp8 += ncp; ncp = u8size(cp8);
 	} else if(isescape(cp8)) {
@@ -899,7 +783,7 @@ collectescaped(TTM* ttm, VString* dst)
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
-	} else if(isascii(cp8) && strchr(NONPRINTIGNORE,*cp8)) {
+	} else if(isascii(cp8) && strchr(NPI,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    cp8 += ncp;
 	} else if(isescape(cp8)) {
@@ -938,7 +822,7 @@ Execute a non-builtin function
 @param body for user-defined functions.
 */
 static TTMERR
-call(TTM* ttm, Frame* frame, VString* result, utf8* body)
+call(TTM* ttm, Frame* frame, VString* result, VString* body)
 {
     TTMERR err = TTM_NOERR;
     utf8* p;
@@ -948,7 +832,8 @@ call(TTM* ttm, Frame* frame, VString* result, utf8* body)
 
     /* Compute the body using result  */
     vsclear(result);
-    for(p=body;;p+=ncp) {
+    p = (utf8*)vscontents(body);
+    for(;;p+=ncp) {
 	ncp = u8size(p);
 	if(isnul(p))
 	    break;
@@ -993,9 +878,9 @@ printstring(TTM* ttm, const utf8* s8, TTMFILE* output)
 	    char info[16];
 	    size_t segindex = (size_t)segmarkindex(s8);
 	    if(iscreateindex(segindex))
-		snprintf(info,sizeof(info),"^CR");
+		snprintf(info,sizeof(info),"^{CR}");
 	    else
-		snprintf(info,sizeof(info),"^%02x",(unsigned)segindex);
+		snprintf(info,sizeof(info),"^{%x}",(unsigned)segindex);
 	    fputs(info,output->file);
 	} else {
 #ifdef NO
@@ -1070,22 +955,24 @@ printclean(const utf8* s8, char* ctrls, size_t* pfinallen)
 	    nullfree(clean);
 	    clean = NULL;
 	    goto done;
-	case 2: /* either non-ascii utf8 char or segment/creation mark */
+	case 2: /* non-ascii utf8 char */
+	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
+	    p += len; q += len;
+	    break;
+	case 3: case 4:  /* either non-ascii utf8 char or segment/creation mark */
 	    if(issegmark(p)) {
 		char info[16];
 		size_t segindex = (size_t)segmarkindex(p);
 		if(iscreateindex(segindex))
-		    snprintf(info,sizeof(info),"^CR");
+		    snprintf(info,sizeof(info),"^{CR}");
 		else
-		    snprintf(info,sizeof(info),"^%02x",(unsigned)segindex);
+		    snprintf(info,sizeof(info),"^{%x}",(unsigned)segindex);
 		memcpy(q,info,strlen(info));
 		p += SEGMARKSIZE; q += strlen(info);
-		break;
+	    } else {
+		memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
+		p += len; q += len;
 	    }
-	    /* else non-segmark => fall thru */
-	case 3: case 4: /* non-ascii utf8 char */
-	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
-	    p += len; q += len;
 	    break;
 	case 1: /* ascii char */
 	    char c = *p;
@@ -1211,17 +1098,6 @@ getdictstr(TTM* ttm, const Frame* frame, size_t i)
 
 /**************************************************/
 
-#include "io.h"
-
-/**************************************************/
-/* Builtin functions */
-
-/* Original TTM functions */
-
-#include "builtins.h"
-
-/**************************************************/
-
 /* Reset the ttm state to execute the next full line of text. */
 static void
 ttmreset(TTM* ttm)
@@ -1297,7 +1173,6 @@ done:
     vlfree(newargv);
     return THROW(err);
 }
-#endif
 
 /* Remove a string from a frame at after a given position */
 static TTMERR
@@ -1335,6 +1210,7 @@ done:
     vlfree(newargv);
     return THROW(err);
 }
+#endif
 
 /* Convert a string containing '\\' escaped characters using standard C conventions.
 The converted result is returned. Note that this is independent
@@ -1345,6 +1221,7 @@ of the TTM '@' escape mechanism because it is only used by readline.
 static utf8*
 unescape(const utf8* s8)
 {
+    TTMERR err = TTM_NOERR;
     utf8* deesc = NULL;
     char* p = NULL;
     char* q = NULL;
@@ -1355,7 +1232,7 @@ unescape(const utf8* s8)
     deesc = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
     for(p=(char*)s8,q=(char*)deesc;*p;) {
 	len = u8size((const utf8*)p);
-	if(len <= 0) goto fail; /* illegal utf8 char */
+	if(len <= 0) {err = TTM_EUTF8; goto done; } /* illegal utf8 char */
 	if(len > 1) {
 	    /* non-ascii utf8 char */
 	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
@@ -1372,11 +1249,11 @@ unescape(const utf8* s8)
 		    case 'f': c = '\f'; p++; break;
 		    case 't': c = '\t'; p++; break;
 		    case '1': case '0': /* apparently octal */
-			if(1!=scanf(p,"%03o",&c)) goto fail;
-			if(c > '\177') goto fail;
+			if(1!=scanf(p,"%03o",&c)) {err = TTM_EDECIMAL; goto done;}
+			if(c > '\177') {err = TTM_EUTF8; goto done;}
 			p += 3; /* skip the octal digits */
 		    case 'x': case 'X': /* apparently hex */
-			if(1!=scanf(p,"%02x",&c)) goto fail;
+			if(1!=scanf(p,"%02x",&c)) {err = TTM_EDECIMAL; goto done;}
 			p += 2; /* skip the hex digits */
 		    default: break;
 		    }
@@ -1393,11 +1270,52 @@ unescape(const utf8* s8)
     }
     *q = '\0';
 done:
+    if(err) {
+	nullfree(deesc);
+	deesc = NULL;
+    }
     return deesc;
-fail:
-    nullfree(deesc);
-    deesc = NULL;
-    goto done;
+}
+
+/* Remove unescaped occurrences of "//" as comments.
+The converted result is returned. Note that this is independent
+of the TTM '@' escape mechanism because it is only used by readline.
+@param src utf8 string
+@return copy of s8 with comments elided || NULL if non codepoint encountered
+*/
+static utf8*
+uncomment(const utf8* s8)
+{
+    TTMERR err = TTM_NOERR;
+    utf8* decmt = NULL;
+    char* p = NULL;
+    char* q = NULL;
+    size_t len = 0;
+
+    if(s8 == NULL) goto done;
+    len = strlen((const char*)s8);
+    decmt = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
+    for(p=(char*)s8,q=(char*)decmt;*p;) {
+	len = u8size((const utf8*)p);
+	if(len <= 0) {err = TTM_EUTF8; goto done; } /* illegal utf8 char */
+	if(len == 1 && *p == LPAREN && p[1] == LPAREN) {/* look for comment */
+	    char* pe = p+2;
+	    /* Search for eol or \n */
+	    while(!isnul(pe) && *pe != '\n') pe++;
+	    memmovex(p,pe,(pe - p));
+	} else {
+	    /* irrelevant ascii || multibyte utf8 char */
+	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
+	    p += len; q += len;
+	}
+    }
+    *q = '\0';
+done:
+    if(err) {
+	nullfree(decmt);
+	decmt = NULL;
+    }
+    return decmt;
 }
 
 /**
@@ -1512,6 +1430,8 @@ Note for each line read if it ends in an escapechar+newline
 then another line is read and appended to current line.
 This repeats until a line is read that does not end in escapechar+newline.
 Note that encountering a bare EOF/EOS also terminates the line.
+Note that comments are allowed using "//" style comments although
+     this may leave cruft. Escaping of '/' is allowed to pass '/' characters 
 @param ttm
 @param f file from which to read
 @param linep- hold line(s) read from stdin
@@ -1524,6 +1444,7 @@ readline(TTM* ttm, TTMFILE* f, utf8** linep)
     int ncp;
     utf8cpa cp8;
     utf8* result = NULL;
+    utf8* decom = NULL;
     VString* line = vsnew();
     
     vsclear(line);
@@ -1547,14 +1468,14 @@ readline(TTM* ttm, TTMFILE* f, utf8** linep)
 	    vsappendn(line,(const char*)cp8,ncp);
 	}
     }
+    /* Check for comments */
+    decom = uncomment((utf8*)vscontents(line));
     /* Convert any escapes to produce final result */
-#if 0
-    result = vsextract(line);
-#else
-    result = unescape((utf8*)vscontents(line));
-#endif
+    result = unescape(decom);
     if(linep) {*linep = result; result = NULL;}
 done:
+    nullfree(decom);
+    nullfree(result);
     vsfree(line);
     return err;
 }
@@ -1787,7 +1708,7 @@ main(int argc, char** argv)
     vlpush(argoptions,strdup(argv[0]));
 
     /* Option processing */
-    while ((c = getopt(argc, argv, "d:e:f:io:p:qVB-")) != EOF) {
+    while ((c = getopt(argc, argv, "d:f:io:p:qVB-")) != EOF) {
 	switch(c) {
 	case 'd':
 	    strcat(debugargs,optarg);

@@ -1,3 +1,4 @@
+
 top_srcdir = ../..
 MEM = 1
 
@@ -20,7 +21,7 @@ clean::
 	rm -f ${TTM}.exe ttm ttm.txt test.output test.stderr test.stdout
 
 # Assemble ttm8.c from pieces
-HFILES = const.h types.h decls.h forward.h builtins.h debug.h io.h types.h utf8.h vsl.h
+HFILES = const.h types.h decls.h macros.h forward.h hash.h vsl.h io.h utf8.h debug.h builtins.h
 
 xttm8.c: ttm8.h forward.h vsl.h state.h builtins.h io.h
 	rm -f $@ $@.bak
@@ -37,11 +38,14 @@ ttm.txt: ${TTM}.c
 
 #TESTPROG = -p ${top_srcdir}/tests/test.ttm
 TESTPROG = -p ./test.ttm
-GDBTESTPROG = -p ${top_srcdir}/src/C/test.ttm
+GDBTESTPROG = -p ${top_srcdir}/src/C/dbg.ttm
 TESTARGS = a b c
 TESTRFLAG = -f ${top_srcdir}/tests/test.rs
-TESTTRACE = -dt
+#TESTTRACE = -dt
 #TESTBARE = -B
+
+#BASELINE = ${top_srcdir}/tests/test.baseline
+BASELINE = ./test.baseline
 
 TESTCMD = ./${TTM}.exe ${TESTTRACE} ${TESTPROG} ${TESTRFLAG} ${TESTARGS}
 GDBTESTCMD = ./${TTM}.exe ${TESTBARE} ${TESTTRACE} ${GDBTESTPROG} ${TESTRFLAG} ${TESTARGS}
@@ -50,7 +54,7 @@ check:: ${TTM}.exe
 	rm -f ./test.stdout test.stderr test.output
 	${TESTCMD} > ./test.stdout 2> test.stderr
 	cat test.stderr test.stdout > test.output # Provide a unified output for diff with baseline
-	diff -w ${top_srcdir}/tests/test.baseline ./test.output
+	diff -w ${BASELINE} ./test.output
 
 gdb:: ${TTM}.exe
 	echo gdb --args ${GDBTESTCMD}

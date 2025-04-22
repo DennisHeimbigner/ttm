@@ -62,6 +62,66 @@ u8equal(const utf8* c1, const utf8* c2)
 }
 
 /**
+Compute a pointer to base[n], where base is in units
+of codepoints.	if length of base in codepoints is less than n
+(i.e. we hit EOS), then return ptr to EOS.
+@param base start of the codepoint vector
+@param n offset from base in units of codepoints
+@return pointer to base[n] in units of codepoints or ptr to EOS.
+*/
+static const utf8*
+u8ithcp(const utf8* base, size_t n)
+{
+    const utf8* p = NULL;
+    size_t nbytes = strlen((const char*)base); /* bytes as opposed to codepoints */
+    for(p=base;n > 0; n--) {
+	int ncp = u8size(p);
+	if(isnul(p)) {break;} /* hit EOS */
+	if(ncp < 0 || nbytes < (size_t)ncp) return NULL; /* bad codepoint */
+	p += ncp; /* skip across this codepoint */
+	nbytes -= ncp; /* track no. of remaining bytes in src */
+    }
+    return p;
+}
+
+/**
+Compute the position of base[n] in bytes, where base is in units
+of codepoints.	if length of base in codepoints is less than n
+(i.e. we hit EOS), then return position of the EOS.
+@param base start of the codepoint vector
+@param n offset from base in units of codepoints
+@return offset (in bytes) of base[n] from base in units of codepoints or -1 if malformed
+*/
+static int
+u8ith(const utf8* base, size_t n)
+{
+    const utf8* p = u8ithcp(base,n);
+    return (p==NULL?-1:(int)(p - base));
+}
+
+
+/**
+Given a utf8 pointer, backup one codepoint.  This is doable
+because we can recognize the start of a codepoint.
+
+Special case is required when backing up over a segment mark since it assumes
+that the raw SEGMARK is at the beginning of the mark.
+
+@param p0 pointer to back up
+@return pointer to codepoint before p0
+*/
+static const utf8*
+u8backup(const utf8* p, const utf8* base)
+{
+    while(p-- > base) {
+        if((*p & 0xB0) != 0xB0) break; /* backup over all continuation bytes */
+    }
+    /* we should be at the start of the codepoint or segmark */
+    return p;
+}
+
+#if 0
+/**
 Count no. of codepoints in src to src+n or EOS.
 This is sort of the inverse of u8ith().
 @param dst target for the codepoint
@@ -87,61 +147,56 @@ u8cpcount(const utf8* src, size_t n)
     if(offset < nbytes) return -1; /* extraneous extra bytes at end */
     return cpcount;
 }
+#endif
 
 /**
-Compute a pointer to base[n], where base is in units
-of codepoints.	if length of base in codepoints is less than n
-(i.e. we hit EOS), then return NULL.
-@param base start of the codepoint vector
-@param n offset from base in units of codepoints
-@return pointer to base[n] in units of codepoints or NULL if malformed
+Count number of codepoints in a sub-string of a string
+@param sstart beginning of substring
+@param slen length (in bytes) of substring sstart => search sstart[0..send-1]
+@param np return no. of codepoints in substring
+@return TTMERR; especially TTM_EEOS if eos encountered during codeppoint scan
 */
-static const utf8*
-u8ithcp(const utf8* base, size_t n)
+static TTMERR
+strsubcp(const utf8* sstart, size_t slen, size_t* pnc)
 {
-    const utf8* p = NULL;
-    size_t nbytes = strlen((const char*)base); /* bytes as opposed to codepoints */
-    for(p=base;n > 0; n--) {
+    TTMERR err = TTM_NOERR;
+    size_t ncodepoints = 0;
+    const utf8* p = sstart;
+    const utf8* q = p + slen;
+    for(ncodepoints=0;p < q;ncodepoints++) {
 	int ncp = u8size(p);
-	if(isnul(p)) {p = NULL; break;} /* hit EOS */
-	if(ncp < 0 || nbytes < (size_t)ncp) return NULL; /* bad codepoint */
-	p += ncp; /* skip across this codepoint */
-	nbytes -= ncp; /* track no. of remaining bytes in src */
+	if(ncp <= 0) {err = TTM_EUTF8; goto done;}
+	if(isnul(p)) {err = TTM_EEOS; goto done;}
+	p += ncp;
     }
-    return p;
+    if(pnc) *pnc = ncodepoints;
+done:
+    return err;
 }
 
 /**
-Compute the position of base[n] in bytes, where base is in units
-of codepoints.	if length of base in codepoints is less than n
-(i.e. we hit EOS), then return NULL.
-@param base start of the codepoint vector
-@param n offset from base in units of codepoints
-@return offset (in bytes) of base[n] from base in units of codepoints or -1 if malformed
+Peek at the nth char starting at s.
+Return that char.
+If EOS is encountered, then no advancement occurs
+@param s string
+@param n number of codepoints to peek ahead
+@param cpa store the peek'd codepoint
+@return TTMERR
 */
-static int
-u8ith(const utf8* base, size_t n)
+static TTMERR
+u8peek(utf8* s, size_t n, utf8* cpa)
 {
-    const utf8* p = u8ithcp(base,n);
-    return (p==NULL?-1:(int)(p - base));
-}
+    TTMERR err = TTM_NOERR;
+    size_t i;
+    utf8* p = s;
+    int ncp = 0;
 
-
-/**
-Given a utf8 pointer, backup one codepoint.  This is doable
-because we can recognize the start of a codepoint.
-
-Special case is required when backing up over a segment mark since it assumes
-that the raw SEGMARK is at the beginning of the mark.
-
-@param p0 pointer to back up
-@return pointer to codepoint before p0
-*/
-static const utf8*
-u8backup(const utf8* p)
-{
-    while((*p & 0xB0) == 0xB0) p--; /* backup over all continuation bytes */
-    /* we should be at the start of the codepoint or segmark */
-    return p;
+    for(i=0;i<n;i++) {
+	if(isnul(p)) break;
+	ncp = u8size(p);	
+	p += ncp;
+    }
+    memcpy(cpa,p,u8size(p));
+    return err;
 }
 

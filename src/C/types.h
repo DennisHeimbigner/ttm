@@ -17,14 +17,6 @@ are in units of bytes, not utf8 codepoints.
 Note also that it is assumed that all C string constants
 in this file are restricted to US-ASCII, which is a subset
 of UTF-8.
-
-This code uses these formats to hold a utf8 character"
-1. 4-byte array holding the bytes of the utf8 codepoint.
-2. 32-bit integer
-The two formats are inter-convertible using a union
-with two fields: case 1 field and case 2 field.
-Note that it is important that when converting,
-that unused bytes be initialized to zero.
 */
 
 /* Maximum codepoint size when using utf8 */
@@ -169,39 +161,6 @@ TTM_ESTORAGE		= (-0),	 /* Error In Storage Format */
 #endif
 
 } TTMERR;
-
-/**************************************************/
-/* "inline" functions */
-
-#define isnul(cp)(*(cp) == NUL8?1:0)
-#define isescape(cpa) u8equal(cpa,ttm->meta.escapec)
-#define isascii(cpa) (*cpa <= 0x7F)
-
-#define segmarkindex(cp) ((utf8)(*((cp)+1) & SEGMARKINDEXUNMASK))
-#define segmarkindexbyte(index) ((utf8)(((index)&SEGMARKINDEXUNMASK)|SEGMARKINDEXMASK))
-#define issegmark(cp) ((*(cp) == SEGMARK0)?1:0)
-#define iscreateindex(idx) (((idx) == CREATEINDEXONLY)?1:0)
-#define iscreatemark(cp) (issegmark(cp) && iscreateindex(segmarkindex(cp)))
-    
-#define iscontrol(c) ((c) < ' ' || (c) == 127 ? 1 : 0)
-#define isdec(c) (((c) >= '0' && (c) <= '9') ? 1 : 0)
-#define ishex(c) ((c >= '0' && c <= '9') \
-		  || (c >= 'a' && c <= 'f') \
-		  || (c >= 'A' && c <= 'F') ? 1 : 0)
-
-#define fromhex(c) \
-    (c >= '0' && c <= '9' \
-	? (c - '0') \
-	: (c >= 'a' && c <= 'f' \
-	    ? ((c - 'a') + 10) \
-	    : (c >= 'A' && c <= 'F' \
-		? ((c - 'a') + 10) \
-		: -1)))
-
-#define FAILNONAME(i)  FAILNONAMES(frame->argv[i])
-#define FAILNOCLASS(i) FAILNOCLASSS(frame->argv[i])
-#define FAILNONAMES(s)	FAILX(ttm,TTM_ENONAME,"Missing dict name=%s\n",(const char*)(s))
-#define FAILNOCLASSS(s) FAILX(ttm,TTM_ENOCLASS,"Missing class name=%s\n",(const char*)(s))
 
 /**************************************************/
 /**
@@ -377,10 +336,9 @@ struct Function {
 	size_t maxargs;
 	enum FcnSV sv;
 	int novalue; /* suppress return value */
-	size_t residual; /* residual index in terms of bytes not codepoints */
 	size_t nextsegindex; /* highest segment index number in use in this string */
 	TTMFCN fcn; /* builtin == 1 */
-	utf8* body; /* builtin == 0 */
+	struct VString* body; /* builtin == NULL; body.index is the residual */
     } fcn;
 };
 
