@@ -12,7 +12,7 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 #define CATCH
 /* Debug has a level attached: 0 is equivalent to undef */
 #define DEBUG 0
-#undef GDB
+#define GDB
 
 #if DEBUG > 0
 #ifndef GDB
@@ -87,11 +87,6 @@ static int getopt(int argc, char* const* argv, const char* optstring);
 #include <unistd.h> /* This defines getopt */
 #endif /*!MSWINDOWS*/
 
-/* Wrap both unix and windows timing in this function */
-static long long getRunTime(void);
-
-/* Wrap both unix and windows time of day in this function */
-static int timeofday(struct timeval *tv);
 
 /**************************************************/
 
@@ -101,7 +96,7 @@ static int timeofday(struct timeval *tv);
 #include "macros.h"
 #include "forward.h"
 #include "hash.h"
-#include "vsl.h"
+#include "va.h"
 #include "io.h"
 #include "utf8.h"
 #include "debug.h"
@@ -223,7 +218,7 @@ newTTM(struct Properties* initialprops)
     memset((void*)&ttm->tables.dictionary,0,sizeof(ttm->tables.dictionary));
     memset((void*)&ttm->tables.charclasses,0,sizeof(ttm->tables.charclasses));
 #if DEBUG > 0
-    ttm->debug.trace = 1;
+    ttm->debug.trace = TR_UNDEF;
 #endif
     return ttm;
 }
@@ -394,6 +389,7 @@ propenumdetect(const utf8* s)
     return PE_UNDEF;
 }
 
+#if 0
 /* MetaEnum detector */
 static enum MetaEnum
 metaenumdetect(const utf8* s)
@@ -409,12 +405,15 @@ metaenumdetect(const utf8* s)
     if(strcmp("rbr",(const char*)s)==0) return ME_RBR;
     return ME_UNDEF;
 }
+#endif /*0*/
 
 /* MetaEnum detector */
 static enum TTMEnum
 ttmenumdetect(const utf8* s)
 {
+#if 0
     if(strcmp("meta",(const char*)s)==0) return TE_META;
+#endif
     if(strcmp("info",(const char*)s)==0) return TE_INFO;
     if(strcmp("name",(const char*)s)==0) return TE_NAME;
     if(strcmp("class",(const char*)s)==0) return TE_CLASS;
@@ -558,7 +557,7 @@ exec(TTM* ttm, Frame* frame)
 {
     TTMERR err = TTM_NOERR;
     Function* fcn;
-    int tracebefore = ttm->debug.trace; /* remember this */
+    TRACE tracebefore = TR_UNDEF;
 
 #if DEBUG > 0
 dumpframe(ttm,frame);
@@ -577,25 +576,33 @@ dumpframe(ttm,frame);
     }
     if(fcn->fcn.minargs > (frame->argc - 1)) /* -1 to account for function name*/
 	{err = THROW(TTM_EFEWPARMS); goto done;}
+
+    if(ttm->debug.trace == TR_UNDEF)
+        tracebefore = fcn->fcn.trace;
+    else
+        tracebefore = ttm->debug.trace;
+
     /* Trace frame on entry */
-    if(ttm->debug.trace || fcn->fcn.trace)
+    if(tracebefore == TR_ON)
 	trace(ttm,1,TRACING);
 
     if(fcn->fcn.builtin) {
 	fcn->fcn.fcn(ttm,frame,frameresult(ttm));
 	if(fcn->fcn.novalue) vsclear(frameresult(ttm));
-	if(ttm->flags.exit) goto done;
     } else /* invoke the pseudo function "call" */
 	call(ttm,frame,frameresult(ttm),fcn->fcn.body);
 
-    /* Trace exit result */
-    if(tracebefore || fcn->fcn.trace)
-	    trace(ttm,0,TRACING);
+    /* Trace exit result iff traced entry */
+    if(tracebefore == TR_ON)
+        trace(ttm,0,TRACING);
 
 #if DEBUG > 1
 xprintf(ttm,"context:\n\result=|%s|\n\tactive=|%s|\n",
 	vscontents(frameresult(ttm)),vsindexp(ttm->vs.active));
 #endif
+
+    if(ttm->flags.exit) goto done;
+
 done:
     return THROW(err);
 }
@@ -639,21 +646,27 @@ processfcn(TTM* ttm)
 	if((err=exec(ttm,frame))) goto done;
 	break;
     case FCN_ONE: /* Pass one char */
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
+	vsindexskip(ttm->vs.active,u8size(cp8));
+	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
 	break;
     case FCN_TWO: /* pass two chars */
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
+	vsindexskip(ttm->vs.active,u8size(cp8));
+	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
+	vsindexskip(ttm->vs.active,u8size(cp8));
+	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
 	break;
     case FCN_THREE: /* pass three chars */
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
+	vsindexskip(ttm->vs.active,u8size(cp8));
+	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
+	vsindexskip(ttm->vs.active,u8size(cp8));
+	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
-	cp8 = (utf8*)vsindexskip(ttm->vs.active,u8size(cp8));
+	vsindexskip(ttm->vs.active,u8size(cp8));
+	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
 	break;
     case FCN_UNDEF: abort(); /* Should never happen */
@@ -847,7 +860,7 @@ call(TTM* ttm, Frame* frame, VString* result, VString* body)
 		}
 		vsappendn(result,crval,crlen);
 	    } else if(segindex < frame->argc) {
-		utf8* arg = frame->argv[segindex]; /* lowest segindex is 1; also skips argv[0] */
+		utf8* arg = frame->argv[segindex]; /* lowest segindex is 0; also skips argv[0] */
 		vsappendn(result,(const char*)arg,strlen((const char*)arg));
 	    } /* else treat as null string */
 	} else { /* pass the codepoint */
@@ -1210,11 +1223,11 @@ done:
     vlfree(newargv);
     return THROW(err);
 }
-#endif
+#endif /*0*/
 
 /* Convert a string containing '\\' escaped characters using standard C conventions.
 The converted result is returned. Note that this is independent
-of the TTM '@' escape mechanism because it is only used by readline.
+of the TTM '@' escape character because it is only used by readline on external data.
 @param src utf8 string
 @return copy of s8 with escaped characters modified || NULL if non codepoint encountered
 */
@@ -1378,11 +1391,64 @@ peek(VString* vs, size_t n, utf8* cpa)
     p = (utf8*)vsindexp(vs);
     for(i=0;i<n;i++) {
 	if(isnul(p)) break;
-	p = (utf8*)vsindexskip(vs,(size_t)u8size(p));
+	vsindexskip(vs,(size_t)u8size(p));
+	p = (utf8*)vsindexp(vs);
     }
     memcpy(cpa,p,u8size(p));
     vsindexset(vs,saveindex);
     return err;
+}
+
+/**
+Convert a residual count to a codepoint count.
+@param ttm
+@param u8 utf8 string
+@param rp residual count associated with u8 in units of utf8
+@return residual count in units of codepoints
+*/
+static size_t
+rptocp(TTM* ttm, const utf8* u8, size_t rp)
+{
+    const utf8* p;
+    size_t count = 0;
+    if(u8 != NULL) {
+	const utf8* u8end = u8 + rp;
+	for(p=u8;*p;) {
+	    int ncp = u8size(p);
+	    assert(ncp > 0);
+	    if(p < u8end) {p += ncp; count++; continue;}
+	    if(p == u8end) {break;}
+	    if(p > u8end) {break;} /* technically indicates a malformed utf8 codepoint */
+	}
+    }
+    return count;
+}
+
+/**
+Convert a codepoint count to a residual count (i.e. bytes).
+@param ttm
+@param u8 utf8 string
+@parem residual count in units of codepoints
+@return residual count associated with u8 in units of bytes
+*/
+static size_t
+cptorp(TTM* ttm, const utf8* u8, size_t cp8)
+{
+    const utf8* p;
+    size_t count = 0;
+    if(u8 != NULL) {
+	size_t i;
+	const utf8* u8end = u8 + strlen((const char*)u8);
+	for(i=0,p=u8;i<cp8;i++) {
+	    int ncp = u8size(p);
+	    assert(ncp > 0);
+	    if(p < u8end) {p += ncp; continue;}
+	    if(p >= u8end || *p == NUL8) break;
+	}
+	count = (p - u8);
+	assert(p <= u8end);
+    }
+    return count;
 }
 
 /**************************************************/
@@ -1611,9 +1677,9 @@ execcmd(TTM* ttm, const char* cmd)
     size_t cmdlen = strlen(cmd);
 
 #ifdef GDB
-    ttm->debug.trace = 1;
+    ttm->debug.trace = TR_ON;
 #else
-    ttm->debug.trace = 0;
+    ttm->debug.trace = TR_OFF;
 #endif
     ttmreset(ttm);
     vsinsertn(ttm->vs.active,0,cmd,cmdlen);
@@ -1922,96 +1988,6 @@ Implement functions that deal with Linux versus Windows
 differences.
 */
 /**************************************************/
-
-#ifdef MSWINDOWS
-
-static long long
-getRunTime(void)
-{
-    long long runtime;
-    FILETIME ftCreation,ftExit,ftKernel,ftUser;
-
-    GetProcessTimes(GetCurrentProcess(),
-		    &ftCreation, &ftExit, &ftKernel, &ftUser);
-
-    runtime = ftUser.dwHighDateTime;
-    runtime = runtime << 32;
-    runtime = runtime | ftUser.dwLowDateTime;
-    /* Divide by 10000 to get milliseconds from 100 nanosecond ticks */
-    runtime /= 10000;
-    return runtime;
-}
-
-#define DELTA_EPOCH_IN_MICROSECS  11644473600000000ULL
-
-static int tzflag = 0;
-
-static int
-timeofday(struct timeval *tv)
-{
-    /* Define a structure to receive the current Windows filetime */
-    FILETIME ft;
-
-    /* Initialize the present time to 0 and the timezone to UTC */
-    unsigned long long tmpres = 0;
-
-    if(NULL != tv) {
-	GetSystemTimeAsFileTime(&ft);
-
-	/*
-	The GetSystemTimeAsFileTime returns the number of 100 nanosecond
-	intervals since Jan 1, 1601 in a structure. Copy the high bits to
-	the 64 bit tmpres, shift it left by 32 then or in the low 32 bits.
-	*/
-	tmpres |= ft.dwHighDateTime;
-	tmpres <<= 32;
-	tmpres |= ft.dwLowDateTime;
-
-	/* Convert to microseconds by dividing by 10 */
-	tmpres /= 10;
-
-	/* The Unix epoch starts on Jan 1 1970.	 Need to subtract the difference
-	   in seconds from Jan 1 1601.*/
-	tmpres -= DELTA_EPOCH_IN_MICROSECS;
-
-	/* Finally change microseconds to seconds and place in the seconds value.
-	   The modulus picks up the microseconds. */
-	tv->tv_sec = (long)(tmpres / 1000000UL);
-	tv->tv_usec = (long)(tmpres % 1000000UL);
-    }
-    return 0;
-}
-
-#else /*!MSWINDOWS */
-
-static long frequency = 0;
-
-static long long
-getRunTime(void)
-{
-    long long runtime;
-    struct tms timers;
-    clock_t tic;
-
-    UNUSED(tic);
-    if(frequency == 0)
-	frequency = sysconf(_SC_CLK_TCK);
-
-    tic=times(&timers);
-    runtime = timers.tms_utime; /* in clock ticks */
-    runtime = ((runtime * 1000) / frequency) ; /* runtime in milliseconds */
-    return runtime;
-}
-
-
-static int
-timeofday(struct timeval *tv)
-{
-    return gettimeofday(tv,NULL);
-}
-
-#endif /*!MSWINDOWS */
-
 
 /**************************************************/
 /* Getopt */

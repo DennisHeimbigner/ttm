@@ -21,9 +21,9 @@ clean::
 	rm -f ${TTM}.exe ttm ttm.txt test.output test.stderr test.stdout
 
 # Assemble ttm8.c from pieces
-HFILES = const.h types.h decls.h macros.h forward.h hash.h vsl.h io.h utf8.h debug.h builtins.h
+HFILES = const.h types.h decls.h macros.h forward.h hash.h va.h io.h utf8.h debug.h builtins.h
 
-xttm8.c: ttm8.h forward.h vsl.h state.h builtins.h io.h
+xttm8.c: ttm8.h forward.h va.h state.h builtins.h io.h
 	rm -f $@ $@.bak
 	cp ttm8.h $@
 	for H in ${HFILES} ; do sed -i.bak -e "/^\#include[ ][ ]*\"${H}\".*/r ${H}" -e "s|^\#include[ ][ ]*\"${H}\".*|/*\0*/|" $@; done

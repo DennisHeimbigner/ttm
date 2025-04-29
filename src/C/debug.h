@@ -124,13 +124,14 @@ dumpdict0(TTM* ttm, struct HashTable* dict, int printvalues)
 	for(first=1;entry != NULL;first=0) {
 	    Function* str = (Function*)entry;
 	    if(first) fprintf(stderr,"[%3d]",i);
-	    xprintf(ttm," |%s%s|",str->entry.name,(str->fcn.builtin?"*":""));
+	    xprintf(ttm,"	|%s%s|",str->entry.name,(str->fcn.builtin?"*":""));
 	    if(printvalues) {
 		if(str->fcn.builtin)
 		    xprintf(ttm," = builtin");
 		else
-		    xprintf(ttm," = |%s|",str->fcn.body);
+		    xprintf(ttm," = |%s|",vscontents(str->fcn.body));
 	    }
+	    xprintf(ttm,"\n");
 	    entry = entry->next;
 	}
 	xprintf(ttm,"\n");
@@ -141,6 +142,13 @@ static void
 dumpnames(TTM* ttm)
 {
     dumpdict0(ttm,&ttm->tables.dictionary,0);
+}
+
+static void
+dumpnamesplus(TTM* ttm)
+{
+    dumpdict0(ttm,&ttm->tables.dictionary,1);
+
 }
 
 static void
@@ -171,6 +179,7 @@ printwithpos(VString* vs)
     *q = '\0';
     return content;
 }    
+
 #endif /*GDB*/
 
 static void
@@ -433,6 +442,7 @@ dbgsuppresswarnings(void)
     (void)printwithpos;
     (void)dumpdict0;
     (void)dumpnames;
+    (void)dumpnamesplus;
     (void)dumpcharclasses;
     (void)dumpframe;
     (void)dumpstack;

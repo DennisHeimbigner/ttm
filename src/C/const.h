@@ -1,6 +1,6 @@
 /**
 This code takes over part of the UTF8 space to store segment
-marks and create marks This should work because we ever export
+marks and create marks This should work because we never export
 segmarks outside of TTM.
 
 Specifically a segment mark (and creation mark) is encoded as a three
@@ -13,10 +13,10 @@ The three bytes are as follows:
 3. 0x80 - 0xBF (binary 10xx xxxx)
 
 The segment index is represented by the x characters,
-so the segment index is 6+6 = 12 bits, representing 0 - 4095
+so the segment index is 6+6 = 12 bits, representing 4096 values: 0 - 4095
 The value 0 is taken over to represent the creation mark, so
-there is room for 4094 segment marks. As a space saving measure
-the set of legal mark indices is limited to 1 - 1023.
+there is room for 4095 segment marks. As a space saving measure
+the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 */
 
 /* Segment mark contants (term "mark" comes from gin CalTech TTM). */
@@ -33,7 +33,7 @@ the set of legal mark indices is limited to 1 - 1023.
 /* Misc */
 #define CREATELEN 4 /* # of characters for a create value (not the mark */
 #define CREATEFORMAT "%04u"
-#define MAXSEGMARKS 1023
+#define MAXSEGMARKS 1024
 
 #define empty_segmark {SEGMARK0,0x80,0x80}
 
@@ -71,6 +71,7 @@ the set of legal mark indices is limited to 1 - 1023.
 /*Mnemonics*/
 #define TRACING 1
 #define TOEOS ((size_t)0xffffffffffffffff)
+#define RECLAIM 1
 
 #if DEBUG > 0
 #define PASSIVEMAX 20

@@ -35,7 +35,7 @@ struct VList;
 /**************************************************/
 /* Global variables */
 
-static struct VList* argoptions = NULL;
+static VList* argoptions = NULL;
 
 #ifdef TTMGLOBAL
 static TTM* ttm = NULL;

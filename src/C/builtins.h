@@ -114,7 +114,7 @@ ttm_ds(TTM* ttm, Frame* frame, VString* result)
 	str->entry.name = (utf8*)strdup((const char*)frame->argv[1]);
 	dictionaryInsert(ttm,str);
     }
-    str->fcn.trace = ttm->debug.trace;
+    str->fcn.trace = TR_UNDEF; /* default */
     str->fcn.builtin = 0;
     str->fcn.maxargs = ARB;
     str->fcn.sv = SV_SV;
@@ -1806,17 +1806,19 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
     VList* nameset = vlnew();
     const char* arg = NULL;
     int klass = 0;
-#	define TTM_NAMES_ALL	  1
-#	define TTM_NAMES_STRINGS  2
-#	define TTM_NAMES_BUILTIN  3
-#	define TTM_NAMES_SPECIFIC 4
+#	define TTM_NAMES_ALL	  (1<<0)
+#	define TTM_NAMES_STRINGS  (1<<1)
+#	define TTM_NAMES_BUILTIN  (1<<2)
+#	define TTM_NAMES_SPECIFIC (1<<3)
+#	    define TTM_NAMES_BODY (1<<16) /* => SPECIFIC|BODY*/
 
     TTMFCN_BEGIN(ttm,frame,result);
     /* Collect the class of names to be returned:
        * #<names> -- all names
-       * #<names;strings> -- all ##<ds;string> names
-       * #<names;builtin> -- all builtin names
-       * #<names;;...> -- specific names
+       * #<names;strings[,body]>	-- all ##<ds;string> names with optional body
+       * #<names;builtin>		-- all builtin names
+       * #<names;;...>			-- specific names
+       * #<names;body;...>		-- specific + body
     */
     i = frame->argc;
     switch (i) {
@@ -1826,10 +1828,14 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
 	arg = (const char*)frame->argv[i];
 	if(strcmp(arg,"strings")==0)
 	    klass = TTM_NAMES_STRINGS;
+	else if(strcmp(arg,"strings,body")==0)
+	    klass = TTM_NAMES_STRINGS | TTM_NAMES_BODY;
 	else if(strcmp(arg,"builtin")==0)
 	    klass = TTM_NAMES_BUILTIN;
 	else if(arg == NULL || strcmp(arg,"")==0)
 	    klass = TTM_NAMES_SPECIFIC;
+	else if(arg == NULL || strcmp(arg,"body")==0)
+	    klass = TTM_NAMES_SPECIFIC | TTM_NAMES_BODY;
 	break;
     default: klass = TTM_NAMES_SPECIFIC; break;
     }
@@ -1840,11 +1846,11 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
     for(i=0;i<HASHSIZE;i++) {
 	struct Function* fcn = (struct Function*)ttm->tables.dictionary.table[i].next;
 	while(fcn != NULL) {
-	    if(klass == TTM_NAMES_ALL
-	       || (klass == TTM_NAMES_STRINGS && !fcn->fcn.builtin)
-	       || (klass == TTM_NAMES_BUILTIN && fcn->fcn.builtin)) {
+	    if((klass & TTM_NAMES_ALL)
+	       || ((klass & TTM_NAMES_STRINGS) && !fcn->fcn.builtin)
+	       || ((klass & TTM_NAMES_BUILTIN) && fcn->fcn.builtin)) {
 		vlpush(nameset,fcn);
-	    } else if(klass == TTM_NAMES_SPECIFIC) {
+	    } else if((klass & TTM_NAMES_SPECIFIC)) {
 		size_t j;
 		for(j=2;j<frame->argc;j++) {
 		    if(strcmp((const char*)frame->argv[j],(const char*)fcn->entry.name)==0)
@@ -1859,11 +1865,17 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
         void* content = vlcontents(nameset);
 	qsort(content, vllength(nameset), sizeof(struct Function*), fcncmp);
     }
-    /* print names comma separated */
+    /* print names comma separated and optional body */
     for(i=0;i<vllength(nameset);i++) {
-	const utf8* nm = ((const struct HashEntry*)vlget(nameset,i))->name;
+	Function* f =  (Function*)vlget(nameset,i);
+	const utf8* nm = f->entry.name;
 	if(i > 0) vsappend(result,',');
 	vsappendn(result,(const char*)nm,0);
+	if(!f->fcn.builtin && (klass & TTM_NAMES_BODY)==TTM_NAMES_BODY) {
+	    vsappendn(result,"=|",2);
+	    vsappendn(result,vscontents(f->fcn.body),vslength(f->fcn.body));
+	    vsappendn(result,"|",1);	
+	}
     }
 done:
     vlfree(nameset);
@@ -1934,6 +1946,91 @@ done:
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
 }
+
+#ifdef MSWINDOWS
+
+static long long
+getRunTime(void)
+{
+    long long runtime;
+    FILETIME ftCreation,ftExit,ftKernel,ftUser;
+
+    GetProcessTimes(GetCurrentProcess(),
+		    &ftCreation, &ftExit, &ftKernel, &ftUser);
+
+    runtime = ftUser.dwHighDateTime;
+    runtime = runtime << 32;
+    runtime = runtime | ftUser.dwLowDateTime;
+    /* Divide by 10000 to get milliseconds from 100 nanosecond ticks */
+    runtime /= 10000;
+    return runtime;
+}
+
+static int
+timeofday(struct timeval *tv)
+{
+#define DELTA_EPOCH_IN_MICROSECS  11644473600000000ULL
+static int tzflag = 0;
+
+    /* Define a structure to receive the current Windows filetime */
+    FILETIME ft;
+
+    /* Initialize the present time to 0 and the timezone to UTC */
+    unsigned long long tmpres = 0;
+
+    if(NULL != tv) {
+	GetSystemTimeAsFileTime(&ft);
+
+	/*
+	The GetSystemTimeAsFileTime returns the number of 100 nanosecond
+	intervals since Jan 1, 1601 in a structure. Copy the high bits to
+	the 64 bit tmpres, shift it left by 32 then or in the low 32 bits.
+	*/
+	tmpres |= ft.dwHighDateTime;
+	tmpres <<= 32;
+	tmpres |= ft.dwLowDateTime;
+
+	/* Convert to microseconds by dividing by 10 */
+	tmpres /= 10;
+
+	/* The Unix epoch starts on Jan 1 1970.	 Need to subtract the difference
+	   in seconds from Jan 1 1601.*/
+	tmpres -= DELTA_EPOCH_IN_MICROSECS;
+
+	/* Finally change microseconds to seconds and place in the seconds value.
+	   The modulus picks up the microseconds. */
+	tv->tv_sec = (long)(tmpres / 1000000UL);
+	tv->tv_usec = (long)(tmpres % 1000000UL);
+    }
+    return 0;
+}
+
+#else /*!MSWINDOWS */
+
+static long long
+getRunTime(void)
+{
+static long frequency = 0;
+    long long runtime;
+    struct tms timers;
+    clock_t tic;
+
+    UNUSED(tic);
+    if(frequency == 0)
+	frequency = sysconf(_SC_CLK_TCK);
+
+    tic=times(&timers);
+    runtime = timers.tms_utime; /* in clock ticks */
+    runtime = ((runtime * 1000) / frequency) ; /* runtime in milliseconds */
+    return runtime;
+}
+
+static int
+timeofday(struct timeval *tv)
+{
+    return gettimeofday(tv,NULL);
+}
+#endif /*!MSWINDOWS */
 
 static TTMERR
 ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
@@ -2015,10 +2112,10 @@ ttm_tf(TTM* ttm, Frame* frame, VString* result) /* Turn Trace Off */
     if(frame->argc > 1) {
 	for(i=1;i<frame->argc;i++) {
 	    Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL) fcn->fcn.trace = 0;
+	    if(fcn != NULL) fcn->fcn.trace = TR_OFF;
 	}
     } else { /* turn off global tracing */
-	ttm->debug.trace = 0;
+	ttm->debug.trace = TR_OFF;
     }
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
@@ -2036,10 +2133,10 @@ ttm_tn(TTM* ttm, Frame* frame, VString* result) /* Turn Trace On */
     if(frame->argc > 1) {
 	for(i=1;i<frame->argc;i++) {
 	    Function* fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL) fcn->fcn.trace = 1;
+	    if(fcn != NULL) fcn->fcn.trace = TR_ON;
 	}
     } else { /* turn on global tracing but possibly delayed*/
-	ttm->debug.trace = 1;
+	ttm->debug.trace = TR_ON;
     }
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
@@ -2158,7 +2255,7 @@ ttm_lf(TTM* ttm, Frame* frame, VString* result) /* Lock a list of function from 
 	    }
 	} else for(i=1;i<frame->argc;i++) {
 	    fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL && !fcn->fcn.builtin) fcn->fcn.trace = 1;
+	    if(fcn != NULL && !fcn->fcn.builtin) fcn->fcn.locked = 1;
 	}
     }
     TTMFCN_END(ttm,frame,result);
@@ -2186,7 +2283,7 @@ ttm_uf(TTM* ttm, Frame* frame, VString* result) /* Un-Lock a function from being
 	    }
 	} else for(i=1;i<frame->argc;i++) {
 	    fcn = dictionaryLookup(ttm,frame->argv[i]);
-	    if(fcn != NULL && !fcn->fcn.builtin) fcn->fcn.trace = 0;
+	    if(fcn != NULL && !fcn->fcn.builtin) fcn->fcn.locked = 0;
 	}
     }
     TTMFCN_END(ttm,frame,result);
@@ -2262,6 +2359,7 @@ Helper functions for all the ttm commands
 and subcommands
 */
 
+#if 0
 /**
 #<ttm;meta;which;char>
 where which is one of: "sharp","open","close","semi","escape","meta",
@@ -2298,6 +2396,7 @@ done:
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
 }
+#endif /*0*/
 
 /**
 #<ttm;info;name;{name}>
@@ -2338,7 +2437,9 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
 	vsappendn(result,info,strlen(info));
     }
     if(!str->fcn.builtin && ttm->debug.verbose) {
-	snprintf(info,sizeof(info)," residual=%zu body=|",vsindex(str->fcn.body));
+	size_t rp = vsindex(str->fcn.body);
+	rp = rptocp(ttm,(const utf8*)vscontents(str->fcn.body),vsindex(str->fcn.body));
+	snprintf(info,sizeof(info)," residual=%zu body=|",rp);
 	vsappendn(result,info,strlen(info));
 	cleaned = printclean((utf8*)vscontents(str->fcn.body),NULL,&ncleaned);
 	vsappendn(result,(const char*)cleaned,ncleaned);
@@ -2508,9 +2609,11 @@ ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
     if(frame->argc < 2) {err = TTM_EFEWPARMS; goto done;}
     which = frame->argv[1];
     switch (ttmenumdetect(which)) {
+#if 0
     case TE_META:
 	ttm_ttm_meta(ttm,frame,result);
 	break;
+#endif
     case TE_INFO:
 	if(frame->argc < 3) {err = TTM_EFEWPARMS; goto done;}
 	klass = frame->argv[2];
@@ -2638,8 +2741,8 @@ static struct Builtin builtin_new[] = {
     {"ttm",1,ARB,SV_SV,ttm_ttm}, /* Misc. combined actions */
     {"ge",4,4,SV_V,ttm_ge}, /* Compare numeric greater-than */
     {"le",4,4,SV_V,ttm_le}, /* Compare numeric less-than */
-    {"void",0,0,SV_S,ttm_void}, /* throw away all arguments and return an empty string */
-    {"comment",0,0,SV_S,ttm_void}, /* alias for ttm_void */
+    {"void",0,ARB,SV_S,ttm_void}, /* throw away all arguments and return an empty string */
+    {"comment",0,ARB,SV_S,ttm_void}, /* alias for ttm_void */
     {"setprop",1,2,SV_SV,ttm_setprop}, /* Set property */
     {"resetprop",1,2,SV_SV,ttm_resetprop}, /* set property to default */
     {"pse",1,ARB,SV_S,ttm_ps}, /* Print a sequence of strings, but charified control chars */

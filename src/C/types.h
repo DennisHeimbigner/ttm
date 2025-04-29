@@ -91,7 +91,9 @@ FCN_PASSIVE,	/* have ##< */
 /** ttm command cases */
 enum TTMEnum {
 TE_UNDEF,
+#if 0
 TE_META,
+#endif
 TE_INFO,
 TE_NAME,
 TE_LIST,
@@ -107,6 +109,13 @@ typedef unsigned IOMODE;
 #define IOM_READ   1
 #define IOM_WRITE  2
 #define IOM_APPEND 4
+
+/* Trace state */
+typedef enum TRACE {
+TR_UNDEF=-1,
+TR_OFF=0,
+TR_ON=1,
+} TRACE;
 
 /**************************************************/
 /* Error Numbers */
@@ -171,7 +180,9 @@ typedef struct TTM TTM;
 typedef struct Function Function;
 typedef struct Charclass Charclass;
 typedef struct Frame Frame;
-typedef struct VString VString;
+typedef struct VArray VArray;
+typedef VArray VList;
+typedef VArray VString;
 
 typedef TTMERR (*TTMFCN)(TTM*, Frame*, VString*);
 
@@ -248,7 +259,7 @@ struct TTM {
     } properties;
     struct Debug {
 	/*Debug Flags */
-	int trace;   /* Forcibly trace all function executions */
+	TRACE trace;   /* Forcibly trace all function executions */
 	int verbose; /* Dump more info in the fail function */
 	struct Xprint {
 	    char xbuf[1<<14];
@@ -267,14 +278,14 @@ struct TTM {
 	char* programfilename;
     } opts;
     struct MetaChars {
-	utf8cpa sharpc; /* sharp-like char */
-	utf8cpa semic; /* ;-like char */
-	utf8cpa escapec; /* escape-like char */
-	utf8cpa metac; /* read meta (end of line) char */
-	utf8cpa openc; /* <-like char */
-	utf8cpa closec; /* >-like char */
-	utf8cpa lbrc; /* escaped string bracket open char */
-	utf8cpa rbrc; /* escaped string bracket close char */
+	utf8cpa sharpc;  /* sharp char */
+	utf8cpa semic;   /* semicolon char */
+	utf8cpa escapec; /* escape char */
+	utf8cpa metac;   /* read meta char; same as end of line char */
+	utf8cpa openc;   /* '<' char */
+	utf8cpa closec;  /* '>' char */
+	utf8cpa lbrc;    /* escaped string bracket open char (==openc) */
+	utf8cpa rbrc;    /* escaped string bracket close char (==closec) */
     } meta;
     struct Buffers {
 	VString* active; /* string being processed */
@@ -329,7 +340,7 @@ cast to a struct HashEntry.
 struct Function {
     struct HashEntry entry;
     struct FcnData { /* structify to simplify re-use under #<ds> */
-	int trace;
+	TRACE trace;
 	int locked;
 	int builtin;
 	size_t minargs;
@@ -338,7 +349,7 @@ struct Function {
 	int novalue; /* suppress return value */
 	size_t nextsegindex; /* highest segment index number in use in this string */
 	TTMFCN fcn; /* builtin == 1 */
-	struct VString* body; /* builtin == NULL; body.index is the residual */
+	VString* body; /* builtin == NULL; body.index is the residual */
     } fcn;
 };
 

@@ -199,4 +199,3 @@ u8peek(utf8* s, size_t n, utf8* cpa)
     memcpy(cpa,p,u8size(p));
     return err;
 }
-
