@@ -50,6 +50,7 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define RPAREN ')'
 #define LBRACKET '['
 #define RBRACKET ']'
+#define SLASH '/'
 
 /* When encountered during scan and the frame stack is empty, then these non-printable characters are ignored: Must be ASCII */
 /* Note: NPI stands for non-printable ignore */

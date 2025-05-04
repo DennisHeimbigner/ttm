@@ -29,7 +29,7 @@ xprintf(TTM* ttm, const char* fmt,...)
 
 /**
 Similar to vprintf, but:
-1. calls printclean on the outgoing text.
+1. calls cleanstring on the outgoing text.
 2. leaves the trailing '\n'
 3. remembers that output did/did-not end with a newline.
 @param ttm
@@ -46,7 +46,9 @@ vxprintf(TTM* ttm, const char* fmt, va_list ap)
     size_t xlen = 0;
     size_t xfinal = 0;
     char* p = NULL;
+    FILE* xfile = NULL;
 
+    xfile = ttm->io.stderr->file;
     hasnl = ttm->debug.xpr.outnl;
     
     xbuf = ttm->debug.xpr.xbuf;
@@ -62,7 +64,7 @@ vxprintf(TTM* ttm, const char* fmt, va_list ap)
 	utf8* tmp = NULL;
 	hasnl = (xbuf[xfinal - 1] == '\n'); /* remember this */
 	if(hasnl) xbuf[xfinal - 1] = '\0'; /* temporarily elide the final '\n' */
-	tmp = printclean((utf8*)xbuf,NULL,NULL);
+	tmp = cleanstring((utf8*)xbuf,NULL,NULL);
 	strncpy(xbuf,(const char*)tmp,xsize);
 	nullfree(tmp);
 	xfinal = strlen(xbuf);
@@ -71,7 +73,7 @@ vxprintf(TTM* ttm, const char* fmt, va_list ap)
 	    xbuf[xfinal++] = '\n'; /* restore trailing newline */
 	}
 	xbuf[xfinal] = '\0'; /* ensure nul term */
-	fprintf(stderr,"%s",xbuf);
+	fprintf(xfile,"%s",xbuf);
         xbuf[0] = '\0'; /* reset */
     }
     fflush(stderr);
@@ -212,15 +214,12 @@ dumpstack(TTM* ttm)
 
 /* Traceframe helper */
 static int
-chintersects(const char* s1, const char* s2)
+chintersects(const char* significant, const char* s)
 {
     int isects = 0;
-    const char* p = s1;
+    const char* p = s;
     for(;*p;p++) {
-	const char* q = s2;
-        for(;*q;q++) {
-	    if(*p == *q) {isects = 1; goto done;}
-	}
+	if(strchr(significant,*p) != NULL) {isects = 1; goto done;}
     }
 done:
     return isects;
@@ -251,7 +250,7 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     xprintf(ttm,"%s",frame->argv[0]);
     if(traceargs) {
 	for(i=1;i<frame->argc;i++) {
-	    char* cleaned = (char*)printclean(frame->argv[i],"\t",NULL);
+	    char* cleaned = (char*)cleanstring(frame->argv[i],"\t",NULL);
 	    int significant = chintersects(METACHARS,cleaned);
 	    xprintf(ttm,"%s%s%s%s",
 		ttm->meta.semic,

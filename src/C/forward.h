@@ -6,7 +6,7 @@ static TTMERR exec(TTM* ttm, Frame* frame);
 static TTMERR call(TTM* ttm, Frame* frame, VString*, VString* body);
 static TTMERR processfcn(TTM* ttm);
 static TTMERR printstring(TTM* ttm, const utf8* s8, TTMFILE* output);
-static utf8* printclean(const utf8* s8, char* ctrls, size_t* pfinallen);
+static utf8* cleanstring(const utf8* s8, char* ctrls, size_t* pfinallen);
 static Function* getdictstr(TTM* ttm,const Frame* frame,size_t argi);
 static TTMERR execcmd(TTM* ttm, const char* cmd);
 static void lockup(TTM* ttm);

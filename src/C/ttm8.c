@@ -12,7 +12,7 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 #define CATCH
 /* Debug has a level attached: 0 is equivalent to undef */
 #define DEBUG 0
-#define GDB
+#undef GDB
 
 #if DEBUG > 0
 #ifndef GDB
@@ -593,14 +593,23 @@ dumpframe(ttm,frame);
 	call(ttm,frame,frameresult(ttm),fcn->fcn.body);
 
     /* Trace exit result iff traced entry */
-    if(tracebefore == TR_ON)
+    if(tracebefore == TR_ON) {
         trace(ttm,0,TRACING);
+    }
 
 #if DEBUG > 1
 xprintf(ttm,"context:\n\result=|%s|\n\tactive=|%s|\n",
 	vscontents(frameresult(ttm)),vsindexp(ttm->vs.active));
 #endif
 
+    if(ttm->opts.verbose) {
+	if(vslength(ttm->vs.passive)==0) {
+	    /* also dump contents of passive */
+	    printstring(ttm,(utf8*)vscontents(ttm->vs.passive),ttm->io.stdout);
+//	    vsclear(ttm->vs.passive);
+	}
+    }
+    
     if(ttm->flags.exit) goto done;
 
 done:
@@ -879,35 +888,40 @@ In order to a void spoofing, the string to be output is modified
 to escape all control characters except '\n' and '\r'.
 */
 static TTMERR
-printstring(TTM* ttm, const utf8* s8, TTMFILE* output)
+printstring(TTM* ttm, const utf8* s8arg, TTMFILE* output)
 {
     TTMERR err = TTM_NOERR;
     int slen = 0;
+    utf8* s8 = NULL;
+    utf8* p = NULL;
 
-    if(s8 == NULL) goto done;
-    if((slen = strlen((const char*)s8))==0) goto done;
-    for(;*s8;s8 += u8size(s8)) {
-	if(issegmark(s8)) {
+    if(s8arg == NULL) goto done;
+    if((slen = strlen((const char*)s8arg))==0) goto done;
+    s8 = unescape(s8arg);
+	
+    for(p=s8;*p;p += u8size(p)) {
+	if(issegmark(p)) {
 	    char info[16];
-	    size_t segindex = (size_t)segmarkindex(s8);
+	    size_t segindex = (size_t)segmarkindex(p);
 	    if(iscreateindex(segindex))
 		snprintf(info,sizeof(info),"^{CR}");
 	    else
 		snprintf(info,sizeof(info),"^{%x}",(unsigned)segindex);
 	    fputs(info,output->file);
 	} else {
-#ifdef NO
-	    if(deescape(s8,cpa) < 0) {err = THROW(TTM_EUTF8); goto done;}
+#ifdef DEE
+	    if(deescape(p,cpa) < 0) {err = THROW(TTM_EUTF8); goto done;}
 	    /* print codepoint */
 	    ttmputc8(ttm,cpa,output);
 #else
 	    /* print codepoint */
-	    ttmputc8(ttm,s8,output);
+	    ttmputc8(ttm,p,output);
 #endif
 	}
     }
     fflush(output->file);
 done:
+    nullfree(s8);
     return THROW(err);
 }
 
@@ -951,7 +965,7 @@ The resulting copy is returned.
 @return copy of s8 with controls modified || NULL if non codepoint encountered
 */
 static utf8*
-printclean(const utf8* s8, char* ctrls, size_t* pfinallen)
+cleanstring(const utf8* s8, char* ctrls, size_t* pfinallen)
 {
     utf8* clean = NULL;
     char* p = NULL;
@@ -1116,7 +1130,7 @@ static void
 ttmreset(TTM* ttm)
 {
     vsclear(ttm->vs.active);
-    vsclear(ttm->vs.passive);
+//    vsclear(ttm->vs.passive);
     vsclear(ttm->vs.tmp);
     ttm->flags.lineno = 0;
 }
@@ -1290,36 +1304,41 @@ done:
     return deesc;
 }
 
-/* Remove unescaped occurrences of "//" as comments.
+/* Remove unescaped occurrences of "//" comment.
 The converted result is returned. Note that this is independent
 of the TTM '@' escape mechanism because it is only used by readline.
 @param src utf8 string
-@return copy of s8 with comments elided || NULL if non codepoint encountered
+@return copy of line with comments elided || NULL if non codepoint encountered
 */
 static utf8*
-uncomment(const utf8* s8)
+uncomment(const utf8* line)
 {
     TTMERR err = TTM_NOERR;
     utf8* decmt = NULL;
-    char* p = NULL;
-    char* q = NULL;
+    const utf8* p = NULL;
+    utf8* q = NULL;
     size_t len = 0;
+    int ncp;
 
-    if(s8 == NULL) goto done;
-    len = strlen((const char*)s8);
+    if(line == NULL) goto done;
+    len = strlen((const char*)line);
     decmt = (utf8*)malloc(sizeof(utf8)*((4*len)+1)); /* max possible */
-    for(p=(char*)s8,q=(char*)decmt;*p;) {
-	len = u8size((const utf8*)p);
-	if(len <= 0) {err = TTM_EUTF8; goto done; } /* illegal utf8 char */
-	if(len == 1 && *p == LPAREN && p[1] == LPAREN) {/* look for comment */
-	    char* pe = p+2;
-	    /* Search for eol or \n */
-	    while(!isnul(pe) && *pe != '\n') pe++;
-	    memmovex(p,pe,(pe - p));
-	} else {
-	    /* irrelevant ascii || multibyte utf8 char */
+    for(p=line,q=decmt;*p;) {
+	ncp = u8size((const utf8*)p);
+	if(ncp <= 0) {err = TTM_EUTF8; goto done; } /* illegal utf8 char */
+	if(ncp == 1 && *p == SLASH && p[1] == SLASH) {/* look for comment */
+	    size_t rem = strlen((char*)p); /* length of the comment */
+	    const utf8* pe = ((const utf8*)p) + rem; /* point to trailing nul char */
+	    pe = u8backup(pe,line);
+	    ncp = u8size(pe);
+	    if(ncp != 1 || *pe != '\n') pe += ncp; /* no trailing newline */
+	    /* wipe not pass the comment */
+	    p = pe;
+	}
+	if(!isnul(p)) {
+	    /* pass codepoint */
 	    memcpycp((utf8*)q,(const utf8*)p); /* pass as is */
-	    p += len; q += len;
+	    p += ncp; q += ncp;
 	}
     }
     *q = '\0';
@@ -1527,7 +1546,7 @@ readline(TTM* ttm, TTMFILE* f, utf8** linep)
 		vsappendn(line,(const char*)cp8,ncp);
 	    }
 	    break;
-	} if(u8equal(cp8,(const utf8*)"\n")) {
+	} else if(u8equal(cp8,(const utf8*)"\n")) {
 	    vsappendn(line,(const char*)cp8,ncp);
 	    break;
 	} else { /* char other than nul or escape */
@@ -1564,16 +1583,16 @@ readfile(TTM* ttm, const char* fname, VString* buf)
     f = ttmopen(ttm,(const char*)fname,"rb");
     if(f == NULL) {err = errno; goto done;}
     while(!quit) {
-	nullfree((char*)oneline); oneline = NULL;
 	switch (err=readline(ttm,f,&oneline)) {
 	case TTM_NOERR: vsappendn(buf,(const char*)oneline,0); break;
 	case TTM_EEOF: quit = 1; break; /* no more input */
 	default: goto done;
 	}
+	nullfree((char*)oneline); oneline = NULL;
     }
     ttmclose(ttm,f);
-    nullfree(oneline);
 done:
+    nullfree(oneline);
     return err;
 }
 
@@ -1692,7 +1711,7 @@ done:
 }
 
 static TTMERR
-execall(TTM* ttm)
+startup(TTM* ttm)
 {
     TTMERR err = TTM_NOERR;
     char* cmd = NULL;
@@ -1712,6 +1731,16 @@ execall(TTM* ttm)
 	fflush(stderr);
 #endif
     }
+done:
+    nullfree(cmd);
+    return THROW(err);
+}
+
+static TTMERR
+eval(TTM* ttm)
+{
+    TTMERR err = TTM_NOERR;
+    char* cmd = NULL;
 
     /* Now execute the programfile, if any, and print collected passive output */
     if(ttm->opts.programfilename != NULL) {
@@ -1723,10 +1752,10 @@ execall(TTM* ttm)
 	cmd = vscontents(ttm->vs.tmp);
 	cmd = nulldup(cmd); /* avoid compiler complaint */
 #endif
-	if(cmd == NULL) {err = THROW(TTM_EUTF8); goto done;}
+	if(cmd == NULL) {err = THROW(TTM_EMEMORY); goto done;}
 #if DEBUG > 0
 	if(ttm->debug.trace) {
-	    char* tmp = (char*)printclean((const utf8*)cmd,"\t",NULL);
+	    char* tmp = (char*)cleanstring((const utf8*)cmd,"\t",NULL);
 	    xprintf(ttm,"scan: %s\n",tmp);
 	    nullfree(tmp); tmp = NULL;
 	}
@@ -1774,7 +1803,7 @@ main(int argc, char** argv)
     vlpush(argoptions,strdup(argv[0]));
 
     /* Option processing */
-    while ((c = getopt(argc, argv, "d:f:io:p:qVB-")) != EOF) {
+    while ((c = getopt(argc, argv, "d:f:io:p:qvVB-")) != EOF) {
 	switch(c) {
 	case 'd':
 	    strcat(debugargs,optarg);
@@ -1807,6 +1836,7 @@ main(int argc, char** argv)
 		setproperty(debkey,debval,&option_props);
 	    }
 	    break;
+	case 'v': opts.verbose = 1; break;
 	case 'B': opts.bare = 1; break;
 	case 'V':
 	    printf("ttm version: %s\n",VERSION);
@@ -1847,7 +1877,9 @@ main(int argc, char** argv)
 
     ttm->opts = opts; memset(&opts,0,sizeof(struct OPTS));
 
-    if((err = execall(ttm))) goto fail;
+    if((err = startup(ttm))) goto fail;
+
+    if((err = eval(ttm))) goto fail;
 
 done:
     exitcode = ttm->flags.exitcode;
@@ -1896,8 +1928,8 @@ ttmgetc8(TTM* ttm, TTMFILE* f, utf8* cp8)
     int c;
     int i, cplen;
 
-    if(f->npushed >= 0) {
-	memcpycp(cp8,f->stack[f->npushed--]);
+    if(f->npushed > 0) {
+	memcpycp(cp8,f->stack[--f->npushed]);
 	cplen = u8size(cp8);
     } else {
 	c = fgetc(f->file); /* read first char of codepoint */
@@ -1927,8 +1959,8 @@ Push back a codepoint; the pushed codepoints form a stack.
 static void
 ttmpushbackc(TTM* ttm, TTMFILE* f, utf8* cp8)
 {
-    if(f->npushed >= (MAXPUSHBACK-1)) FAIL(ttm,TTM_EIO); /* too many pushes */
-    memcpycp(f->stack[++f->npushed],cp8); /* push to stack */
+    if(f->npushed >= (MAXPUSHBACK)) FAIL(ttm,TTM_EIO); /* too many pushes */
+    memcpycp(f->stack[f->npushed++],cp8); /* push to stack */
 }
 
 /**

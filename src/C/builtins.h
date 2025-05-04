@@ -1317,7 +1317,7 @@ ttm_ps0(TTM* ttm, TTMFILE* target, int argc, utf8** argv, VString* result) /* Pr
     int i;
     
     for(i=0;i<argc;i++) {
-	utf8* cleaned = printclean(argv[i],"\n\r\t",NULL);
+	utf8* cleaned = cleanstring(argv[i],"\n\r\t",NULL);
 	printstring(ttm,cleaned,target);
 	nullfree(cleaned);
     }
@@ -2441,7 +2441,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
 	rp = rptocp(ttm,(const utf8*)vscontents(str->fcn.body),vsindex(str->fcn.body));
 	snprintf(info,sizeof(info)," residual=%zu body=|",rp);
 	vsappendn(result,info,strlen(info));
-	cleaned = printclean((utf8*)vscontents(str->fcn.body),NULL,&ncleaned);
+	cleaned = cleanstring((utf8*)vscontents(str->fcn.body),NULL,&ncleaned);
 	vsappendn(result,(const char*)cleaned,ncleaned);
 	vsappend(result,'|');
     }

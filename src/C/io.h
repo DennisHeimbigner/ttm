@@ -92,7 +92,7 @@ ttmopen(TTM* ttm, const char* fname, const char* mode)
     if(tfile == NULL) FAIL(ttm,TTM_EMEMORY);
     tfile->file = fopen(fname,mode);
     if(tfile->file == NULL) {eno = errno; goto done;}
-    tfile->npushed = -1;
+    tfile->npushed = 0;
 
 done:;
     errno = eno;

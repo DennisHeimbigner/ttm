@@ -10,7 +10,6 @@ This includes at least:
 We use the "char" type to indicate the
 use of external string/characters.
 In practice, this is of course utf8.
-
 Note that, unless otherwise specified, lengths
 are in units of bytes, not utf8 codepoints.
 
@@ -275,6 +274,7 @@ struct TTM {
     struct OPTS { /* non-debug options */
         int quiet;
 	int bare;
+	int verbose;
 	char* programfilename;
     } opts;
     struct MetaChars {

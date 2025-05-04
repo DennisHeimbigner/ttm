@@ -43,12 +43,13 @@ TESTARGS = a b c
 TESTRFLAG = -f ${top_srcdir}/tests/test.rs
 #TESTTRACE = -dt
 #TESTBARE = -B
+TESTVERBOSE = -v
 
 #BASELINE = ${top_srcdir}/tests/test.baseline
 BASELINE = ./test.baseline
 
-TESTCMD = ./${TTM}.exe ${TESTTRACE} ${TESTPROG} ${TESTRFLAG} ${TESTARGS}
-GDBTESTCMD = ./${TTM}.exe ${TESTBARE} ${TESTTRACE} ${GDBTESTPROG} ${TESTRFLAG} ${TESTARGS}
+TESTCMD = ./${TTM}.exe ${TESTVERBOSE} ${TESTTRACE} ${TESTPROG} ${TESTRFLAG} ${TESTARGS}
+GDBTESTCMD = ./${TTM}.exe ${TESTVERBOSE} ${TESTBARE} ${TESTTRACE} ${GDBTESTPROG} ${TESTRFLAG} ${TESTARGS}
 
 check:: ${TTM}.exe
 	rm -f ./test.stdout test.stderr test.output
