@@ -144,12 +144,10 @@
 #<tn>
 ##<testtn;y4>
 #<pf>
-##<psr;reading line1
-;stdout>
+##<psr;reading line1>
 ##<rs>
 #<cm;.>
-##<rs;reading line1>
-##<rs;reading line3>
+##<eq?##<rs>;readinging line3;<##<rs>> failed>
 #<cm;
 >
 #<comment;<Need to test #<include>>>

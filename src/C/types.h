@@ -291,6 +291,7 @@ struct TTM {
 	VString* active; /* string being processed */
 	VString* passive; /* already processed part of active */
 	VString* tmp; /* misc text */
+	VString* result; /* staging area before insertion into active or passive */
     } vs;
     struct FrameStack {
 	int top; /* |stack| == (top) */

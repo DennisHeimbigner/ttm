@@ -12,7 +12,7 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 #define CATCH
 /* Debug has a level attached: 0 is equivalent to undef */
 #define DEBUG 0
-#undef GDB
+#define GDB
 
 #if DEBUG > 0
 #ifndef GDB
@@ -214,6 +214,7 @@ newTTM(struct Properties* initialprops)
     ttm->vs.active = vsnew();
     ttm->vs.passive = vsnew();
     ttm->vs.tmp = vsnew();
+    ttm->vs.result = vsnew();
     ttm->frames.top = -1;
     memset((void*)&ttm->tables.dictionary,0,sizeof(ttm->tables.dictionary));
     memset((void*)&ttm->tables.charclasses,0,sizeof(ttm->tables.charclasses));
@@ -464,7 +465,7 @@ statetrace();
 	    if((err=collectescaped(ttm,frameresult(ttm)))) goto done;
 	    TTMGETPTR(cp8); ncp = u8size(cp8);
 	    /* collected string will have been appended to end of frameresult */
-	} else { /* All other characters */
+	} else { /* All other characters are passed to passive buffer */
 	    vsappendn(frameresult(ttm),(const char*)cp8,ncp);
 	    cp8 += ncp;
 	}
@@ -602,14 +603,18 @@ xprintf(ttm,"context:\n\result=|%s|\n\tactive=|%s|\n",
 	vscontents(frameresult(ttm)),vsindexp(ttm->vs.active));
 #endif
 
-    if(ttm->opts.verbose) {
-	if(vslength(ttm->vs.passive)==0) {
-	    /* also dump contents of passive */
-	    printstring(ttm,(utf8*)vscontents(ttm->vs.passive),ttm->io.stdout);
-//	    vsclear(ttm->vs.passive);
+#if 0
+    if(ttm->opts.verbose) {/* also dump contents of passive */
+	if(vslength(ttm->vs.passive) > 0) {
+	    const char* lines = vscontents(ttm->vs.passive);
+	    size_t len = strlen(lines); /* track newline */
+	    int hasnl = (lines[len-1] == '\n');
+	    printf("%s%s",vscontents(ttm->vs.passive),(hasnl?"":"\n"));
+	    vsclear(ttm->vs.passive);
 	}
     }
-    
+#endif
+
     if(ttm->flags.exit) goto done;
 
 done:
@@ -633,31 +638,40 @@ processfcn(TTM* ttm)
        cp8 should be pointing to first character of argv[0] */
     TTMGETPTR(cp8);
 
-    /* Always need a frame */
-    frame = pushFrame(ttm);
-
-    if(fcncase == FCN_PASSIVE || fcncase == FCN_ACTIVE) {
+    switch (fcncase) {
+    case FCN_PASSIVE:
+	/* Need a frame */
+	frame = pushFrame(ttm);
 	/* Parse and collect the args of the function call */
 	if((err=collectargs(ttm,frame))) goto done;
-	TTMGETPTR(cp8);
+	TTMGETPTR(cp8); /* restore */
 	endpos = vsindex(ttm->vs.active); /* remember where we end parsing */
 	vsremoven(ttm->vs.active,startpos,(endpos-startpos)); /* remove the collected args from the active buffer */
-    }
-    switch (fcncase) {
-    case FCN_PASSIVE: /* execute */
 	frame->active = 0;
 	if((err=exec(ttm,frame))) goto done;
 	/* WARNING: invalidates pointers into active */
+	propagateresult(ttm,frame);
+	popFrame(ttm); /* Reclaim the frame */
 	break;
-    case FCN_ACTIVE: /* execute */
+    case FCN_ACTIVE:
+	/* Need a frame */
+	frame = pushFrame(ttm);
+	/* Parse and collect the args of the function call */
+	if((err=collectargs(ttm,frame))) goto done;
+	TTMGETPTR(cp8); /* restore */
+	endpos = vsindex(ttm->vs.active); /* remember where we end parsing */
+	vsremoven(ttm->vs.active,startpos,(endpos-startpos)); /* remove the collected args from the active buffer */
 	frame->active = 1;
 	/* execute the function */
 	if((err=exec(ttm,frame))) goto done;
+	propagateresult(ttm,frame);
+	popFrame(ttm); /* Reclaim the frame */
 	break;
     case FCN_ONE: /* Pass one char */
 	vsindexskip(ttm->vs.active,u8size(cp8));
 	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
+	propagateresult(ttm,frame);
 	break;
     case FCN_TWO: /* pass two chars */
 	vsindexskip(ttm->vs.active,u8size(cp8));
@@ -665,6 +679,7 @@ processfcn(TTM* ttm)
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
 	vsindexskip(ttm->vs.active,u8size(cp8));
 	cp8 = (utf8*)vsindexp(ttm->vs.active);
+	propagateresult(ttm,frame);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
 	break;
     case FCN_THREE: /* pass three chars */
@@ -677,26 +692,44 @@ processfcn(TTM* ttm)
 	vsindexskip(ttm->vs.active,u8size(cp8));
 	cp8 = (utf8*)vsindexp(ttm->vs.active);
 	vsappendn(frameresult(ttm),(const char*)cp8,u8size(cp8));
+	propagateresult(ttm,frame);
 	break;
     case FCN_UNDEF: abort(); /* Should never happen */
     }
-
-    /* Now, put the result into the appropriate buffer */
-    if(vslength(frameresult(ttm)) > 0) {
-	if(frame->active) {
-	    /* insert result at current index so it will be actively scanned */
-	    /* WARNING: invalidates any pointers into active */
-	    (void)vsindexinsertn(ttm->vs.active,vscontents(frameresult(ttm)),vslength(frameresult(ttm)));
-	} else {/*!frame->active*/
-	    /* add frameresult to parent frameresult */
-	    vsappendn(frameparent(ttm),vscontents(frameresult(ttm)),0);
-	}
-    }
-
-    /* Reclaim the frame */
-    popFrame(ttm);
 done:
    return err;
+}
+
+/**
+Propagate frameresult to proper place.
+@param ttm
+@param frame Note frame might be NULL
+*/
+static void
+propagateresult(TTM* ttm, Frame* frame)
+{
+    VString* frameres = frameresult(ttm);
+    const char* result = vscontents(frameres);
+    size_t reslen = vslength(frameres);
+
+    /* Now, put the result into the appropriate buffer */
+    if(reslen> 0) {
+	if(frame && frame->active) {
+	    /* insert result at current index so it will be actively scanned */
+	    /* WARNING: invalidates any pointers into active */
+	    (void)vsindexinsertn(ttm->vs.active,result,reslen);
+	} else { /* result is going into passive */
+	    if(ttm->opts.verbose) {/* also dump contents of frameresult*/
+		if(reslen > 0) {
+		    int hasnl = (result[reslen-1] == '\n');
+		    printf("%s%s",result,(hasnl?"":"\n"));
+		}
+	    }
+	}
+	/* add frameresult to parent frameresult */
+	vsappendn(frameparent(ttm),result,reslen);
+    }
+    vsclear(frameres);
 }
 
 /**

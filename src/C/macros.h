@@ -21,8 +21,28 @@
 	}while(0)	/* cp8->ttm->vs.active->index */
 
 /* use frame stack  to track depth */
-#define frameresult(ttm) (ttm->frames.top >= 0 ? ttm->frames.stack[ttm->frames.top].result : ttm->vs.passive)
+#if 0
+#define frameresult(ttm) (ttm->frames.top >= 0 ? ttm->frames.stack[ttm->frames.top].result : ttm->vs.result)
 #define frameparent(ttm) (ttm->frames.top > 0 ? ttm->frames.stack[ttm->frames.top-1].result : ttm->vs.passive)
+#else
+static VString*
+frameresult(TTM* ttm)
+{
+if(ttm->frames.top >= 0)
+return ttm->frames.stack[ttm->frames.top].result;
+else
+return ttm->vs.result;
+}
+
+static VString*
+frameparent(TTM* ttm)
+{
+if(ttm->frames.top > 0)
+return ttm->frames.stack[ttm->frames.top-1].result;
+else
+return ttm->vs.result;
+}
+#endif
 
 /**************************************************/
 /* Macro Functions */

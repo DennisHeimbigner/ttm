@@ -2,6 +2,7 @@
 static TTMERR scan(TTM* ttm);
 static TTMERR testfcnprefix(TTM* ttm, enum FcnCallCases* pfcncase);
 static TTMERR collectargs(TTM* ttm, Frame* frame);
+static void propagateresult(TTM* ttm, Frame* frame);
 static TTMERR exec(TTM* ttm, Frame* frame);
 static TTMERR call(TTM* ttm, Frame* frame, VString*, VString* body);
 static TTMERR processfcn(TTM* ttm);
