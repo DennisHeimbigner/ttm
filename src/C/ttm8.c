@@ -441,14 +441,13 @@ scan(TTM* ttm)
     TTMGETPTR(cp8); ncp = u8size(cp8);
     do {
 	stop = 0;
-statetrace();
 	/* Look for special chars */
 	if(isnul(cp8)) { /* EOS => stop */
 	    stop = 1;
 	} else if(ttm->frames.top < 0 && isascii(cp8) && strchr(NPIDEPTH0,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    cp8 += ncp;
-	} else if(isescape(cp8)) {
+	} else if(isescape(cp8) && !isnull(peek(???) {
 	    cp8 += ncp; ncp = u8size(cp8);
 	    if(isnul(cp8)) { /* escape as very last character in buffer */
 		vsappendn(frameresult(ttm),(const char*)ttm->meta.escapec,u8size(ttm->meta.escapec));
@@ -1429,16 +1428,17 @@ Leave index unchanged.
 If EOS is encountered, then no advancement occurs
 @param vs
 @param n number of codepoint to peek ahead
-@param cpa store the peek'd codepoint
-@return TTMERR
+@param pncp return size of n'th codepoint
+@return cpa ptr to n'th codepoint
 */
-static TTMERR
-peek(VString* vs, size_t n, utf8* cpa)
+static const utf8*
+peek(VString* vs, size_t n, int* pncp)
 {
     TTMERR err = TTM_NOERR;
     size_t saveindex = vsindex(vs);
     size_t i;
     utf8* p = NULL;
+    static const utf* result = NULL;
 
     p = (utf8*)vsindexp(vs);
     for(i=0;i<n;i++) {
@@ -1446,9 +1446,10 @@ peek(VString* vs, size_t n, utf8* cpa)
 	vsindexskip(vs,(size_t)u8size(p));
 	p = (utf8*)vsindexp(vs);
     }
-    memcpy(cpa,p,u8size(p));
+    if(pncp) *pncp = u8size(p);
+    result = p;
     vsindexset(vs,saveindex);
-    return err;
+    return p;
 }
 
 /**

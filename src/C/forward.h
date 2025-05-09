@@ -13,7 +13,7 @@ static TTMERR execcmd(TTM* ttm, const char* cmd);
 static void lockup(TTM* ttm);
 static TTMERR collectescaped(TTM* ttm, VString* dst);
 static const char* sv(Function* f);
-static TTMERR peek(VString* vs, size_t n, utf8* cpa);
+static const utf8* peek(VString* vs, size_t n, in* pncp);
 static size_t rptocp(TTM* ttm, const utf8* u8, size_t rp);
 static size_t cptorp(TTM* ttm, const utf8* u8, size_t cp);
 static void initglobals();
