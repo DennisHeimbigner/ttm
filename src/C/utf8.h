@@ -110,8 +110,8 @@ that the raw SEGMARK is at the beginning of the mark.
 @param p0 pointer to back up
 @return pointer to codepoint before p0
 */
-static const utf8*
-u8backup(const utf8* p, const utf8* base)
+static utf8*
+u8backup(utf8* p, const utf8* base)
 {
     while(p-- > base) {
         if((*p & 0xB0) != 0xB0) break; /* backup over all continuation bytes */

@@ -157,6 +157,7 @@ TTM_EINVAL		= (-114),  /* Generic invalid argument */
 TTM_ELOCKED		= (-115),  /* Attempt to modify/erase a locked functon */
 TTM_EEOF		= (-116),  /* EOF encountered on input*/
 TTM_EACCESS		= (-117),  /* File not accessible or wrong mode */
+TTM_EBADCALL		= (-118),  /* Malformed function call */
 
 #ifdef IMPLEMENTED
 /* Errors not implemented */
@@ -308,6 +309,10 @@ struct TTM {
 	struct HashTable dictionary;
 	struct HashTable charclasses;
     } tables;
+#if 0
+    utf8* cp8; /* track position in active across all function calls */
+    int ncp; /* u8ize(cp8) */
+#endif
 };
 
 /* Convenience */

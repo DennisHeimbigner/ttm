@@ -36,7 +36,7 @@ static void varemoven(VArray* va, size_t pos, size_t elide);
 static void* vagetp(VArray* va, size_t index);
 static void* vaextract(VArray* va);
 static void vaindexset(VArray* va, size_t pos);
-static void vaindexskip(VArray* va, size_t skip);
+static void* vaindexskip(VArray* va, size_t skip);
 static size_t vaindex(VArray* va);
 static void* vaindexp(VArray* va);
 static void vaindexinsertn(VArray* va, const void* seq, size_t slen);
@@ -353,14 +353,15 @@ vaindexset(VArray* va, size_t pos)
 Move the index up by skip elems
 @param va
 @param skip incr va->index by skip
-@return void of new index
+@return void* of new index
 */
-static void
+static void*
 vaindexskip(VArray* va, size_t skip)
 {
     assert(va != NULL);
     assert(va->index >= 0);
     vaindexset(va,va->index + skip);
+    return vaindexp(va);
 }
 
 /**
@@ -481,15 +482,6 @@ vaclone(VArray* va)
     return vadeepclone(va,shallowclone);
 }
 
-/* Hack to suppress compiler warnings about selected unused static functions */
-static void
-vasuppresswarnings(void)
-{
-    void* ignore;
-    ignore = (void*)vasuppresswarnings;
-    (void)ignore;
-}
-
 /**************************************************/
 /* List (Array of void*) implementation */
 
@@ -524,7 +516,7 @@ static void vsinsertn(VString* vs, size_t pos, const char* elems, size_t elen) {
 static void vsremoven(VString* vs, size_t pos, size_t elide) {varemoven((VArray*)vs,pos,elide);}
 static char* vsextract(VString* vs) {return (char*)vaextract((VArray*)vs);}
 static void vsindexset(VString* vs, size_t pos) {vaindexset((VArray*)vs,pos);}
-static void vsindexskip(VString* vs, size_t skip) {vaindexskip((VArray*)vs,skip);}  
+static char* vsindexskip(VString* vs, size_t skip) {return (char*)vaindexskip((VArray*)vs,skip);}
 static size_t vsindex(VString* vs) {return vaindex((VArray*)vs);}
 static char* vsindexp(VString* vs) {return (char*)vaindexp((VArray*)vs);}
 static void vsindexinsertn(VString* vs, const void* seq, size_t slen) {vaindexinsertn((VArray*)vs,seq,slen);}
@@ -557,9 +549,21 @@ static void vsappend(VString* vs, char elem) {vaappend((VArray*)vs,(void*)&elem)
 
 /*************************/
 /* "Inlined" */
-#define vscontents(vs)  ((vs)==NULL?(char*)NULL:(char*)((VArray*)(vs))->content)
+#define vscontents(vs)  ((vs)==NULL?(char*)(NULL):(char*)((VArray*)(vs))->content)
 #define vslength(vs)  ((vs)==NULL?0:((VArray*)(vs))->length)
 #define vsalloc(vs)  ((vs)==NULL?0:((VArray*)(vs))->alloc)
 #define vscat(vs,s)  vsappendn(vs,s,0)
 #define vsclear(vs)  vssetlength(vs,0)
 #define vspush(vs,elem) vsappend(vs,elem)
+
+/**************************************************/
+/* Hack to suppress compiler warnings about selected unused static functions */
+static void
+vasuppresswarnings(void)
+{
+    void* ignore;
+    ignore = (void*)vasuppresswarnings;
+    (void)ignore;
+    ignore = (void*)vsindexinsertn;
+    ignore = (void*)vsextract;
+}

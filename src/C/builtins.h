@@ -2355,6 +2355,84 @@ done:
 }
 
 /**
+Sort helpers
+*/
+static void
+sort_trim(utf8* s)
+{
+    size_t len = strlen((char*)s);
+    utf8* p = NULL;
+
+    if(len == 0) return;
+    /* remove trailing whitespace (right trim) */
+    p = s + len;
+    while(p > s) {
+	p = u8backup(p,s);
+	if(!isascii(p)) continue;
+	if(' ' < *((char*)p)) break; /* not whitespace */
+    }
+    p[1] = NUL8;
+    /* Now left trim */
+    p = s;
+    while(!isnul(p)) {
+	if(isascii(p) && (' ' < *((char*)p))) break; /* first non-whitespace */
+	p += u8size(p);
+    }
+    memmovex((char*)s,(char*)p,strlen((char*)p));
+}
+
+/**
+Sort a the content of a named string where the elements to sort are separated with sep and trimmed of blanks
+*/
+static TTMERR
+ttm_sort(TTM* ttm, Frame* frame, VString* result)
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    utf8* p8 = NULL;
+    utf8* q8 = NULL;
+    utf8cpa sep8;
+    VList* elems = vlnew();
+    VString* sorted = vsnew();
+    Function* name;
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 2) {err = TTM_EFEWPARMS; goto done;}
+    if(frame->argc > 2) {
+	char* a2 = (char*)frame->argv[2];
+        memmovex((char*)sep8,a2,u8size((utf8*)a2));
+    } else
+        sep8[0] = ',';
+    name = dictionaryLookup(ttm,frame->argv[1]);
+    if(name == NULL) EXIT(TTM_ENONAME);
+    p8 = (utf8*)vscontents(name->fcn.body);
+    if(p8 == NULL || strlen((char*)p8)==0) goto done;
+    q8 = p8;
+    do {
+	if(isnul(q8) || u8equal(q8,sep8)) {
+	    size_t len = (q8 - p8);
+	    utf8* elem = (utf8*)malloc(len+1);
+	    memcpy(elem,p8,len);
+	    elem[len] = NUL8;
+	    sort_trim(elem);
+	    vlpush(elems,elem); elem = NULL;
+	    p8 = q8 + u8size(q8);
+	    q8 = p8;
+	} else
+	    q8 += u8size(q8);
+    } while(!isnul(q8));
+    {
+	void* list = (void*)vlcontents(elems);
+	qsort(list, vllength(elems), sizeof(utf8*), stringveccmp);
+    }
+done:
+    vlfreeall(elems);
+    vsfree(sorted);
+    TTMFCN_END(ttm,frame,result);
+    return THROW(err);
+}
+
+/**
 Helper functions for all the ttm commands
 and subcommands
 */
@@ -2752,6 +2830,7 @@ static struct Builtin builtin_new[] = {
     {"tru",1,1,SV_V,ttm_tru}, /* Translate to uppercase */
     {"tdh",1,1,SV_V,ttm_tdh}, /* Convert a decimal value to hexidecimal */
     {"rp",1,1,SV_V,ttm_rp}, /* return the value of the residual pointer */
+    {"sort",1,2,SV_S,ttm_sort}, /* sort the contents of a named string */
     {NULL,0,0,SV_SV,NULL} /* end of builtins list */
 };
 

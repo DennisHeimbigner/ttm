@@ -32,7 +32,7 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define SEGMARKINDEXSHIFT 6
 /* Misc */
 #define CREATELEN 4 /* # of characters for a create value (not the mark */
-#define CREATEFORMAT "%04u"
+#define CREATEFORMAT "%04zu"
 #define MAXSEGMARKS 1024
 
 #define empty_segmark {SEGMARK0,0x80,0x80}
@@ -60,7 +60,7 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define NPIDEPTH0 "\n" NPI
 
 /* These non-printable characters are not ignored */
-#define NONPRINTKEEP = "\t\c\f"
+#define NONPRINTKEEP "\t\c\f"
 
 #define DFALTSTACKSIZE 64
 #define DFALTEXECCOUNT (1<<20)

@@ -283,7 +283,7 @@ trace1(TTM* ttm, int depth, int entering, int tracing)
     traceframe(ttm,frame,entering);
     /* Dump the contents of result if !entering */
     if(!entering) {
-	xprintf(ttm," => |%s|",vscontents(frameresult(ttm)));
+	xprintf(ttm," => |%s|",vscontents(ttm->vs.result));
     } 
     xprintf(ttm,"\n");
     fflush(stderr);
@@ -420,6 +420,7 @@ errstring(TTMERR err)
     case TTM_ELOCKED: msg="Attempt to modify/erase a locked function"; break;
     case TTM_EEOF: msg = "EOF encountered on input"; break;
     case TTM_EACCESS: msg = "File not accessible or wrong mode"; break;
+    case TTM_EBADCALL: msg = "Malformed function call"; break;
     }
     return msg;
 }

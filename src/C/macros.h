@@ -8,40 +8,32 @@
 
 /**************************************************/
 /* The reason for these macros is to get around the fact that changing ttm->vs.active->index invalidates cp8 pointers */
-/* The reason for these macros is to get around the fact that changing ttm->vs.active->index invalidates cp8 pointers */
+#if 0
 #define TTMINIT(cp8) do{ \
 	(cp8)=(utf8*)vsindexp(ttm->vs.active); \
 	}while(0)	/* ttm->vs.active->index->cp8 */
 #define TTMGETPTR(cp8) do{ \
 	(cp8)=(utf8*)vsindexp(ttm->vs.active); \
 	}while(0)	/* ttm->vs.active->index->cp8 */
-#define TTMSETPTR(pcp8) do{ \
-	vsindexskip(ttm->vs.active, \
-		((cp8)-(utf8*)vsindexp(ttm->vs.active)));  \
+#define TTMSETPTR(cp8) do{ \
+	utf8* curpos = (utf8*)vsindexp(ttm->vs.active); \
+	assert(curpos <= cp8); \
+	vsindexskip(ttm->vs.active, (cp8) - curpos); \
 	}while(0)	/* cp8->ttm->vs.active->index */
+#endif /*0*/
 
-/* use frame stack  to track depth */
 #if 0
-#define frameresult(ttm) (ttm->frames.top >= 0 ? ttm->frames.stack[ttm->frames.top].result : ttm->vs.result)
-#define frameparent(ttm) (ttm->frames.top > 0 ? ttm->frames.stack[ttm->frames.top-1].result : ttm->vs.passive)
+#define TTMCP8SET(ttm) do{(ttm)->cp8=(utf8*)vsindexp((ttm)->vs.active); (ttm)->ncp=u8size((ttm)->cp8);}while(0)
+#define TTMCP8NXT(ttm) do{(ttm)->cp8=(utf8*)vsindexskip((ttm)->vs.active,(ttm)->ncp); (ttm)->ncp=u8size((ttm)->cp8);}while(0)
+#define TTMCP8BACK(ttm) do{\
+			ttm->cp8 = u8backup(ttm->cp8,(utf8*)vscontents(ttm->vs.active)); \
+			ttm->ncp = u8size(ttm->cp8); \
+			vsindexset(ttm->vs.active,vsindex(ttm->vs.active) - ttm->ncp); \
+			}while(0);
 #else
-static VString*
-frameresult(TTM* ttm)
-{
-if(ttm->frames.top >= 0)
-return ttm->frames.stack[ttm->frames.top].result;
-else
-return ttm->vs.result;
-}
-
-static VString*
-frameparent(TTM* ttm)
-{
-if(ttm->frames.top > 0)
-return ttm->frames.stack[ttm->frames.top-1].result;
-else
-return ttm->vs.result;
-}
+#define TTMCP8SET(ttm)
+#define TTMCP8NXT(ttm)
+#define TTMCP8BACK(ttm)
 #endif
 
 /**************************************************/
@@ -55,6 +47,8 @@ return ttm->vs.result;
 
 #define FAILX(ttm,eno,fmt,...) THROW(failx(ttm,eno,__FILE__,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__))
 #define FAIL(ttm,eno) fail(ttm,eno,__FILE__,__LINE__)
+
+#define EXIT(ttmerr) {err = THROW(ttmerr); goto done;}
 
 /**************************************************/
 /* "inline" functions */
