@@ -27,6 +27,8 @@ setupio(TTM* ttm, const char* infile, const char* outfile)
 	io->isstd = 0;
 	io->mode = IOM_READ;
     }
+    io->fileno = 0;
+    ttm->io.allfiles[io->fileno] = io;
     ttm->io.stdin = io; io = NULL;
 
     if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
@@ -48,6 +50,8 @@ setupio(TTM* ttm, const char* infile, const char* outfile)
 	io->isstd = 0;
 	io->mode = IOM_WRITE | IOM_APPEND;
     }
+    io->fileno = 1;
+    ttm->io.allfiles[io->fileno] = io;
     ttm->io.stdout = io; io = NULL;
 
     if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
@@ -56,6 +60,8 @@ setupio(TTM* ttm, const char* infile, const char* outfile)
     io->file = stderr;
     io->isstd = 1; /* => do not close the FILE* object */
     io->mode = IOM_WRITE | IOM_APPEND;
+    io->fileno = 2;
+    ttm->io.allfiles[io->fileno] = io;
     ttm->io.stderr = io; io = NULL;
 
 done:
@@ -67,8 +73,10 @@ done:
 static void
 closeio1(TTM* ttm, TTMFILE* f)
 {
-    if(ttm != NULL && f != NULL)
+    if(ttm != NULL && f != NULL) {
 	ttmclose(ttm,f);
+	
+    }
 }
 
 static void
@@ -93,6 +101,8 @@ ttmopen(TTM* ttm, const char* fname, const char* mode)
     tfile->file = fopen(fname,mode);
     if(tfile->file == NULL) {eno = errno; goto done;}
     tfile->npushed = 0;
+    tfile->fileno = ttmgetemptyfileno(ttm);
+    ttm->io.allfiles[tfile->fileno] = tfile;
 
 done:;
     errno = eno;
@@ -105,6 +115,7 @@ ttmclose(TTM* ttm, TTMFILE* tfile)
     int ret = 0;
     int eno = 0;
     if(tfile != NULL) {
+	ttm->io.allfiles[tfile->fileno] = NULL;
         if(!tfile->isstd) {
 	    ret = fclose(tfile->file); tfile->file = NULL;
 	    if(ret == EOF) eno = errno;
@@ -142,4 +153,50 @@ ttmeof(TTM* ttm, TTMFILE* tfile)
     if(tfile == NULL) FAIL(ttm,TTM_ETTM);
     ret = feof(tfile->file);
     return ret;
+}
+
+/* Find empty ttm->io.allfiles location */
+static size_t
+ttmgetemptyfileno(TTM* ttm)
+{
+    size_t i;
+    for(i=0;i<MAXOPENFILES;i++) {
+	if(ttm->io.allfiles[i] == NULL) break;
+    }
+    assert(i < MAXOPENFILES);
+    return i;
+}
+
+static TTMFILE*
+ttmfindfile(TTM* ttm, const char* filename)
+{
+    TTMFILE* file = NULL;
+    size_t i;
+
+    if(filename == NULL || strlen(filename) == 0) goto done;
+    for(i=0;i<MAXOPENFILES;i++) {
+	TTMFILE* f = ttm->io.allfiles[i];
+	if(f != NULL) {
+	    if(strcmp(f->name,filename)==0) {
+		file = f;
+		break;
+	    }
+	}
+    }
+done:
+    return file;
+}
+
+/* Remove file by path; close file if open */
+static void
+ttmrmfile(TTM* ttm, const char* filename)
+{
+    TTMFILE* file = NULL;
+
+    if(filename == NULL || strlen(filename) == 0) goto done;
+    file = ttmfindfile(ttm,filename);
+    if(file != NULL) ttmclose(ttm,file);
+    remove(filename);
+done:
+    return;
 }

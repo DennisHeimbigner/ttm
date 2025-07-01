@@ -1,0 +1,561 @@
+// Setup
+#<tf>
+#<setprop;showcall;true>
+#<clearpassive>
+#<ttm;info;name;def>
+#<tn>
+
+// "ds" 2,2,SV_S
+##<ps;<--- Testing: ds\n>>
+##<ds;testfcn;<functionxx>>
+##<ttm;info;name;testfcn>
+
+// "ap" 2,2,SV_S
+##<ps;<--- Testing: ap\n>>
+##<ap;testfcn;yy>
+##<ttm;info;name;testfcn>
+
+// "cf" 2,2,SV_S
+##<ps;<--- Testing: cf>\n>
+##<cf;testfcncopy1;testfcn>
+##<cf;testfcncopy2;testfcncopy1>
+##<cf;dscopy;ds> // dscopy will be locked since ds is locked
+##<ttm;info;name;testfcn>
+##<ttm;info;name;testfcncopy1>
+##<ttm;info;name;testfcncopy2>
+##<ttm;info;name;ds>
+##<ttm;info;name;dscopy>
+
+// "es" 0,ARB,SV_S
+// "ndf" 3,3,SV_V
+##<ps;<--- Testing: es and ndf>\n>
+##<catch;<##<es;dscopy>>>
+##<ndf;dscopy;<dscopy defined>;<dscopy not defined>>
+##<es;testfcncopy1;testfcncopy2>
+##<ndf;testfcncopy1;<testfcncopy1 defined>;<testfcncopy1 not defined>>
+##<ndf;testfcncopy2;<testfcncopy2 defined>;<testfcncopy2 not defined>>
+##<es;testfcn> // cleanup
+
+// "ss" 2,2,SV_S
+##<ps;<--- Testing: ss>\n>
+#<ds;x;12θ34567890>
+#<ss;x;θ>
+#<rrp;x>
+##<ttm;info;name;x>
+##<x;theta>
+
+// "sc" 2,63,SV_SV
+##<ps;<--- Testing: sc>\n>
+#<sc;x;56>
+#<rrp;x>
+##<ttm;info;name;x>
+##<x;greek;fifty-six>
+
+// "cr" 2,2,SV_S
+##<ps;<--- Testing: cr>\n>
+#<rrp;x>
+#<cr;x;89>
+#<rrp;x>
+##<ttm;info;name;x>
+##<x;greek;fifty-six>
+#<es;x>
+
+// "cc" 1,1,SV_SV
+##<ps;<--- Testing: cc>\n>
+#<ds;x;0123456789>
+#<cc;x>
+#<ttm;info;name;x>
+#<cc;x>#<cc;x>
+#<ttm;info;name;x>
+#<cn;8;x>#<cc;x>
+
+// "cn" 2,2,SV_SV
+##<ps;<--- Testing: cn>\n>
+#<rrp;x>
+#<cn;0;x>
+#<cn;8;x>
+#<cn;2;x>
+
+// "sn" 2,2,SV_S
+##<ps;<--- Testing: sn>\n>
+#<rrp;x>
+#<sn;8;x>
+##<pn;8;##<x>>
+#<sn;2;x>
+#<cn;100;x>
+
+// "isc" 4,4,SV_SV
+##<ps;<--- Testing: isc>\n>
+#<rrp;x>
+#<sn;2;x>
+#<isc;234;x;success;fail>
+#<ttm;info;name;x>
+#<isc;67;x;success;fail>
+#<isc;56789a;x;success;fail>
+#<ttm;info;name;x>
+
+// "scn" 3,3,SV_SV
+##<ps;<--- Testing: scn>\n>
+#<rrp;x>
+#<sn;2;x>
+#<scn;678;x;fail>
+
+// "cp" 1,1,SV_SV
+##<ps;<--- Testing: cp>\n>
+#<ds;x;<abc;def;ghi>>
+#<rrp;x>
+#<cp;x>
+#<cp;x>
+#<cp;x>
+#<cp;x>
+#<rp;x>
+#<ds;x;<abc;<def;ghi>;jkl>>
+#<rrp;x>
+#<cp;x>
+#<cp;x>
+#<cp;x>
+#<cp;x>
+
+// "cs" 1,1,SV_SV
+##<ps;<--- Testing: cs>\n>
+#<ds;x;<abc;def;ghi>>
+#<rrp;x>
+#<ss;x;def>
+#<ttm;info;name;x>
+##<x;fed>
+#<rrp;x>
+#<cs;x>
+#<cs;x>
+
+// "rrp" 1,1,SV_S
+// "rp" 1,1,SV_V
+##<ps;<--- Testing: rrp and rp>\n>
+#<es;x>
+#<ds;x;012345>
+#<rp;x>
+#<cn;4;x>
+#<rp;x>
+#<rrp;x>
+#<rp;x>
+##<es;x> // cleanup
+
+// "gn" 2,2,SV_V
+ ##<ps;<--- Testing: gn>\n>
+#<gn;4;0123456789>
+#<gn;-4;0123456789>
+#<gn;4;012>
+#<gn;-4;012>
+
+// "zlc" 1,1,SV_V
+##<ps;<--- Testing: zlc>\n>
+##<zlc;a>
+##<zlc;(a,b)>
+##<zlc;a,b,c,d>
+##<zlc;a,(b,c),d>
+##<zlc;a,((b,c),d),e>
+##<zlc;a,(b,c,d>
+##<zlc;a@,<(>b,c@)>,d>
+
+// "zlcp" 1,1,SV_V
+##<ps;<--- Testing: zlcp>\n>
+##<zlcp;a(b)>
+##<zlcp;(a),(b),c)>
+##<zlcp;a,(b)>
+##<zlcp;(b,(c))f>
+##<zlcp;a,(b>
+
+// "flip" 1,1,SV_V
+##<ps;<--- Testing: flip>\n>
+##<flip;012θ3456789>
+##<flip;>
+
+// "trl" 1,1,SV_V
+##<ps;<--- Testing: trl>\n>
+##<trl;aBCθDEf>
+##<trl;>
+
+// "tru" 1,1,SV_V
+##<ps;<--- Testing: tru>\n>
+##<tru;AbcθdeF>
+##<tru;>
+
+// "thd" 1,1,SV_V
+##<ps;<--- Testing: thd>\n>
+##<catch;<##<thd;9ga1B>>>
+##<thd;0a1B>
+##<catch;<##<thd;>>>
+
+// "tdh" 1,1,SV_V
+##<ps;<--- Testing: tdh>\n>
+##<tdh;2387>
+##<catch;<##<tdh;>>>
+##<catch;<##<tdh;1ab>>>
+
+// "dcl" 2,2,SV_S
+// "dncl" 2,2,SV_S
+##<ps;<--- Testing: dcl and dncl>\n>
+##<dcl;digits;0123456789>
+##<dcl;lc;abcdefghijklmnopqrstuvwxyz>
+##<dcl;emptycl;>
+##<dncl;nonlc;abcdefghijklmnopqrstuvwxyz>
+##<dncl;allcl;>
+##<classes>
+
+// "ccl" 2,2,SV_SV
+##<ps;<--- Testing: ccl>\n>
+#<ds;cltest;3754Aa27>
+#<ccl;digits;cltest>
+#<rp;cltest>
+#<ccl;nonlc;cltest>
+#<rp;cltest>
+#<ccl;lc;cltest>
+#<ccl;digits;cltest>
+#<rp;cltest>
+#<ccl;digits;cltest>
+#<rp;cltest>
+##<rrp;cltest>
+#<ccl;allcl;cltest>
+##<rrp;cltest>
+#<ccl;emptycl;cltest>
+
+// "scl" 2,2,SV_S
+##<ps;<--- Testing: scl>\n>
+##<cltest>
+#<rrp;cltest>
+#<scl;digits;cltest>
+#<rp;cltest>
+
+// "tcl" 4,4,SV_V
+##<ps;<--- Testing: tcl>\n>
+##<ttm;info;name;cltest>
+##<tcl;nonlc;;true;false>
+##<tcl;nonlc;cltest;true;false>
+##<ttm;info;name;cltest>
+##<cc;cltest>
+##<ttm;info;name;cltest>
+##<tcl;nonlc;cltest;true;false>
+##<ttm;info;name;cltest>
+#<es;cltest> // cleanup
+
+// "ad" 2,ARB,SV_V
+##<ps;<--- Testing: ad>\n>
+#<ad;1;2>
+#<ad;1;2;3>
+##<catch;<#<ad;1;>>>
+##<catch;<#<ad;;>>>
+##<catch;<#<ad;>>>
+
+// "su" 2,2,SV_V
+##<ps;<--- Testing: su>\n>
+#<su;1;2>
+#<su;3;1>
+##<catch;<#<su;3;>>>
+##<catch;<#<su;;>>>
+
+// "mu" 2,ARB,SV_V
+##<ps;<--- Testing: mu>\n>
+#<mu;2;7>
+#<mu;2;3;4>
+##<catch;<#<mu;2;>>>
+##<catch;<#<mu;>>>
+
+// "dv" 2,2,SV_V
+##<ps;<--- Testing: dv>\n>
+#<dv;4;2>
+#<dv;3;2>
+#<dv;2;3>
+##<catch;<#<dv;4;>>>
+##<catch;<#<dv;>>>
+
+// "dvr" 2,2,SV_V
+##<ps;<--- Testing: dvr>\n>
+#<dvr;4;2>
+#<dvr;3;2>
+#<dvr;2;3>
+##<catch;<#<dvr;4;>>>
+##<catch;<#<dvr;>>>
+
+// "abs" 1,1,SV_V
+##<ps;<--- Testing: abs>\n>
+#<abs;1>
+#<abs;-7>
+##<catch;<#<abs;>>>
+
+// "eq" 4,4,SV_V
+##<ps;<--- Testing: eq>\n>
+##<eq;3;2;true;false>
+##<eq;3;3;true;false>
+##<catch;<##<eq;3;;true;false>>>
+##<catch;<##<eq;;true;false>>>
+
+// "gt" 4,4,SV_V
+##<ps;<--- Testing: gt>\n>
+##<gt;3;2;true;false>
+##<gt;3;3;true;false>
+##<catch;<##<gt;3;;true;false>>>
+##<catch;<##<gt;;true;false>>>
+
+// "lt" 4,4,SV_V
+##<ps;<--- Testing: lt>\n>
+##<lt;3;2;true;false>
+##<lt;3;4;true;false>
+##<catch;<##<lt;3;;true;false>>>
+##<catch;<##<lt;;true;false>>>
+
+// "ge" 4,4,SV_V
+##<ps;<--- Testing: ge>\n>
+##<ge;3;2;true;false>
+##<ge;3;3;true;false>
+##<ge;3;4;true;false>
+##<catch;<##<ge;3;;true;false>>>
+##<catch;<##<ge;;true;false>>>
+
+// "le" 4,4,SV_V
+##<ps;<--- Testing: le>\n>
+##<le;3;2;true;false>
+##<le;3;3;true;false>
+##<le;3;4;true;false>
+##<catch;<##<le;3;;true;false>>>
+##<catch;<##<le;;true;false>>>
+
+// "eq?" 4,4,SV_V
+##<ps;<--- Testing: eq?>\n>
+##<eq?;hello;allo;true;false>
+##<eq?;hello;hello;true;false>
+##<eq?;a;a;true;false>
+##<eq?;a;b;true;false>
+##<eq?;str1;;true;false>
+##<catch;<##<eq?;;true;false>>>
+
+// "gt?" 4,4,SV_V
+##<ps;<--- Testing: gt?>\n>
+##<gt?;hello;allo;true;false>
+##<gt?;hello;hello;true;false>
+##<gt?;a;b;true;false>
+##<gt?;b;a;true;false>
+##<gt?;str1;;true;false>
+##<catch;<##<gt?;;true;false>>>
+
+// "lt?" 4,4,SV_V
+##<ps;<--- Testing: lt?>\n>
+##<ps;<--- Testing: gt?>\n>
+##<lt?;hello;allo;true;false>
+##<lt?;hello;hello;true;false>
+##<lt?;a;b;true;false>
+##<lt?;b;a;true;false>
+##<lt?;str1;;true;false>
+##<catch;<##<lt?;;true;false>>>
+
+// "ps" 1,ARB,SV_S
+##<ps;<--- Testing: ps>\n>
+##<ps;|\t\r\n|;\n>
+##<ps;<|\t\r\n|;\n>>
+##<ps;a\n;b\n>
+##<ps;<a;b>\n>
+
+// "rs" 0,1,SV_V
+// "cm" 1,1,SV_S
+##<ps;<--- Testing: rs and cm>\n>
+#<ds;oldmeta;##<cm;<.>>>
+##<ds;line1;##<rs>>
+##<cm;##<oldmeta>>
+##<ds;line2;##<rs>>
+##<eq?;##<line1>;line1;<##<rs>=line1>;<##<rs> failed>>
+##<eq?;##<line2>;line2;<##<rs>=line2>;<##<rs> failed>>
+##<es;oldmeta;line1;line2> // cleanup
+
+// "psr" 1,1,SV_SV
+##<ps;<--- Testing: psr>\n>
+##<eq?;##<psr;reading line3:\n>;line3;<##<rs>=line3>;<##<rs> failed>>
+
+// "fprintf" 1,ARB,SV_S
+// "fprintf" 2,ARB,SV_S
+##<ps;<--- Testing: fprintf and printf>\n>
+##<fprintf;stdout;<%d\n>; 13 >
+##<fprintf;stdout;<%u\n>;13>
+##<fprintf;stdout;<%u\n>;-13>
+##<fprintf;stdout;<%o\n>;13>
+##<fprintf;stdout;<0x%lx\n>;13>
+##<fprintf;stdout;<%lu\n>;-13>
+##<fprintf;stdout;<%llu\n>;-13>
+##<printf;<%s\n>;abcd>
+##<ds;fprintfsegtest;aBcDe>
+#<ss;fprintfsegtest;B>
+#<cr;fprintfsegtest;D>
+#<rrp;fprintfsegtest>
+##<fprintf;stdout;<%s\n>;##<ttm;info;string;fprintfsegtest>>
+##<es;fprintfsegtest> // cleanup
+
+// "pf" 0,1,SV_S
+##<ps;<--- Testing: pf>\n>
+#<pf>
+#<pf;stdout>
+
+// "names" 0,0,SV_V
+// "sort"  1,2,SV_SV
+##<ps;<--- Testing: names and sort>\n>
+##<ds;greek;<ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>>
+##<ds;kanji;龥>
+##<ds;katakana;キャク>
+##<ds;有為の;奥山>
+##<ds;emojis;<😁✊🆚>>
+##<lf;greek;kanji;katakana;有為の;emojis>
+##<greek>
+##<kanji>
+##<katakana>
+##<有為の>
+##<ds;names1;##<names>>
+##<ap;names1;,names1> // account for new name being created
+##<lf;names1>
+##<catch;<#<es;#<zlc;##<names1>>>>> // attempt to delete all names, but locked names will remain
+##<ds;names2;##<names>>
+##<sort;names1>
+##<sort;names2>
+##<eq?;##<names1>;##<names2>;true;false>
+
+// "classes" 0,0,SV_V
+// "ecl" 1,ARB,SV_S
+// ##<ps;<--- Testing: classes and ecl>\n>
+##<ps;<--- Testing: ecl>\n>
+##<ds;classes1;##<classes>>
+#<ecl;emptycl>
+##<ds;classes2;##<classes>>
+#<ecl;> // should have no effect
+##<ds;classes3;##<classes>>
+##<sort;classes1>
+##<sort;classes2>
+##<sort;classes3>
+##<eq?;##<classes1>;##<classes2>;true;false>
+##<eq?;##<classes2>;##<classes3>;true;false>
+
+// "norm" 1,1,SV_V
+##<ps;<--- Testing: norm>\n>
+##<norm;>
+##<norm;abc>
+##<norm;<abΓΔcd>>
+
+// "tn" 0,0,SV_S
+// "tf" 0,0,SV_S
+##<ps;<--- Testing: tn and tf>\n>
+##<tf>
+##<ps;traceoff\n>
+##<tn>
+##<ps;traceon\n>
+
+// "eos" 3,3,SV_V
+##<ps;<--- Testing: eos>\n>
+##<ds;eostest;abc>
+##<rrp;eostest>
+##<eos;eostest;true;false>
+##<cn;##<norm;##<eostest>>;eostest>
+##<eos;eostest;true;false>
+
+// "time" 0,0,SV_V
+##<ps;<--- Testing: time>\n>
+// Since times will change with each run; just check for existence
+##<eq?;;##<time>;fail;pass> // linux gettimeofday() execution time converted to milliseconds
+
+// "xtime" 0,0,SV_V
+##<ps;<--- Testing: xtime>\n>
+// Since times will change with each run; just check for existence
+##<eq?;;##<xtime>;fail;pass> // linux timers.tms_utime function converted to milliseconds
+
+// "ctime" 1,1,SV_V
+##<ps;<--- Testing: ctime>\n>
+##<ctime;100000> // Use an arbitrary time argument
+
+// "pn" 2,2,SV_V
+##<ps;<--- Testing: pn>\n>
+##<pn;5;0123456789>
+
+// "lf" 0,ARB,SV_S
+// "uf" 0,ARB,SV_S
+##<ps;<--- Testing: lf and uf>\n>
+#<ds;misc;abcd>
+#<lf;misc>
+##<catch;<##<es;misc>>>
+##<ndf;misc;<exists>;<erased>>
+#<uf;misc>
+#<es;misc>
+##<ndf;misc;<exists>;<erased>>
+
+// "ttm" 1,ARB,SV_SV
+##<ps;<--- Testing: ttm.info.name>\n>
+##<ttm;info;name;ttm>
+##<ttm;info;name;defcr>
+
+##<ps;<--- Testing: ttm.info.class>\n>
+##<ttm;info;class;allcl>
+##<ttm;info;class;nonlc>
+##<dcl;escclass;<abc[def>>
+##<ttm;info;class;escclass>
+##<classes>
+##<catch;<##<ttm;info;class;nosuchclass>>>
+
+//##<ps;<--- Testing: ttm.list>\n>
+##<ttm;list;all>
+##<ttm;list;builtin>
+##<ttm;list;string>
+##<ttm;list;class>
+
+//##<ps;<--- Testing: ttm.meta>\n>
+##<ttm;meta;escape;>
+
+// "argc" 0,0,SV_V
+// ##<ps;<--- Testing: argc>\n>
+##<argc>
+
+// "argv" 1,1,SV_V
+// ##<ps;<--- Testing: argv>\n>
+##<argv;0>
+##<argv;1>
+##<argv;2>
+##<argv;3>
+##<argv;4>
+
+// "void" 0,ARB,SV_S
+##<ps;<--- Testing: void>\n>
+##<void;##<classes>>
+
+// "properties" 0,0,SV_V
+##<ps;<--- Testing: properties>\n>
+##<properties>
+
+// "setprop" 1,2,SV_SV
+##<ps;<--- Testing: setprop>\n>
+##<setprop;execcount;1999>
+
+// "getprop" 1,1,SV_V
+##<ps;<--- Testing: getprop>\n>
+##<getprop;execcount>
+
+// "resetprop" 1,2,SV_SV
+##<ps;<--- Testing: resetprop>\n>
+##<resetprop;execcount>
+##<getprop;execcount>
+
+// "removeprop" 1,1,SV_SV
+##<ps;<--- Testing: removeprop>\n>
+##<setprop;key;value>
+##<getprop;key>
+##<removeprop;key>
+##<getprop;key>
+
+// "sort" 1,2,SV_V
+##<ps;<--- Testing: sort>\n>
+##<ds;sorttest;<abc,a,ab,def>>
+##<sort;sorttest>
+##<sorttest>
+
+// "include" 1,1,SV_S
+##<ps;<--- Testing: include>\n>
+##<breakpoint>
+##<include;##<wd>/../../tests/test.rs>
+
+// "clearpassive" 0,0,SV_S
+// ##<ps;<--- Testing: clearpassive>\n>
+#<clearpassive>
+
+// "exit" 0,0,SV_S
+// ##<ps;<--- Testing: exit>\n>
+#<exit>

@@ -3,7 +3,7 @@ struct VArray {
     size_t elemsize;
     size_t alloc;   /* in units of elemsize */
     size_t length;  /* in units of elemsize */
-    unsigned char* content; /* use char rather than void to support pointer arithmetic */
+    char* content; /* use char rather than void to support pointer arithmetic */
     size_t index; /* 0 <= index < length */
     void* elemnul; /* no arithmetic needed */
 };
@@ -39,6 +39,7 @@ static void vaindexset(VArray* va, size_t pos);
 static void* vaindexskip(VArray* va, size_t skip);
 static size_t vaindex(VArray* va);
 static void* vaindexp(VArray* va);
+static void vaindexremoven(VArray* va, size_t elide);
 static void vaindexinsertn(VArray* va, const void* seq, size_t slen);
 static size_t vaelemlen(VArray* va, const void* seq);
 static VArray* vadeepclone(VArray* va, void (deepclone)(void* dstelem, void* srcelem, void* va));
@@ -302,10 +303,10 @@ done:
 }
 
 static void*
-vagetp(VArray* va, size_t index)
+vagetp(VArray* va, size_t pos)
 {
-    assert(va->length >= index);
-    return va->content + (index*va->elemsize);
+    assert(va->length >= pos);
+    return va->content + (pos*va->elemsize);
 }
 
 /**
@@ -393,8 +394,22 @@ vaindexp(VArray* va)
 }
 
 /**
+Remove a string at the index.
+Index remains unchanged.
+@param va
+@param elide number of chars to remove
+@return void
+*/
+static void
+vaindexremoven(VArray* va, size_t elide)
+{
+    if(va->index > va->length) va->index = va->length;
+    varemoven(va,va->index,elide);
+}
+
+/**
 Insert a string at the index.
-Leave index unchanged.
+Move index past insertion
 @param va
 @param seq seq of elems to insert
 @param slen |seq| in elemsize units
@@ -405,7 +420,35 @@ vaindexinsertn(VArray* va, const void* seq, size_t slen)
 {
     if(va->index > va->length) va->index = va->length;
     vainsertn(va,va->index,seq,slen);
+    va->index += slen;
 }
+
+/**
+Append n elements to the end of an array
+Modify the alloc, length, and index as needed
+@param va the array to expand
+@param elems ptr to sequence of bytes to append, where |elems| % elemsize == 0
+@param nelem the length of the sequence in elemsize chunks
+@return void
+*/
+static void
+vaindexappendn(VArray* va, const void* elem, size_t nelem)
+{
+    size_t need;
+    assert(va != NULL && elem != NULL);
+    if(nelem == 0) {nelem = vaelemlen(va,elem);}
+    need = va->length + nelem;
+    vasetalloc(va,need+1);
+    assert(va->content != NULL);
+    memcpy(va->content+(va->length*va->elemsize),elem,nelem*va->elemsize);
+    va->length += nelem;
+    nulterm(va,va->length); /* guarantee nul term */
+    assert(va->index >= 0);
+    vaindexset(va,va->index + nelem);
+}
+
+
+
 
 /**
 Compute the length of an elem seq as defined by the first occurrence of va->elemnul.
@@ -490,7 +533,7 @@ vaclone(VArray* va)
 static VList* vlnew(void) {return (VList*)vanew(sizeof(void*));}
 static void vlfree(VList* vl) {vafree((VArray*)vl);}
 static void vlfreeall(VList* vl) {vafreeall((VArray*)vl);}
-static void* vlget(VList* vl, size_t index) {return *((void**)vagetp((VArray*)vl,index));}
+static void* vlget(VList* vl, size_t pos) {return *((void**)vagetp((VArray*)vl,pos));}
 static void vlappend(VList* vl, const void* elem) {vaappend((VArray*)vl,(void**)&elem);}
 
 /*************************/
@@ -512,40 +555,18 @@ static void vsfree(VString* vs) {vafree((VArray*)vs);}
 static void vssetalloc(VString* vs, size_t minalloc) {vasetalloc((VArray*)vs,minalloc);}
 static void vssetlength(VString* vs, size_t newlen) {vasetlength((VArray*)vs,newlen);}
 static void vsappendn(VString* vs, const char* elem, size_t n) {vaappendn((VArray*)vs,(void*)elem,n);}
+static void vsappend(VString* vs, char elem) {vaappend((VArray*)vs,(void*)&elem);}
 static void vsinsertn(VString* vs, size_t pos, const char* elems, size_t elen) {vainsertn((VArray*)vs,pos,(void*)elems,elen);}
 static void vsremoven(VString* vs, size_t pos, size_t elide) {varemoven((VArray*)vs,pos,elide);}
 static char* vsextract(VString* vs) {return (char*)vaextract((VArray*)vs);}
+static char* vsgetp(VString* vs, size_t pos) {return (char*)vagetp((VArray*)vs,pos);}
+static VString* vsclone(VString* vs) {return (VString*)vaclone((VArray*)vs);}
 static void vsindexset(VString* vs, size_t pos) {vaindexset((VArray*)vs,pos);}
 static char* vsindexskip(VString* vs, size_t skip) {return (char*)vaindexskip((VArray*)vs,skip);}
 static size_t vsindex(VString* vs) {return vaindex((VArray*)vs);}
 static char* vsindexp(VString* vs) {return (char*)vaindexp((VArray*)vs);}
 static void vsindexinsertn(VString* vs, const void* seq, size_t slen) {vaindexinsertn((VArray*)vs,seq,slen);}
-static VString* vsclone(VString* vs) {return (VString*)vaclone((VArray*)vs);}
-static void vsappend(VString* vs, char elem) {vaappend((VArray*)vs,(void*)&elem);}
-
-#if 0
-#define vsnew() (VString*)vanew(sizeof(utf8))
-#define vsfree(vs) vafree((VArray*)vs)
-#define vssetalloc(vs,minalloc) vasetalloc((VArray*)vs, (size_t)minalloc)
-#define vssetlength(vs,length) vasetlength((VArray*)vs, (size_t)length)
-
-#define vsappendn(vs,elem,n) vaappendn((VArray*)vs, (const unit*)(elem),(size_t)(n))
-#define vsinsertn(vs,pos,elems,elen) vainsertn((VArray*)vs,pos,(const unit*)elems,(size_t)elen)
-#define vsremoven(vs,pos,elide) varemoven((VArray*)vs,pos,elide)
-#define vsextract(vs)  ((void**)vaextract((VArray*)vs))
-#define vsindexset(vs,pos) vaindexset((VArray*)vs,pos)
-#define vsindexskip(vs,skip) vaindexskip((VArray*)vs,skip)
-#define vsindex(vs) vaindex((VArray*)vs)
-#define vsindexp(vs)  ((char*)vaindexp((VArray*)vs))
-#define vsindexinsertn(vs,seq,slen) vaindexinsertn((VArray*)vs,(const unit*)seq,slen)
-#define vsstrlen(vs,seq) vaelemlen((VArray*)vs,(const unit*)seq)
-#define vsclone(vs) ((VString*)vaclone((VArray*)vs));
-
-/* Special case */
-//#define vsappend(vs,elemp) vaappend((VArray*)vs, (unit*)elemp)
-#define vsappend(vs,elem) do{char ep = (char)elem; vaappend((VArray*)vs,(unit*)&ep);}while(0)
-
-#endif /*0*/
+static void vsindexappendn(VString* vs, const char* elem, size_t n) {vaindexappendn((VArray*)vs,(void*)elem,n);}
 
 /*************************/
 /* "Inlined" */
@@ -557,6 +578,11 @@ static void vsappend(VString* vs, char elem) {vaappend((VArray*)vs,(void*)&elem)
 #define vspush(vs,elem) vsappend(vs,elem)
 
 /**************************************************/
+/* Following are specific to VString */
+
+
+/**************************************************/
+
 /* Hack to suppress compiler warnings about selected unused static functions */
 static void
 vasuppresswarnings(void)
@@ -564,6 +590,7 @@ vasuppresswarnings(void)
     void* ignore;
     ignore = (void*)vasuppresswarnings;
     (void)ignore;
+    ignore = (void*)vssetalloc;
     ignore = (void*)vsindexinsertn;
     ignore = (void*)vsextract;
 }

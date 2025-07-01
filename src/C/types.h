@@ -7,11 +7,12 @@ This includes at least:
 1. files
 2. libc
 
-We use the "char" type to indicate the
-use of external string/characters.
-In practice, this is of course utf8.
-Note that, unless otherwise specified, lengths
-are in units of bytes, not utf8 codepoints.
+We use the "char" type to indicate the use of external
+string/characters.  We also use "char" for utf8.  Techically, char is
+a signed chara and utf8 is a unsigned char.  This means that
+occasionally some signed<->unsigned casting is required.  Note that,
+unless otherwise specified, lengths are in units of bytes, not utf8
+codepoints.
 
 Note also that it is assumed that all C string constants
 in this file are restricted to US-ASCII, which is a subset
@@ -28,7 +29,7 @@ of UTF-8.
 typedef unsigned char utf8; /* 8-bit utf char type. */
 
 /* Array for holding a single codepoint; should never be used as C function arg or return value */
-typedef utf8 utf8cpa[MAXCP8SIZE];
+typedef char utf8cpa[MAXCP8SIZE];
 #define empty_u8cpa {0,0,0,0}
 
 #ifndef MININT
@@ -57,14 +58,6 @@ SV_V,
 SV_SV
 };
 
-/* Current enum of defined properties */
-enum PropEnum {
-PE_UNDEF=0,
-PE_STACKSIZE,
-PE_EXECCOUNT,
-PE_SHOWFINAL,
-};
-
 enum MetaEnum {
 ME_UNDEF=0,
 ME_SHARP,
@@ -90,9 +83,7 @@ FCN_PASSIVE,	/* have ##< */
 /** ttm command cases */
 enum TTMEnum {
 TE_UNDEF,
-#if 0
 TE_META,
-#endif
 TE_INFO,
 TE_NAME,
 TE_LIST,
@@ -179,6 +170,7 @@ Structure Type declarations
 typedef struct TTM TTM;
 typedef struct Function Function;
 typedef struct Charclass Charclass;
+typedef struct Property Property;
 typedef struct Frame Frame;
 typedef struct VArray VArray;
 typedef VArray VList;
@@ -204,7 +196,7 @@ HASHSIZE constraints:
 #define HASHTABLEMASK ((unsigned)(HASHSIZE-1))
 
 struct HashEntry {
-    utf8* name;
+    char* name;
     unsigned hash;
     struct HashEntry* next;
 };
@@ -213,6 +205,7 @@ struct HashEntry {
    a place to store the pointer to the first real entry.
 */
 struct HashTable {
+    size_t nentries; /* convenience: track no. of entries in table */
     struct HashEntry table[HASHSIZE];
 };
 
@@ -228,7 +221,7 @@ struct HashWalk {
 */
 
 struct Frame {
-  utf8* argv[MAXARGS+1]; /* Allow for final NULL arg as signal; not counted in argc */
+  char* argv[MAXARGS+1]; /* Allow for final NULL arg as signal; not counted in argc */
   size_t argc;
   int active; /* 1 => # 0 => ## */
   VString* result; /* Dual duty: (1) collect each arg in turn and (2) collect function call result */
@@ -237,6 +230,7 @@ struct Frame {
 /**************************************************/
 typedef struct TTMFILE {
     char* name;
+    size_t fileno; /* WRT ttm->io.allfiles */
     IOMODE mode;
     FILE* file;
     int isstd; /* => do not close this file */
@@ -251,16 +245,10 @@ TTM state object
 */
 
 struct TTM {
-    /* TTM Execution Properties */
-    struct Properties { /* WARN: reflect changes to PropEnum and its uses */
-	int stacksize;
-	size_t execcount;
-	int showfinal; /* 1=>print contents of passive buffer after scan() finishes; 0=>suppress */
-    } properties;
     struct Debug {
 	/*Debug Flags */
 	TRACE trace;   /* Forcibly trace all function executions */
-	int verbose; /* Dump more info in the fail function */
+	int debug; /* output debug info */
 	struct Xprint {
 	    char xbuf[1<<14];
 	    int outnl; /* current xprint line ended with newline */
@@ -271,6 +259,8 @@ struct TTM {
 	unsigned exitcode;
 	unsigned crcounter; /* for cr marks */
 	int lineno; /* Estimate of current line no */
+	int starting; /* Are we doing startup?*/
+	int catchdepth;
     } flags;
     struct OPTS { /* non-debug options */
         int quiet;
@@ -281,7 +271,7 @@ struct TTM {
     struct MetaChars {
 	utf8cpa sharpc;  /* sharp char */
 	utf8cpa semic;   /* semicolon char */
-	utf8cpa escapec; /* escape char */
+	utf8cpa escapec; /* TTM escape char */
 	utf8cpa metac;   /* read meta char; same as end of line char */
 	utf8cpa openc;   /* '<' char */
 	utf8cpa closec;  /* '>' char */
@@ -303,16 +293,21 @@ struct TTM {
 	TTMFILE* stdin;
 	TTMFILE* stdout;
 	TTMFILE* stderr;
+	TTMFILE* allfiles[MAXOPENFILES]; /* vector of all open files */
     } io;
     /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
     struct Tables {
 	struct HashTable dictionary;
 	struct HashTable charclasses;
+	struct HashTable properties;
     } tables;
-#if 0
-    utf8* cp8; /* track position in active across all function calls */
-    int ncp; /* u8ize(cp8) */
-#endif
+    /* TTM Execution Properties; These must be kept consistent with property table entries */
+    struct Properties { /* WARN: reflect changes to PropEnum and its uses */
+	size_t stacksize;
+	size_t execcount;
+	size_t showfinal; /* 1=>print contents of passive buffer after scan() finishes; 0=>suppress */
+	size_t showcall; /* 1=>print contents of passive buffer after each function call; 0=>suppress */
+    } properties;
 };
 
 /* Convenience */
@@ -360,12 +355,32 @@ struct Function {
 };
 
 /**
-Character Classes and the Charclass table
+Character Class type
 */
 
 struct Charclass {
     struct HashEntry entry;
-    utf8* characters;
+    char* characters;
     int negative;
 };
 
+/**
+Property type
+*/
+
+struct Property {
+    struct HashEntry entry; /* key is entry->name */
+    char* value;
+};
+
+/* Current enum of predefined properties */
+enum PropEnum {
+PE_UNDEF=0,
+PE_STACKSIZE,
+PE_EXECCOUNT,
+PE_SHOWFINAL,
+PE_SHOWCALL, /* Show passive output from each function result */
+};
+
+
+enum TableType {TT_DICT, TT_CLASSES, TT_PROPS};

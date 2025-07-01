@@ -1,4 +1,4 @@
-	/**************************************************/
+/**************************************************/
 /**
 HashTable Management:
 The table is only pseudo-hash simplified by making it an array
@@ -9,11 +9,11 @@ shifted by 1 bit each.
 
 /* Define a hash computing macro */
 static unsigned
-computehash(const utf8* name)
+computehash(const char* name)
 {
     unsigned hash;
-    const utf8* p;
-    for(hash=0,p=name;*p!=NUL8;p++) hash = hash + (*p <<1);
+    const char* p;
+    for(hash=0,p=name;*p!=NUL8;p++) hash = hash + (*UTF8P(p) <<1);
     if(hash==0) hash=1;
     return hash;
 }
@@ -24,7 +24,7 @@ computehash(const utf8* name)
 */
 
 static int
-hashLocate(struct HashTable* table, const utf8* name, struct HashEntry** prevp)
+hashLocate(struct HashTable* table, const char* name, struct HashEntry** prevp)
 {
     struct HashEntry* prev;
     struct HashEntry* next;
@@ -59,6 +59,7 @@ hashRemove(struct HashTable* table, struct HashEntry* prev, struct HashEntry* en
    assert(table != NULL && prev != NULL && entry != NULL);
    assert(prev->next == entry); /* validate the removal */
    prev->next = entry->next;
+   table->nentries--;
 }
 
 
@@ -74,6 +75,7 @@ hashInsert(struct HashTable* table, struct HashEntry* prev, struct HashEntry* en
    assert(entry->hash != 0);
    entry->next = prev->next;
    prev->next = entry;
+   table->nentries++;
 }
 
 static void*

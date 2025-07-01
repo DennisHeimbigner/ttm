@@ -1,19 +1,29 @@
-##<ps;xx##<ttm;info;name;comment>yy>
-#<comment;##<ps;##<ttm;info;name;def;comment>>>
-#<ds;greek;<ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>>
-#<ds;kanji;龥>
-#<ds;katakana;キャク>
-#<ds;有為の;奥山>
-##<ttm;info;name;greek;kanji;katakana;有為の>
+##<ps;xx#<ttm;info;name;comment>yy\n>
+##<comment;##<ttm;info;name;def>>
+##<ds;greek;<ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>>
+##<ds;kanji;龥>
+##<ds;katakana;キャク>
+##<ds;有為の;奥山>
+##<ds;emojis;<😁✊🆚>>
+#<ttm;info;name;greek>
+#<ttm;info;name;kanji>
+#<ttm;info;name;katakana>
+#<ttm;info;name;有為の>
+
+#<ttm;info;name;emojis>
 #<ds;x;12θ34>
 #<ap;x;567890>
+#<ss;x;θ>
+##<x>
 #<rrp;x>
 #<ss;x;θ>
 ##<ttm;info;name;x>
 ##<cc;x>
+##<rp;x>
 ##<cn;8;x>
+##<rp;x>
 ##<cn;2;x>
-##<ttm;info;name;x>
+##<rp;x>
 #<ds;d;x:y>
 #<sc;d;x;y>
 ##<ttm;info;name;d>
@@ -47,7 +57,7 @@
 ##<gn;2;12345>
 ##<gn;-2;12345>
 ##<gn;0;12345>
-##<gn;1;>
+##<catch;<##<gn;1;>>>
 ##<gn;2;a>
 #<norm;12345>
 ##<zlc;1,(a,b),c>
@@ -68,7 +78,9 @@
 ##<dcl;digits;0123456789>
 ##<dncl;nonlc;abcdefghijklmnopqrstuvwxyz>
 ##<ds;testclass;01Ab5>
+##<rp;testclass>
 ##<ccl;digits;testclass>
+##<rp;testclass>
 ##<scl;nonlc;testclass>
 ##<ttm;info;name;testclass>
 ##<cn;100;testclass>
@@ -100,8 +112,8 @@
 ##<scn;02;testscn;not substring>
 ##<ttm;info;name;testscn>
 ##<ctime;135258979000>
-#<es;#<zlc;##<names>>>
-#<names;all>
+##<catch;<#<es;#<zlc;##<names>>>>> // attempt to delete all names, but locked names will remain
+#<names>
 #<ds;testcr;abcxxdefxx>
 #<cr;testcr;xx>
 ##<ttm;info;name;testcr>
@@ -122,10 +134,11 @@
 ##<ttm;info;name;testcs>
 #<ds;testlf;abcd>
 #<lf;testlf>
-#<es;testlf>
+##<catch;<#<es;testlf>>>
 #<ndf;testlf;testlf defined;testlf not defined>
 #<uf;testlf>
 #<es;testlf>
+#<void;<##<names>>>
 #<ndf;testlf;testlf defined;testlf not defined>
 #<ds;testcf;abccdcce>
 #<sc;testcf;cc>
@@ -140,16 +153,20 @@
 #<tf;testtn>
 ##<testtn;y2>
 #<tf>
+##<ps;<##<testtn;y3>\n>>
 ##<testtn;y3>
 #<tn>
 ##<testtn;y4>
 #<pf>
-##<psr;reading line1>
-##<rs>
-#<cm;.>
-##<eq?##<rs>;readinging line3;<##<rs>> failed>
-#<cm;
->
-#<comment;<Need to test #<include>>>
-#<def;n!;N;<#<lt;N;2;1;<#<mu;N;#<n!;#<su;N;1>>>>>>>
+#<cm;.> // change EOL
+##<eq?;##<psr;reading line1:>;line1;<##<psr>=line1>;<##<psr> failed>> // read upto meta char ('.')
+#<cm;\n>// restore EOL
+##<eq?;##<rs>;line2;<##<psr>=line2>;<##<psr> failed>> // read upto meta char: '.'
+##<eq?;##<rs>;line3;<##<psr>=line3>;<##<psr> failed>> // read upto meta char: '.'
+#<def;n!;N;<#<le;N;1;1;<#<mu;N;#<n!;#<su;N;1>>>>>>>
+##<ttm;info;name;n!>
 #<n!;3>
+##<ps;<\n>>
+##<breakpoint>
+##<clearpassive>
+#<exit>

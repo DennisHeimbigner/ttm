@@ -8,61 +8,53 @@
 
 /**************************************************/
 /* The reason for these macros is to get around the fact that changing ttm->vs.active->index invalidates cp8 pointers */
-#if 0
-#define TTMINIT(cp8) do{ \
-	(cp8)=(utf8*)vsindexp(ttm->vs.active); \
-	}while(0)	/* ttm->vs.active->index->cp8 */
-#define TTMGETPTR(cp8) do{ \
-	(cp8)=(utf8*)vsindexp(ttm->vs.active); \
-	}while(0)	/* ttm->vs.active->index->cp8 */
-#define TTMSETPTR(cp8) do{ \
-	utf8* curpos = (utf8*)vsindexp(ttm->vs.active); \
-	assert(curpos <= cp8); \
-	vsindexskip(ttm->vs.active, (cp8) - curpos); \
-	}while(0)	/* cp8->ttm->vs.active->index */
-#endif /*0*/
 
-#if 0
-#define TTMCP8SET(ttm) do{(ttm)->cp8=(utf8*)vsindexp((ttm)->vs.active); (ttm)->ncp=u8size((ttm)->cp8);}while(0)
-#define TTMCP8NXT(ttm) do{(ttm)->cp8=(utf8*)vsindexskip((ttm)->vs.active,(ttm)->ncp); (ttm)->ncp=u8size((ttm)->cp8);}while(0)
+#define TTMCP8SET(ttm) do{cp8=vsindexp((ttm)->vs.active); ncp=u8size(cp8);}while(0)
+#define TTMCP8NXT(ttm) do{cp8=vsindexskip((ttm)->vs.active,u8size(cp8));ncp=u8size(cp8);}while(0)
 #define TTMCP8BACK(ttm) do{\
-			ttm->cp8 = u8backup(ttm->cp8,(utf8*)vscontents(ttm->vs.active)); \
-			ttm->ncp = u8size(ttm->cp8); \
-			vsindexset(ttm->vs.active,vsindex(ttm->vs.active) - ttm->ncp); \
+			char* p8 = vscontents((ttm)->vs.active); \
+			size_t newindex; \
+			p8 = u8backup(cp8,p8); \
+			newindex = vsoffset((ttm)->vs.active,p8); \
+			vsindexset((ttm)->vs.active,newindex); \
+			cp8 = vsindexp((ttm)->vs.active); \
+			ncp = u8size(cp8); \
 			}while(0);
-#else
-#define TTMCP8SET(ttm)
-#define TTMCP8NXT(ttm)
-#define TTMCP8BACK(ttm)
-#endif
 
 /**************************************************/
 /* Macro Functions */
 
 #ifdef CATCH
-#define THROW(err) ttmthrow(err)
+#define THROW(err) ttmthrow(ttm,err,__FILE__,__FUNCTION__,__LINE__)
+#define THROWX(err) ttmthrow(NULL,err,__FILE__,__FUNCTION__,__LINE__)
 #else
 #define THROW(err) (err)
+#define THROWX(err) (err)
 #endif
 
 #define FAILX(ttm,eno,fmt,...) THROW(failx(ttm,eno,__FILE__,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__))
 #define FAIL(ttm,eno) fail(ttm,eno,__FILE__,__LINE__)
 
 #define EXIT(ttmerr) {err = THROW(ttmerr); goto done;}
+#define EXITX(ttmerr) {err = THROWX(ttmerr); goto done;}
 
 /**************************************************/
 /* "inline" functions */
 
+#define UTF8(c) ((utf8)(c))
+#define UTF8P(cp) ((utf8*)(cp))
+
 #define isnul(cp)(*(cp) == NUL8?1:0)
 #define isnulc(c)((c) == NUL8?1:0)
 #define isescape(cp) u8equal(cp,ttm->meta.escapec)
-#define isascii(cp) (*cp <= 0x7F)
+#define isascii(cp) (*UTF8P(cp) <= 0x7F)
 
-#define issegmark(cp8) (((cp8)[0]) == SEGMARK0)
-#define segmarkindex(cp8) (((((size_t)(cp8)[1]) & SEGMARKINDEXUNMASK) << SEGMARKINDEXSHIFT) | (((size_t)((cp8)[2])) & SEGMARKINDEXUNMASK))
-#define segmark2utf8(cp8,idx) do{(cp8)[0] = SEGMARK0; \
-	(cp8)[1] = (((((size_t)(idx))>>SEGMARKINDEXSHIFT) & SEGMARKINDEXUNMASK) | SEGMARKINDEXMASK); \
-	(cp8)[2] = ((((size_t)(idx)) & SEGMARKINDEXUNMASK) | SEGMARKINDEXMASK); \
+#define issegmark(cp8) ((UTF8P(cp8)[0]) == SEGMARK0)
+#define segmarkindex(cp8) (((((size_t)(UTF8P(cp8)[1])) & SEGMARKINDEXUNMASK) << SEGMARKINDEXSHIFT) | (((size_t)(UTF8P(cp8)[2])) & SEGMARKINDEXUNMASK))
+
+#define segmark2utf8(cp8,idx) do{UTF8P(cp8)[0] = SEGMARK0; \
+	UTF8P(cp8)[1] = (((((size_t)(idx))>>SEGMARKINDEXSHIFT) & SEGMARKINDEXUNMASK) | SEGMARKINDEXMASK); \
+	UTF8P(cp8)[2] = ((((size_t)(idx)) & SEGMARKINDEXUNMASK) | SEGMARKINDEXMASK); \
 	} while(0)
 
 #define iscreateindex(idx) (((idx) == CREATEINDEXONLY)?1:0)

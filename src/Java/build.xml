@@ -25,7 +25,6 @@
 <!-- Misc. -->
 <property name="javadocs.dir" value="docs"/>
 
-
 <!-- BUILD TASKS  -->
 
 <target name="all" depends="jar"/>

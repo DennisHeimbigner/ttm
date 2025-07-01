@@ -1,4 +1,4 @@
-TTMPY = ttm.py # Python 3 version
+TTMPY = ttm3.py # Python 3 version
 TTM2PY = ttm2.py # Python 2 version; no longer supported.
 
 TESTPROG = ../../tests/test.ttm
@@ -18,15 +18,12 @@ PDBCMD   = -m pdb ${TESTCMD}
 
 check:: ${TTMPY}
 	rm -f ./test.output ./test.stderr ./test.stdout
-	python3 ${TESTCMD} 2> ./test.stderr > ./test.stdout
+	python3 ${TTMPROG} ${TTMCMD} 2> ./test.stderr > ./test.stdout
 	cat ./test.stderr ./test.stdout > test.output
-	diff -w ${TESTBASELINE} ./test.output
+	diff -w ${TESTBASELINE} ../../C/test.output
 
 clean::
 	rm -f ./test.output ./test.stderr ./test.stdout
-
-see:: ${TTMPY}
-	python3 ${TESTCMD}
 
 debug:: ${TTMPY}
 	python3 ${PDBCMD}

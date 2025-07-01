@@ -32,7 +32,7 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define SEGMARKINDEXSHIFT 6
 /* Misc */
 #define CREATELEN 4 /* # of characters for a create value (not the mark */
-#define CREATEFORMAT "%04zu"
+#define CREATEFORMAT "%04u"
 #define MAXSEGMARKS 1024
 
 #define empty_segmark {SEGMARK0,0x80,0x80}
@@ -62,9 +62,17 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 /* These non-printable characters are not ignored */
 #define NONPRINTKEEP "\t\c\f"
 
-#define DFALTSTACKSIZE 64
-#define DFALTEXECCOUNT (1<<20)
-#define DFALTSHOWFINAL 1
+/* Default whitespaec */
+#define WHITESPACE " \t\f\n\r"
+
+#define SHORTTEXTLEN 25
+
+/* Predefined property defalts */
+#define DFALTSTACKSIZE	64
+#define DFALTEXECCOUNT	(1<<20)
+#define DFALTSHOWFINAL	0
+#define DFALTSHOWCALL	0
+
 #define DFALTTRACE 0
 #define DFALTVERBOSE 1
 #define CONTEXTLEN 20
@@ -84,6 +92,6 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 
 #define METACHARS "#<;>" /* Fails if these chars were changed */
 
-/* Experimental on Windows */
-#define DEVTTY "/dev/tty"
+/* Max number of open files */
+#define MAXOPENFILES 256
 
