@@ -30,7 +30,7 @@ ttm8.c: ttm.c ${INCLUDES}
 	for I in ${INCLUDES} ; do sed -i.bak -e "/^\#include[ ][ ]*\"${I}\".*/r ${I}" -e "s|^\#include[ ][ ]*\"${I}\".*|/*\0*/|" $@; done
 
 ${TTM}.exe: ${TTM}.c ${INCLUDES}
-	${CC} ${CCWARN} ${CCDEBUG} ${CCMEM} -o $@
+	${CC} ${CCWARN} ${CCDEBUG} ${CCMEM} -o $@ $<
 
 # This is to check cpp (C preprocessor) expansions
 ttm.txt: ${TTM}.c

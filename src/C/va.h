@@ -459,7 +459,7 @@ static size_t
 vaelemlen(VArray* va, const void* seq)
 {
     size_t len = 0;
-    const void* p = seq;
+    const char* p = (char*)seq;
     while(memcmp(p,va->elemnul,va->elemsize)!=0) {p += va->elemsize;len++;}    
     return len;
 }

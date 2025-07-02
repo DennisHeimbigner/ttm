@@ -47,7 +47,7 @@
 #define isnul(cp)(*(cp) == NUL8?1:0)
 #define isnulc(c)((c) == NUL8?1:0)
 #define isescape(cp) u8equal(cp,ttm->meta.escapec)
-#define isascii(cp) (*UTF8P(cp) <= 0x7F)
+#define isascii8(cp) (*UTF8P(cp) <= 0x7F)
 
 #define issegmark(cp8) ((UTF8P(cp8)[0]) == SEGMARK0)
 #define segmarkindex(cp8) (((((size_t)(UTF8P(cp8)[1])) & SEGMARKINDEXUNMASK) << SEGMARKINDEXSHIFT) | (((size_t)(UTF8P(cp8)[2])) & SEGMARKINDEXUNMASK))

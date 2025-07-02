@@ -1,6 +1,8 @@
 .PHONEY: check
 .PHONEY: clean
 
+all:: check
+
 git::
 	sh ./git.sh
 

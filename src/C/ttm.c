@@ -49,6 +49,8 @@ This is in lieu of the typical config.h.
 
 /**************************************************/
 #include <stdlib.h>
+#include <stdio.h>
+#include <stddef.h>
 #include <string.h>
 #include <time.h>
 #include <stdarg.h>
@@ -59,12 +61,9 @@ This is in lieu of the typical config.h.
 
 #ifdef MSWINDOWS
 #include <windows.h>  /* To get GetProcessTimes() */
-#include <cstddef.h>
 #include <ctype.h>
-#include <cstdio.h>
+#include <direct.h>  /* for _getcwd */
 #else /*!MSWINDOWS*/
-#include <stddef.h>
-#include <stdio.h>
 #include <unistd.h> /* This defines getopt */
 #include <sys/times.h> /* to get times() */
 #include <sys/time.h> /* to get gettimeofday() */
@@ -78,13 +77,15 @@ This is in lieu of the typical config.h.
 #ifdef MSWINDOWS
 #define snprintf _snprintf /* Microsoft has different name for snprintf */
 #define strdup _strdup
-#endif /*!MSWINDOWS*/
+#define strcasecmp _stricmp
+#define getcwd _getcwd
+#endif /*MSWINDOWS*/
 
 /* Getopt */
 #ifdef MSWINDOWS
 static char* optarg;		/* global argument pointer */
 static int   optind = 0;	/* global argv index */
-static int getopt(int argc, char* const* argv, const char* optstring);
+static int getopt(int argc, char** argv, char* optstring);
 #else /*!MSWINDOWS*/
 #include <unistd.h> /* This defines getopt */
 #endif /*!MSWINDOWS*/
@@ -565,7 +566,7 @@ scan(TTM* ttm)
 	TTMCP8SET(ttm); /* note that we do not bump here */
 	if(isnul(cp8)) { /* End of buffer */
 	    break;
-	} else if(isascii(cp8) && strchr(NPIDEPTH0,*cp8)) {
+	} else if(isascii8(cp8) && strchr(NPIDEPTH0,*cp8)) {
 	    /* non-printable ignored chars must be ASCII */
 	    TTMCP8NXT(ttm);
 	} else if(isescape(cp8)) {
@@ -896,7 +897,7 @@ printstring(TTM* ttm, const char* s8arg, TTMFILE* output)
     char* p = NULL;
 
     if(s8arg == NULL) goto done;
-    if((slen = strlen(s8arg))==0) goto done;
+    if((slen = (int)strlen(s8arg))==0) goto done;
     s8 = unescape(s8arg);
 	
     for(p=s8;*p;p += u8size(p)) {
@@ -971,6 +972,7 @@ cleanstring(const char* s8, char* ctrls, size_t* pfinallen)
     const char* p = NULL;
     char* q = NULL;
     size_t len = 0;
+	char c;
 
     if(ctrls == NULL) ctrls = "\t\n\f";
     len = strlen(s8);
@@ -1002,7 +1004,7 @@ cleanstring(const char* s8, char* ctrls, size_t* pfinallen)
 	    }
 	    break;
 	case 1: /* ascii char */
-	    char c = *p;
+	    c = *p;
 	    if(c < ' ' || c == '\177') { /* c is a control char */
 		if(strchr(ctrls,c) == NULL) { /* de-controlize */
 		    char escaped[3+1] = {'\0','\0','\0','\0'};
@@ -1649,6 +1651,8 @@ static void
 processdebugargs(TTM* ttm, const char* debugargs)
 {
     const char* p;
+	int level;
+
     ttm->debug = dfalt_debug;
     for(p=debugargs;*p;p++) {
 	switch (*p) {
@@ -1656,7 +1660,7 @@ processdebugargs(TTM* ttm, const char* debugargs)
 	    ttm->debug.trace = 1;
 	    break;
 	default:
-	    int level = -1;
+	    level = -1;
 	    sscanf(p,"%d",&level);
 	    if(level >= 0) {
 		ttm->debug.debug = level;
@@ -1968,7 +1972,7 @@ ttmnonl(TTM* ttm, TTMFILE* f, char* p8)
     }
     /* send the original char */
     memcpy(p8,char1,np1); /* send the \r or \n */
-    return np1;
+    return (int)np1;
 }
 
 /*

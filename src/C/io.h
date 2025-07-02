@@ -29,7 +29,7 @@ setupio(TTM* ttm, const char* infile, const char* outfile)
     }
     io->fileno = 0;
     ttm->io.allfiles[io->fileno] = io;
-    ttm->io.stdin = io; io = NULL;
+    ttm->io._stdin = io; io = NULL;
 
     if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
     io->npushed = 0 ;
@@ -52,7 +52,7 @@ setupio(TTM* ttm, const char* infile, const char* outfile)
     }
     io->fileno = 1;
     ttm->io.allfiles[io->fileno] = io;
-    ttm->io.stdout = io; io = NULL;
+    ttm->io._stdout = io; io = NULL;
 
     if((io = (TTMFILE*)calloc(sizeof(TTMFILE),1))==NULL) FAIL(ttm,TTM_EMEMORY);
     io->npushed = 0 ;
@@ -62,7 +62,7 @@ setupio(TTM* ttm, const char* infile, const char* outfile)
     io->mode = IOM_WRITE | IOM_APPEND;
     io->fileno = 2;
     ttm->io.allfiles[io->fileno] = io;
-    ttm->io.stderr = io; io = NULL;
+    ttm->io._stderr = io; io = NULL;
 
 done:
     ttmclose(ttm,io);
@@ -83,9 +83,9 @@ static void
 closeio(TTM* ttm)
 {
     if(ttm != NULL) {
-	closeio1(ttm,ttm->io.stdin); ttm->io.stdin = NULL;
-	closeio1(ttm,ttm->io.stdout); ttm->io.stdout = NULL;
-	closeio1(ttm,ttm->io.stderr); ttm->io.stderr = NULL;
+	closeio1(ttm,ttm->io._stdin); ttm->io._stdin = NULL;
+	closeio1(ttm,ttm->io._stdout); ttm->io._stdout = NULL;
+	closeio1(ttm,ttm->io._stderr); ttm->io._stderr = NULL;
     }
 }
 

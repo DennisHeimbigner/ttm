@@ -298,7 +298,7 @@ ttm_cn(TTM* ttm, Frame* frame, VString* result) /* Call n characters (codepoints
     vsclear(result);
     n = (int)ln;
     p = vsindexp(fcn->fcn.body);
-    nbytes = strlen((const char*)p);
+    nbytes = (int)strlen((const char*)p);
     if(n == 0 || nbytes == 0) goto done;
     /* copy up to n codepoints or EOS encountered */
     while(n-- > 0) {
@@ -1269,13 +1269,13 @@ selectfile(TTM* ttm, const char* fname, IOMODE required_modes, TTMFILE** targetp
     TTMERR err = TTM_NOERR;
     TTMFILE* target = NULL;
     if(strcmp("stdin",(const char*)fname)==0) {
-	target = ttm->io.stdin;
+	target = ttm->io._stdin;
     } else if(strcmp("stdout",(const char*)fname)==0) {
-	target = ttm->io.stdout;
+	target = ttm->io._stdout;
     } else if(strcmp("stderr",(const char*)fname)==0) {
-	target = ttm->io.stderr;
+	target = ttm->io._stderr;
     } else if(strcmp("-",(const char*)fname)==0) {
-	target = ttm->io.stdin; 
+	target = ttm->io._stdin; 
     } else
     	EXIT(TTM_EACCESS);
     /* Check the modes */
@@ -1324,7 +1324,7 @@ ttm_ps(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String */
     TTMFILE* target;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    target = ttm->io.stdout; /* choose stdout as default target */
+    target = ttm->io._stdout; /* choose stdout as default target */
     if((err = ttm_ps0(ttm,target,1,frame->argv+1,result))) goto done;
 done:
     TTMFCN_END(ttm,frame,result);
@@ -1361,10 +1361,10 @@ ttm_rs(TTM* ttm, Frame* frame, VString* result) /* Read a Function/String */
     TTMFCN_BEGIN(ttm,frame,result);
     if(frame->argc > 1) {
 	if((err = selectfile(ttm,frame->argv[1],IOM_READ,&target))!=TTM_NOERR) {
-	    target = ttm->io.stdin; /* choose stdin as default target */
+	    target = ttm->io._stdin; /* choose stdin as default target */
 	}
     } else
-        target = ttm->io.stdin; /* default */
+        target = ttm->io._stdin; /* default */
     if((err=ttm_rs0(ttm,target,result))) goto done;
 done:
     TTMFCN_END(ttm,frame,result);
@@ -1381,10 +1381,10 @@ ttm_psr(TTM* ttm, Frame* frame, VString* result) /* Print a string and then read
     TTMFILE* writer = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    reader = ttm->io.stdin;
-    writer = ttm->io.stdout;
-    ttm_ps0(ttm,writer,frame->argc-1,frame->argv+1,result);
-    ttmflush(ttm,ttm->io.stdout);
+    reader = ttm->io._stdin;
+    writer = ttm->io._stdout;
+    ttm_ps0(ttm,writer,(int)frame->argc-1,frame->argv+1,result);
+    ttmflush(ttm,ttm->io._stdout);
     ttm_rs0(ttm,reader,result);
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
@@ -1581,7 +1581,7 @@ ttm_fprintf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String 
     /* Figure out the target file */
     fname = frame->argv[1];
     if((err = selectfile(ttm,fname,IOM_WRITE,&target))!=TTM_NOERR) {
-	target = ttm->io.stdout; /* default */
+	target = ttm->io._stdout; /* default */
     }
 
     /* Get the fmt */
@@ -1612,7 +1612,7 @@ ttm_printf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String *
     TTMFCN_BEGIN(ttm,frame,result);
     if(frame->argc < 2) EXIT(TTM_EFEWPARMS);
     /* Printf always writes to stdout */
-    target = ttm->io.stdout; /* default */
+    target = ttm->io._stdout; /* default */
 
     /* Get the fmt */
     fmt = frame->argv[1];
@@ -2083,7 +2083,7 @@ ttm_ctime(TTM* ttm, Frame* frame, VString* result) /* Convert ##<time> to printa
     ttod = (time_t)tod;
     snprintf(value,sizeof(value),"%s",ctime(&ttod));
     /* ctime adds a trailing new line; remove it */
-    i = strlen(value);
+    i = (int)strlen(value);
     for(i--;i >= 0;i--) {
 	if(value[i] != '\n' && value[i] != '\r') break;
     }
@@ -2154,7 +2154,7 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     if(index < 0) EXIT(TTM_ERANGE);
     if(((size_t)index) < vllength(argoptions)) {
         arg = vlget(argoptions,(size_t)index);
-        arglen = strlen(arg);
+        arglen = (int)strlen(arg);
         vsappendn(result,arg,arglen);
     }
     
@@ -2173,7 +2173,7 @@ ttm_argc(TTM* ttm, Frame* frame, VString* result)
     int argc;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    argc = vllength(argoptions);
+    argc = (int)vllength(argoptions);
     snprintf(value,sizeof(value),"%d",argc);
     vsappendn(result,value,strlen(value));
     TTMFCN_END(ttm,frame,result);
@@ -2822,9 +2822,9 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
     /* assert(str != NULL) */
     vsappendn(result,(const char*)str->entry.name,strlen((const char*)str->entry.name));
     if(str->fcn.builtin) {
-	nargs = str->fcn.maxargs;
+	nargs = (int)str->fcn.maxargs;
     } else {/*!str->fcn.builtin*/
-	nargs = str->fcn.nextsegindex-1;
+	nargs = (int)str->fcn.nextsegindex-1;
     }
     snprintf(info,sizeof(info),",%zu",str->fcn.minargs);
     vsappendn(result,info,strlen(info));

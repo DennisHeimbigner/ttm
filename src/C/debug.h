@@ -60,7 +60,7 @@ vxprintf(TTM* ttm, const char* fmt, va_list ap)
     char* p = NULL;
     FILE* xfile = NULL;
 
-    xfile = ttm->io.stderr->file;
+    xfile = ttm->io._stderr->file;
     hasnl = ttm->debug.xpr.outnl;
     
     xbuf = ttm->debug.xpr.xbuf;

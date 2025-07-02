@@ -16,6 +16,7 @@
 ./src/C/utf8.h
 ./src/C/debug.h
 ./src/C/builtins.h
+./src/C/va.h
 ./src/C/test.ttm
 ./src/C/test_misc.ttm
 ./src/C/test.baseline

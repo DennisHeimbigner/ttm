@@ -290,9 +290,9 @@ struct TTM {
     } frames;
     struct IO {
 	/* stdin, stdout, and stderr are the unix equivalent */
-	TTMFILE* stdin;
-	TTMFILE* stdout;
-	TTMFILE* stderr;
+	TTMFILE* _stdin;
+	TTMFILE* _stdout;
+	TTMFILE* _stderr;
 	TTMFILE* allfiles[MAXOPENFILES]; /* vector of all open files */
     } io;
     /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
