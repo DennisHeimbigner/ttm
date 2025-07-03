@@ -1,0 +1,325 @@
+<def,0;*;SV;locked=1;segindex=1;residual=0;body=<##<ds;^{1};<^{3}>>##<ss;^{1};^{2}>>>
+--- Testing: ds
+<testfcn,0;*;SV;locked=0;segindex=1;residual=0;body=<functionxx>>
+--- Testing: ap
+<testfcn,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+--- Testing: cf
+<testfcn,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+<testfcncopy1,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+<testfcncopy2,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+<ds,2;2;S;locked=1>
+<dscopy,2;2;S;locked=1>
+--- Testing: es and ndf
+<TTM_ELOCKED;-115>
+dscopy defined
+testfcncopy1 not defined
+testfcncopy2 not defined
+--- Testing: ss
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34567890>>
+12theta34567890
+--- Testing: sc
+1
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34^{1}7890>>
+12greek34greek7890
+--- Testing: cr
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34^{1}7^{CR}0>>
+12greek34greek700010
+--- Testing: cc
+0
+<x,0;*;SV;locked=0;segindex=1;residual=1;body=<0123456789>>
+1
+2
+<x,0;*;SV;locked=0;segindex=1;residual=3;body=<0123456789>>
+3456789
+--- Testing: cn
+01234567
+89
+--- Testing: sn
+0123456789
+89
+--- Testing: isc
+success
+<x,0;*;SV;locked=0;segindex=1;residual=5;body=<0123456789>>
+fail
+fail
+<x,0;*;SV;locked=0;segindex=1;residual=5;body=<0123456789>>
+--- Testing: scn
+2345
+--- Testing: cp
+abc
+def
+ghi
+11
+abc
+<def;ghi>
+jkl
+--- Testing: cs
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<abc;^{1};ghi>>
+abc;fed;ghi
+abc;
+;ghi
+--- Testing: rrp and rp
+0
+0123
+4
+0
+--- Testing: gn
+0123
+456789
+012
+--- Testing: zlc
+a
+(a,b)
+a;b;c;d
+a;(b,c);d
+a;((b,c),d);e
+a;(b,c,d
+a;(b,c)
+--- Testing: zlcp
+a;b
+a;b;c)
+a;b
+b,(c);f
+a;b
+--- Testing: flip
+9876543θ210
+--- Testing: trl
+abcθdef
+--- Testing: tru
+ABCΘDEF
+--- Testing: thd
+<TTM_EINVAL;-114>
+2587
+<TTM_EINVAL;-114>
+--- Testing: tdh
+953
+<TTM_EINVAL;-114>
+<TTM_EINVAL;-114>
+--- Testing: dcl and dncl
+allcl,digits,emptycl,lc,nonlc
+--- Testing: ccl
+3754
+4
+A
+5
+a
+27
+8
+8
+3754Aa27
+3754Aa27
+--- Testing: scl
+3754Aa27
+4
+--- Testing: tcl
+<cltest,0;*;SV;locked=0;segindex=1;residual=4;body=<3754Aa27>>
+false
+true
+<cltest,0;*;SV;locked=0;segindex=1;residual=4;body=<3754Aa27>>
+A
+<cltest,0;*;SV;locked=0;segindex=1;residual=5;body=<3754Aa27>>
+false
+<cltest,0;*;SV;locked=0;segindex=1;residual=5;body=<3754Aa27>>
+--- Testing: ad
+3
+6
+<TTM_EDECIMAL;-8>
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: su
+-1
+2
+<TTM_EDECIMAL;-8>
+<TTM_EDECIMAL;-8>
+--- Testing: mu
+14
+24
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: dv
+2
+1
+0
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: dvr
+0
+1
+2
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: abs
+1
+7
+<TTM_EDECIMAL;-8>
+--- Testing: eq
+false
+true
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: gt
+true
+false
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: lt
+false
+true
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: ge
+true
+true
+false
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: le
+false
+true
+true
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: eq?
+false
+true
+true
+false
+false
+<TTM_EFEWPARMS;-5>
+--- Testing: gt?
+true
+false
+false
+true
+true
+<TTM_EFEWPARMS;-5>
+--- Testing: lt?
+--- Testing: gt?
+false
+false
+true
+false
+false
+<TTM_EFEWPARMS;-5>
+--- Testing: ps
+|	
+||	
+|;
+a
+a;b
+--- Testing: rs and cm
+
+line1
+
+.
+line2
+line1
+##<rs>=line1
+line2
+##<rs>=line2
+--- Testing: psr
+reading line3:
+line3
+##<rs>=line3
+--- Testing: fprintf and printf
+13
+13
+4294967283
+15
+0xd
+18446744073709551603
+18446744073709551603
+abcd
+<a��c��e>
+<a^{1}c^{CR}e>
+--- Testing: pf
+--- Testing: names and sort
+ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ
+龥
+キャク
+奥山
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+<TTM_ELOCKED;-115>
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+true
+--- Testing: ecl
+allcl,digits,emptycl,lc,nonlc
+allcl,digits,lc,nonlc
+allcl,digits,lc,nonlc
+allcl,digits,emptycl,lc,nonlc
+allcl,digits,lc,nonlc
+false
+allcl,digits,lc,nonlc
+allcl,digits,lc,nonlc
+true
+--- Testing: norm
+0
+3
+6
+--- Testing: tn and tf
+traceoff
+traceon
+--- Testing: eos
+false
+abc
+3
+abc
+true
+--- Testing: time
+175158535868
+--- Testing: xtime
+171
+--- Testing: ctime
+Sat Sep  8 19:46:40 2001
+--- Testing: pn
+56789
+--- Testing: lf and uf
+<TTM_ELOCKED;-115>
+exists
+erased
+--- Testing: ttm.info.name
+<ttm,1;*;SV;locked=1>
+<defcr,0;*;SV;locked=1;segindex=1;residual=0;body=<##<ds;^{1};<^{4}>>##<ss;^{1};^{2}>##<cr;^{1};^{3}>>>
+--- Testing: ttm.info.class
+<allcl;[^]>
+<nonlc;[^abcdefghijklmnopqrstuvwxyz]>
+<escclass;[abc@[def]>
+allcl,digits,escclass,lc,nonlc
+<TTM_ENOCLASS;-113>
+<ps,psr,properties,printf,pf,pn,ap,abs,ad,argv,argc,rrp,rs,resetprop,removeprop,rp,breakpoint,cf,sc,ss,cr,cc,cn,sn,cp,cs,scn,ccl,scl,su,cm,classes,ctime,comment,setprop,srp,sort,catch,switch,clearpassive,classes1,classes2,classes3,ds,trl,thd,dcl,dncl,tcl,dv,dvr,time,tf,tn,ttm,tru,tdh,tn?,trim,def,defcr,dscopy,es,ecl,eq,eq?,exit,eos,uf,emojis,eostest,flip,void,fprintf,fps,有為の,gn,gt,gt?,ge,getprop,wd,greek,xtime,isc,include,zlc,zlcp,kanji,katakana,lt,lt?,lf,le,mu,names,ndf,norm,names1,names2>
+<ps,psr,properties,printf,pf,pn,ap,abs,ad,argv,argc,rrp,rs,resetprop,removeprop,rp,breakpoint,cf,sc,ss,cr,cc,cn,sn,cp,cs,scn,ccl,scl,su,cm,classes,ctime,comment,setprop,srp,sort,catch,switch,clearpassive,ds,trl,thd,dcl,dncl,tcl,dv,dvr,time,tf,tn,ttm,tru,tdh,tn?,trim,dscopy,es,ecl,eq,eq?,exit,eos,uf,flip,void,fprintf,fps,gn,gt,gt?,ge,getprop,wd,xtime,isc,include,zlc,zlcp,lt,lt?,lf,le,mu,names,ndf,norm>
+<classes1,classes2,classes3,def,defcr,emojis,eostest,有為の,greek,kanji,katakana,names1,names2>
+<allcl,digits,escclass,lc,nonlc>
+@
+4
+./ttm
+a
+b
+c
+--- Testing: void
+allcl,digits,escclass,lc,nonlc
+--- Testing: properties
+execcount,showcall,showfinal,stacksize
+--- Testing: setprop
+--- Testing: getprop
+1999
+--- Testing: resetprop
+1999
+1048576
+--- Testing: removeprop
+value
+--- Testing: sort
+a,ab,abc,def
+--- Testing: include
+/cygdrive/d/git/ttm/src/C
+/
+/cygdrive/d/git/ttm/src/C
+/cygdrive/d/git/ttm/src/C
+/cygdrive/d/git/ttm/src/C
+/
+line1.line2
+line3
+line1.line2
+line3

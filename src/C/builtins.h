@@ -1304,9 +1304,7 @@ ttm_ps0(TTM* ttm, TTMFILE* target, int argc, char** argv, VString* result) /* Pr
 	printstring(ttm,cleaned,target);
 	nullfree(cleaned);
     }
-#ifdef GDB
     ttmflush(ttm,target);
-#endif
     return THROW(err);
 }
 
@@ -2499,8 +2497,22 @@ done:
     return THROW(err);
 }
 
+static TTMERR
+ttm_fps(TTM* ttm, Frame* frame, VString* result) /* return current working directory */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    
+    TTMFCN_BEGIN(ttm,frame,result);
+#ifdef MSWINDOWS
+    vsappendn(result,"\\",1);
+#else
+    vsappendn(result,"/",1);
+#endif
 
-
+    TTMFCN_END(ttm,frame,result);
+    return THROW(err);
+}
 
 static TTMERR
 ttm_breakpoint(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
@@ -3170,6 +3182,7 @@ static struct Builtin builtin_new[] = {
     {"catch",1,1,SV_SV,ttm_catch}, /* evaluate a TTM expression and return any error code */
     {"switch",1,ARB,SV_V,ttm_switch}, /* multiway conditional */
     {"wd",0,0,SV_V,ttm_wd}, /* get current working directory */
+    {"fps",0,0,SV_V,ttm_fps}, /* platform specific file path separator */
     {"clearpassive",0,0,SV_S,ttm_clearpassive}, /* clear current passive results */
     {NULL,0,0,SV_SV,NULL} /* end of builtins list */
 };

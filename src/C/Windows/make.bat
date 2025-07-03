@@ -4,9 +4,10 @@
 set top_srcdir=..\..\..
 ::set top_srcdir=d:\git\ttm
 
-set vcvarsall=c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat
+set ARCH=%1
+set TTM=%2
 
-set TTM=ttm.exe
+set vcvarsall=c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat
 
 :: Functions
 :: Skip around functions
@@ -14,11 +15,14 @@ goto main
 
 :: Clean Function
 :clean
-del /f ttm.exe
-del /f ttm.obj
+del /f %TTM%.exe
+del /f %TTM%.obj
 del /f test.output
 del /f test.stderr
 del /f test.stdout
+del /f test_misc.output
+del /f test_misc.stderr
+del /f test_misc.stdout
 exit /B 0
 
 :main
@@ -29,7 +33,7 @@ call :clean
 :: Compile
 call "%vcvarsall%" x86_amd64
 echo on
-cl /Tc %top_srcdir%\src\C\ttm.c
+cl /Tc %top_srcdir%\src\C\%TTM%.c
 
 set TESTPROG=-p %top_srcdir%\tests\test.ttm
 set TESTARGS=a b c

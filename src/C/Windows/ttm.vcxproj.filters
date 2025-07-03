@@ -18,9 +18,6 @@
     <ClCompile Include="..\ttm.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\xttm8.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\builtins.h">
@@ -44,9 +41,6 @@
     <ClInclude Include="..\io.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\log2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\macros.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -57,9 +51,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\va.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\vsl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

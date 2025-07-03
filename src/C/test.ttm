@@ -452,17 +452,17 @@
 
 // "time" 0,0,SV_V
 ##<ps;<--- Testing: time>\n>
-// Since times will change with each run; just check for existence
-##<eq?;;##<time>;fail;pass> // linux gettimeofday() execution time converted to milliseconds
+// Since time will change with each run; convert to some arbitrary text
+#<void;time=##<time>>
 
 // "xtime" 0,0,SV_V
 ##<ps;<--- Testing: xtime>\n>
-// Since times will change with each run; just check for existence
-##<eq?;;##<xtime>;fail;pass> // linux timers.tms_utime function converted to milliseconds
+// Since xtime will change with each run; convert to some arbitrary text
+#<void;xtime=##<xtime>> // linux timers.tms_utime function converted to milliseconds
 
 // "ctime" 1,1,SV_V
 ##<ps;<--- Testing: ctime>\n>
-##<ctime;100000> // Use an arbitrary time argument
+ctime=##<ctime;100000000000> // Use an arbitrary time argument
 
 // "pn" 2,2,SV_V
 ##<ps;<--- Testing: pn>\n>
@@ -549,8 +549,9 @@
 
 // "include" 1,1,SV_S
 ##<ps;<--- Testing: include>\n>
-##<breakpoint>
-##<include;##<wd>/../../tests/test.rs>
+#<ds;WD;##<wd>>
+#<ds;WD;#<scn;##<fps>Windows;WD;##<WD>>> // Visual studio runs this in Windows dir
+#<ps;##<include;##<WD>##<fps>test.rs>>
 
 // "clearpassive" 0,0,SV_S
 // ##<ps;<--- Testing: clearpassive>\n>

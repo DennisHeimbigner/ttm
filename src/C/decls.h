@@ -16,18 +16,24 @@ static char* startup_commands[] = {
 NULL
 };
 
-const struct Debug dfalt_debug = {
-.trace		= DFALTTRACE,
-};
-
 /**************************************************/
 /* Forward Types */
 
 struct VString;
 struct VList;
+struct Debug;
 
 /**************************************************/
 /* Global variables */
+
+struct Debug dfalt_debug = {
+	DFALTTRACE,		/* .trace */
+	0,			/* .debug */
+	{			/* .xpr */
+		{0},		/* /xpr.xbuf */
+		0,		/* /xpr.outnl */
+	}
+};
 
 static VList* argoptions = NULL; /* command line arguments */
 static VList* propoptions = NULL; /* command line properties */

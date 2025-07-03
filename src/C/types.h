@@ -244,16 +244,22 @@ typedef struct TTMFILE {
 TTM state object
 */
 
-struct TTM {
-    struct Debug {
+/* Keep outside of struct TTM to keep Visual Studio happy.
+   Apparently because I use it as a standalone type
+   (see dfalt_debug), it causes an incomplete type error.
+*/
+struct Debug {
 	/*Debug Flags */
 	TRACE trace;   /* Forcibly trace all function executions */
 	int debug; /* output debug info */
 	struct Xprint {
-	    char xbuf[1<<14];
-	    int outnl; /* current xprint line ended with newline */
+		char xbuf[1 << 14];
+		int outnl; /* current xprint line ended with newline */
 	} xpr;
-    } debug;
+};
+
+struct TTM {
+    struct Debug debug;
     struct Flags {
 	int exit; /* Stop scanning, cleanup, and exit ttm */
 	unsigned exitcode;

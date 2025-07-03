@@ -130,12 +130,10 @@
     <ClInclude Include="..\forward.h" />
     <ClInclude Include="..\hash.h" />
     <ClInclude Include="..\io.h" />
-    <ClInclude Include="..\log2.h" />
     <ClInclude Include="..\macros.h" />
     <ClInclude Include="..\types.h" />
     <ClInclude Include="..\utf8.h" />
     <ClInclude Include="..\va.h" />
-    <ClInclude Include="..\vsl.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

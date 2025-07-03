@@ -1,0 +1,2354 @@
+Begin startup commands
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;def;<##<ds;name;<text>>##<ss;name;subs>>>
+[00] end:   #<ds> => |(null)|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ss;def;name;subs;text>
+[00] end:   ##<ss> => |(null)|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<def;defcr;<name;subs;crs;text>;<##<ds;name;<text>>##<ss;name;subs>##<cr;name;crs>>>
+[00] end:   #<def> => |##<ds;defcr;<##<ds;name;<text>>##<ss;name;subs>##<cr;name;crs>>>##<ss;defcr;name;subs;crs;text>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;defcr;<##<ds;name;<text>>##<ss;name;subs>##<cr;name;crs>>>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ss;defcr;name;subs;crs;text>
+[00] end:   ##<ss> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lf;def;defcr>
+[00] end:   ##<lf> => ||
+End startup commands
+[0] frame{active=1 argc=0}
+
+[00] begin: #<tf>
+[00] end:   #<tf> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=0}
+
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ds\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;testfcn;functionxx>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;testfcn>
+[00] end:   ##<ttm> => |<testfcn,0;*;SV;locked=0;segindex=1;residual=0;body=<functionxx>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ap\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ap;testfcn;yy>
+[00] end:   ##<ap> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;testfcn>
+[00] end:   ##<ttm> => |<testfcn,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: cf\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<cf;testfcncopy1;testfcn>
+[00] end:   ##<cf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<cf;testfcncopy2;testfcncopy1>
+[00] end:   ##<cf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<cf;dscopy;ds>
+[00] end:   ##<cf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;testfcn>
+[00] end:   ##<ttm> => |<testfcn,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;testfcncopy1>
+[00] end:   ##<ttm> => |<testfcncopy1,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;testfcncopy2>
+[00] end:   ##<ttm> => |<testfcncopy2,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;ds>
+[00] end:   ##<ttm> => |<ds,2;2;S;locked=1>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;dscopy>
+[00] end:   ##<ttm> => |<dscopy,2;2;S;locked=1>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: es and ndf\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<es;dscopy>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<es;dscopy>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<es;dscopy>
+[01] end:   ##<es> => TTM_ELOCKED
+[00] end:   ##<catch> => |<TTM_ELOCKED;-115>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ndf;dscopy;dscopy defined;dscopy not defined>
+[00] end:   ##<ndf> => |dscopy defined|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<es;testfcncopy1;testfcncopy2>
+[00] end:   ##<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ndf;testfcncopy1;testfcncopy1 defined;testfcncopy1 not defined>
+[00] end:   ##<ndf> => |testfcncopy1 not defined|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ndf;testfcncopy2;testfcncopy2 defined;testfcncopy2 not defined>
+[00] end:   ##<ndf> => |testfcncopy2 not defined|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<es;testfcn>
+[00] end:   ##<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ss\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;x;12θ34567890>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ss;x;θ>
+[00] end:   #<ss> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;x>
+[00] end:   ##<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34567890>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<x;theta>
+[00] end:   ##<x> => |12theta34567890|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: sc\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<sc;x;56>
+[00] end:   #<sc> => |1|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;x>
+[00] end:   ##<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34^{1}7890>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<x;greek;fifty-six>
+[00] end:   ##<x> => |12greek34greek7890|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: cr\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cr;x;89>
+[00] end:   #<cr> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;x>
+[00] end:   ##<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34^{1}7^{CR}0>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<x;greek;fifty-six>
+[00] end:   ##<x> => |12greek34greek700010|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<es;x>
+[00] end:   #<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: cc\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;x;0123456789>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cc;x>
+[00] end:   #<cc> => |0|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ttm;info;name;x>
+[00] end:   #<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=1;body=<0123456789>>|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cc;x>
+[00] end:   #<cc> => |1|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cc;x>
+[00] end:   #<cc> => |2|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ttm;info;name;x>
+[00] end:   #<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=3;body=<0123456789>>|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cn;8;x>
+[00] end:   #<cn> => |3456789|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cc;x>
+[00] end:   #<cc> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: cn\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cn;0;x>
+[00] end:   #<cn> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cn;8;x>
+[00] end:   #<cn> => |01234567|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cn;2;x>
+[00] end:   #<cn> => |89|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: sn\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<sn;8;x>
+[00] end:   #<sn> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|pn| 1:|8|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<x>
+[01] end:   ##<x> => |0123456789|
+[00] begin: ##<pn;8;0123456789>
+[00] end:   ##<pn> => |89|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<sn;2;x>
+[00] end:   #<sn> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cn;100;x>
+[00] end:   #<cn> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: isc\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<sn;2;x>
+[00] end:   #<sn> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<isc;234;x;success;fail>
+[00] end:   #<isc> => |success|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ttm;info;name;x>
+[00] end:   #<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=5;body=<0123456789>>|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<isc;67;x;success;fail>
+[00] end:   #<isc> => |fail|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<isc;56789a;x;success;fail>
+[00] end:   #<isc> => |fail|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ttm;info;name;x>
+[00] end:   #<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=5;body=<0123456789>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: scn\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<sn;2;x>
+[00] end:   #<sn> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<scn;678;x;fail>
+[00] end:   #<scn> => |2345|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: cp\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;x;<abc;def;ghi>>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => |abc|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => |def|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => |ghi|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;x>
+[00] end:   #<rp> => |11|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;x;<abc;<def;ghi>;jkl>>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => |abc|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => |<def;ghi>|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => |jkl|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cp;x>
+[00] end:   #<cp> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: cs\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;x;<abc;def;ghi>>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ss;x;def>
+[00] end:   #<ss> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ttm;info;name;x>
+[00] end:   #<ttm> => |<x,0;*;SV;locked=0;segindex=1;residual=0;body=<abc;^{1};ghi>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<x;fed>
+[00] end:   ##<x> => |abc;fed;ghi|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cs;x>
+[00] end:   #<cs> => |abc;|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cs;x>
+[00] end:   #<cs> => |;ghi|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: rrp and rp\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<es;x>
+[00] end:   #<es> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;x;012345>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;x>
+[00] end:   #<rp> => |0|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cn;4;x>
+[00] end:   #<cn> => |0123|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;x>
+[00] end:   #<rp> => |4|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;x>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;x>
+[00] end:   #<rp> => |0|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<es;x>
+[00] end:   ##<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: gn\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<gn;4;0123456789>
+[00] end:   #<gn> => |0123|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<gn;-4;0123456789>
+[00] end:   #<gn> => |456789|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<gn;4;012>
+[00] end:   #<gn> => |012|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<gn;-4;012>
+[00] end:   #<gn> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: zlc\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;a>
+[00] end:   ##<zlc> => |a|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;(a,b)>
+[00] end:   ##<zlc> => |(a,b)|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;a,b,c,d>
+[00] end:   ##<zlc> => |a;b;c;d|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;a,(b,c),d>
+[00] end:   ##<zlc> => |a;(b,c);d|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;a,((b,c),d),e>
+[00] end:   ##<zlc> => |a;((b,c),d);e|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;a,(b,c,d>
+[00] end:   ##<zlc> => |a;(b,c,d|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlc;a,(b,c)>
+[00] end:   ##<zlc> => |a;(b,c)|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: zlcp\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlcp;a(b)>
+[00] end:   ##<zlcp> => |a;b|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlcp;(a),(b),c)>
+[00] end:   ##<zlcp> => |a;b;c)|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlcp;a,(b)>
+[00] end:   ##<zlcp> => |a;b|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlcp;(b,(c))f>
+[00] end:   ##<zlcp> => |b,(c);f|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<zlcp;a,(b>
+[00] end:   ##<zlcp> => |a;b|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: flip\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<flip;012θ3456789>
+[00] end:   ##<flip> => |9876543θ210|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<flip;>
+[00] end:   ##<flip> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: trl\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<trl;aBCθDEf>
+[00] end:   ##<trl> => |abcθdef|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<trl;>
+[00] end:   ##<trl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: tru\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tru;AbcθdeF>
+[00] end:   ##<tru> => |ABCΘDEF|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tru;>
+[00] end:   ##<tru> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: thd\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<thd;9ga1B>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<thd;9ga1B>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<thd;9ga1B>
+[01] end:   ##<thd> => TTM_EINVAL
+[00] end:   ##<catch> => |<TTM_EINVAL;-114>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<thd;0a1B>
+[00] end:   ##<thd> => |2587|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<thd;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<thd;>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<thd;>
+[01] end:   ##<thd> => TTM_EINVAL
+[00] end:   ##<catch> => |<TTM_EINVAL;-114>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: tdh\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tdh;2387>
+[00] end:   ##<tdh> => |953|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<tdh;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<tdh;>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<tdh;>
+[01] end:   ##<tdh> => TTM_EINVAL
+[00] end:   ##<catch> => |<TTM_EINVAL;-114>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<tdh;1ab>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<tdh;1ab>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<tdh;1ab>
+[01] end:   ##<tdh> => TTM_EINVAL
+[00] end:   ##<catch> => |<TTM_EINVAL;-114>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: dcl and dncl\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<dcl;digits;0123456789>
+[00] end:   ##<dcl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<dcl;lc;abcdefghijklmnopqrstuvwxyz>
+[00] end:   ##<dcl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<dcl;emptycl;>
+[00] end:   ##<dcl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<dncl;nonlc;abcdefghijklmnopqrstuvwxyz>
+[00] end:   ##<dncl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<dncl;allcl;>
+[00] end:   ##<dncl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<classes>
+[00] end:   ##<classes> => |allcl,digits,emptycl,lc,nonlc|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ccl\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;cltest;3754Aa27>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;digits;cltest>
+[00] end:   #<ccl> => |3754|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;cltest>
+[00] end:   #<rp> => |4|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;nonlc;cltest>
+[00] end:   #<ccl> => |A|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;cltest>
+[00] end:   #<rp> => |5|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;lc;cltest>
+[00] end:   #<ccl> => |a|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;digits;cltest>
+[00] end:   #<ccl> => |27|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;cltest>
+[00] end:   #<rp> => |8|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;digits;cltest>
+[00] end:   #<ccl> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;cltest>
+[00] end:   #<rp> => |8|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<rrp;cltest>
+[00] end:   ##<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;allcl;cltest>
+[00] end:   #<ccl> => |3754Aa27|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<rrp;cltest>
+[00] end:   ##<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ccl;emptycl;cltest>
+[00] end:   #<ccl> => |3754Aa27|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: scl\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<cltest>
+[00] end:   ##<cltest> => |3754Aa27|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;cltest>
+[00] end:   #<rrp> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<scl;digits;cltest>
+[00] end:   #<scl> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rp;cltest>
+[00] end:   #<rp> => |4|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: tcl\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;cltest>
+[00] end:   ##<ttm> => |<cltest,0;*;SV;locked=0;segindex=1;residual=4;body=<3754Aa27>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tcl;nonlc;;true;false>
+[00] end:   ##<tcl> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tcl;nonlc;cltest;true;false>
+[00] end:   ##<tcl> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;cltest>
+[00] end:   ##<ttm> => |<cltest,0;*;SV;locked=0;segindex=1;residual=4;body=<3754Aa27>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<cc;cltest>
+[00] end:   ##<cc> => |A|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;cltest>
+[00] end:   ##<ttm> => |<cltest,0;*;SV;locked=0;segindex=1;residual=5;body=<3754Aa27>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tcl;nonlc;cltest;true;false>
+[00] end:   ##<tcl> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;cltest>
+[00] end:   ##<ttm> => |<cltest,0;*;SV;locked=0;segindex=1;residual=5;body=<3754Aa27>>|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<es;cltest>
+[00] end:   #<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ad\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ad;1;2>
+[00] end:   #<ad> => |3|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ad;1;2;3>
+[00] end:   #<ad> => |6|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<ad;1;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<ad;1;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<ad;1;>
+[01] end:   #<ad> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<ad;;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<ad;;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<ad;;>
+[01] end:   #<ad> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<ad;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<ad;>|}
+
+[1] frame{active=1 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: su\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<su;1;2>
+[00] end:   #<su> => |-1|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<su;3;1>
+[00] end:   #<su> => |2|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<su;3;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<su;3;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<su;3;>
+[01] end:   #<su> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<su;;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<su;;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<su;;>
+[01] end:   #<su> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: mu\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<mu;2;7>
+[00] end:   #<mu> => |14|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<mu;2;3;4>
+[00] end:   #<mu> => |24|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<mu;2;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<mu;2;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<mu;2;>
+[01] end:   #<mu> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<mu;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<mu;>|}
+
+[1] frame{active=1 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: dv\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<dv;4;2>
+[00] end:   #<dv> => |2|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<dv;3;2>
+[00] end:   #<dv> => |1|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<dv;2;3>
+[00] end:   #<dv> => |0|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<dv;4;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<dv;4;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<dv;4;>
+[01] end:   #<dv> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<dv;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<dv;>|}
+
+[1] frame{active=1 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: dvr\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<dvr;4;2>
+[00] end:   #<dvr> => |0|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<dvr;3;2>
+[00] end:   #<dvr> => |1|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<dvr;2;3>
+[00] end:   #<dvr> => |2|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<dvr;4;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<dvr;4;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<dvr;4;>
+[01] end:   #<dvr> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<dvr;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<dvr;>|}
+
+[1] frame{active=1 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: abs\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<abs;1>
+[00] end:   #<abs> => |1|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<abs;-7>
+[00] end:   #<abs> => |7|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<abs;>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<abs;>|}
+
+[1] frame{active=1 argc=0}
+
+[01] begin: #<abs;>
+[01] end:   #<abs> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: eq\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq;3;2;true;false>
+[00] end:   ##<eq> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq;3;3;true;false>
+[00] end:   ##<eq> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<eq;3;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<eq;3;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<eq;3;;true;false>
+[01] end:   ##<eq> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<eq;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<eq;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: gt\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt;3;2;true;false>
+[00] end:   ##<gt> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt;3;3;true;false>
+[00] end:   ##<gt> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<gt;3;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<gt;3;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<gt;3;;true;false>
+[01] end:   ##<gt> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<gt;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<gt;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: lt\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt;3;2;true;false>
+[00] end:   ##<lt> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt;3;4;true;false>
+[00] end:   ##<lt> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<lt;3;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<lt;3;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<lt;3;;true;false>
+[01] end:   ##<lt> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<lt;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<lt;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ge\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ge;3;2;true;false>
+[00] end:   ##<ge> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ge;3;3;true;false>
+[00] end:   ##<ge> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ge;3;4;true;false>
+[00] end:   ##<ge> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<ge;3;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<ge;3;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<ge;3;;true;false>
+[01] end:   ##<ge> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<ge;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<ge;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: le\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<le;3;2;true;false>
+[00] end:   ##<le> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<le;3;3;true;false>
+[00] end:   ##<le> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<le;3;4;true;false>
+[00] end:   ##<le> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<le;3;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<le;3;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<le;3;;true;false>
+[01] end:   ##<le> => TTM_EDECIMAL
+[00] end:   ##<catch> => |<TTM_EDECIMAL;-8>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<le;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<le;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: eq?\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq?;hello;allo;true;false>
+[00] end:   ##<eq?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq?;hello;hello;true;false>
+[00] end:   ##<eq?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq?;a;a;true;false>
+[00] end:   ##<eq?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq?;a;b;true;false>
+[00] end:   ##<eq?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eq?;str1;;true;false>
+[00] end:   ##<eq?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<eq?;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<eq?;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: gt?\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt?;hello;allo;true;false>
+[00] end:   ##<gt?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt?;hello;hello;true;false>
+[00] end:   ##<gt?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt?;a;b;true;false>
+[00] end:   ##<gt?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt?;b;a;true;false>
+[00] end:   ##<gt?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<gt?;str1;;true;false>
+[00] end:   ##<gt?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<gt?;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<gt?;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: lt?\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: gt?\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt?;hello;allo;true;false>
+[00] end:   ##<lt?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt?;hello;hello;true;false>
+[00] end:   ##<lt?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt?;a;b;true;false>
+[00] end:   ##<lt?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt?;b;a;true;false>
+[00] end:   ##<lt?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lt?;str1;;true;false>
+[00] end:   ##<lt?> => |false|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<lt?;;true;false>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<lt?;;true;false>|}
+
+[1] frame{active=0 argc=0}
+
+[00] end:   ##<catch> => |<TTM_EFEWPARMS;-5>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ps\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;|	\r\n|;\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;<|	\r\n|;\n>>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;a\n;b\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;<a;b\n>>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: rs and cm\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=2 0:|ds| 1:|oldmeta|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<cm;.>
+[01] end:   ##<cm> => |
+|
+[00] begin: #<ds;oldmeta;\n>
+[00] end:   #<ds> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|line1|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<rs>
+[01] end:   ##<rs> => |line1|
+[00] begin: ##<ds;line1;line1>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|cm|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<oldmeta>
+[01] end:   ##<oldmeta> => |
+|
+[00] begin: ##<cm;\n>
+[00] end:   ##<cm> => |.|
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|line2|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<rs>
+[01] end:   ##<rs> => |line2|
+[00] begin: ##<ds;line2;line2>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|eq?|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<line1>
+[01] end:   ##<line1> => |line1|
+[00] begin: ##<eq?;line1;line1;<##<rs>=line1>;<##<rs> failed>>
+[00] end:   ##<eq?> => |##<rs>=line1|
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|eq?|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<line2>
+[01] end:   ##<line2> => |line2|
+[00] begin: ##<eq?;line2;line2;<##<rs>=line2>;<##<rs> failed>>
+[00] end:   ##<eq?> => |##<rs>=line2|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<es;oldmeta;line1;line2>
+[00] end:   ##<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: psr\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|eq?|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<psr;reading line3:\n>
+[01] end:   ##<psr> => |line3|
+[00] begin: ##<eq?;line3;line3;<##<rs>=line3>;<##<rs> failed>>
+[00] end:   ##<eq?> => |##<rs>=line3|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: fprintf and printf\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;%d\n; 13 >
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;%u\n;13>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;%u\n;-13>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;%o\n;13>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;0x%lx\n;13>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;%lu\n;-13>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<fprintf;stdout;%llu\n;-13>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<printf;%s\n;abcd>
+[00] end:   ##<printf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;fprintfsegtest;aBcDe>
+[00] end:   ##<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ss;fprintfsegtest;B>
+[00] end:   #<ss> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<cr;fprintfsegtest;D>
+[00] end:   #<cr> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<rrp;fprintfsegtest>
+[00] end:   #<rrp> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=3 0:|fprintf| 1:|stdout| 2:|%s
+|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<ttm;info;string;fprintfsegtest>
+[01] end:   ##<ttm> => |<a^{1}c^{CR}e>|
+[00] begin: ##<fprintf;stdout;%s\n;<<a^{1}c^{CR}e>>>
+[00] end:   ##<fprintf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<es;fprintfsegtest>
+[00] end:   ##<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: pf\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<pf>
+[00] end:   #<pf> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<pf;stdout>
+[00] end:   #<pf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: names and sort\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;greek;ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;kanji;龥>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;katakana;キャク>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;有為の;奥山>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;emojis;😁✊🆚>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lf;greek;kanji;katakana;有為の;emojis>
+[00] end:   ##<lf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<greek>
+[00] end:   ##<greek> => |ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<kanji>
+[00] end:   ##<kanji> => |龥|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<katakana>
+[00] end:   ##<katakana> => |キャク|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<有為の>
+[00] end:   ##<有為の> => |奥山|
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|names1|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<names>
+[01] end:   ##<names> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の|
+[00] begin: ##<ds;names1;abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ap;names1;,names1>
+[00] end:   ##<ap> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<lf;names1>
+[00] end:   ##<lf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<#<es;#<zlc;##<names1>>>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|#<es;#<zlc;##<names1>>>|}
+
+[1] frame{active=1 argc=0}
+
+[0] frame{active=0 argc=2 0:|catch| 1:|#<es;#<zlc;##<names1>>>|}
+
+[1] frame{active=1 argc=1 0:|es|}
+
+[2] frame{active=1 argc=0}
+
+[0] frame{active=0 argc=2 0:|catch| 1:|#<es;#<zlc;##<names1>>>|}
+
+[1] frame{active=1 argc=1 0:|es|}
+
+[2] frame{active=1 argc=1 0:|zlc|}
+
+[3] frame{active=0 argc=0}
+
+[03] begin: ##<names1>
+[03] end:   ##<names1> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の,names1|
+[02] begin: #<zlc;abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の,names1>
+[02] end:   #<zlc> => |abs;ad;ap;argc;argv;breakpoint;catch;cc;ccl;cf;classes;clearpassive;cm;cn;comment;cp;cr;cs;ctime;dcl;def;defcr;dncl;ds;dscopy;dv;dvr;ecl;emojis;eos;eq;eq?;es;exit;flip;fprintf;fps;ge;getprop;gn;greek;gt;gt?;include;isc;kanji;katakana;le;lf;lt;lt?;mu;names;ndf;norm;pf;pn;printf;properties;ps;psr;removeprop;resetprop;rp;rrp;rs;sc;scl;scn;setprop;sn;sort;srp;ss;su;switch;tcl;tdh;tf;thd;time;tn;tn?;trim;trl;tru;ttm;uf;void;wd;xtime;zlc;zlcp;有為の;names1|
+[01] begin: #<es;abs;ad;ap;argc;argv;breakpoint;catch;cc;ccl;cf;classes;clearpassive;cm;cn;comment;cp;cr;cs;ctime;dcl;def;defcr;dncl;ds;dscopy;dv;dvr;ecl;emojis;eos;eq;eq?;es;exit;flip;fprintf;fps;ge;getprop;gn;greek;gt;gt?;include;isc;kanji;katakana;le;lf;lt;lt?;mu;names;ndf;norm;pf;pn;printf;properties;ps;psr;removeprop;resetprop;rp;rrp;rs;sc;scl;scn;setprop;sn;sort;srp;ss;su;switch;tcl;tdh;tf;thd;time;tn;tn?;trim;trl;tru;ttm;uf;void;wd;xtime;zlc;zlcp;有為の;names1>
+[01] end:   #<es> => TTM_ELOCKED
+[00] end:   ##<catch> => |<TTM_ELOCKED;-115>|
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|names2|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<names>
+[01] end:   ##<names> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の|
+[00] begin: ##<ds;names2;abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sort;names1>
+[00] end:   ##<sort> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sort;names2>
+[00] end:   ##<sort> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|eq?|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<names1>
+[01] end:   ##<names1> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の|
+[0] frame{active=0 argc=2 0:|eq?| 1:|abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<names2>
+[01] end:   ##<names2> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の|
+[00] begin: ##<eq?;abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の;abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の;true;false>
+[00] end:   ##<eq?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ecl\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|classes1|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes>
+[01] end:   ##<classes> => |allcl,digits,emptycl,lc,nonlc|
+[00] begin: ##<ds;classes1;allcl,digits,emptycl,lc,nonlc>
+[00] end:   ##<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ecl;emptycl>
+[00] end:   #<ecl> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|classes2|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes>
+[01] end:   ##<classes> => |allcl,digits,lc,nonlc|
+[00] begin: ##<ds;classes2;allcl,digits,lc,nonlc>
+[00] end:   ##<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ecl;>
+[00] end:   #<ecl> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=2 0:|ds| 1:|classes3|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes>
+[01] end:   ##<classes> => |allcl,digits,lc,nonlc|
+[00] begin: ##<ds;classes3;allcl,digits,lc,nonlc>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sort;classes1>
+[00] end:   ##<sort> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sort;classes2>
+[00] end:   ##<sort> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sort;classes3>
+[00] end:   ##<sort> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|eq?|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes1>
+[01] end:   ##<classes1> => |allcl,digits,emptycl,lc,nonlc|
+[0] frame{active=0 argc=2 0:|eq?| 1:|allcl,digits,emptycl,lc,nonlc|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes2>
+[01] end:   ##<classes2> => |allcl,digits,lc,nonlc|
+[00] begin: ##<eq?;allcl,digits,emptycl,lc,nonlc;allcl,digits,lc,nonlc;true;false>
+[00] end:   ##<eq?> => |false|
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|eq?|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes2>
+[01] end:   ##<classes2> => |allcl,digits,lc,nonlc|
+[0] frame{active=0 argc=2 0:|eq?| 1:|allcl,digits,lc,nonlc|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes3>
+[01] end:   ##<classes3> => |allcl,digits,lc,nonlc|
+[00] begin: ##<eq?;allcl,digits,lc,nonlc;allcl,digits,lc,nonlc;true;false>
+[00] end:   ##<eq?> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: norm\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<norm;>
+[00] end:   ##<norm> => |0|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<norm;abc>
+[00] end:   ##<norm> => |3|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<norm;abΓΔcd>
+[00] end:   ##<norm> => |6|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: tn and tf\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<tf>
+[00] end:   ##<tf> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;traceon\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: eos\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;eostest;abc>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<rrp;eostest>
+[00] end:   ##<rrp> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eos;eostest;true;false>
+[00] end:   ##<eos> => |false|
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|cn|}
+
+[1] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|cn|}
+
+[1] frame{active=0 argc=1 0:|norm|}
+
+[2] frame{active=0 argc=0}
+
+[02] begin: ##<eostest>
+[02] end:   ##<eostest> => |abc|
+[01] begin: ##<norm;abc>
+[01] end:   ##<norm> => |3|
+[00] begin: ##<cn;3;eostest>
+[00] end:   ##<cn> => |abc|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<eos;eostest;true;false>
+[00] end:   ##<eos> => |true|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: time\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=1 0:|void|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<time>
+[01] end:   ##<time> => |:time:|
+[00] begin: #<void;time=:time:>
+[00] end:   #<void> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: xtime\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=1 0:|void|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<xtime>
+[01] end:   ##<xtime> => |:xtime:|
+[00] begin: #<void;xtime=:xtime:>
+[00] end:   #<void> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ctime\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ctime;100000000000>
+[00] end:   ##<ctime> => |Sat Sep  8 19:46:40 2001|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: pn\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<pn;5;0123456789>
+[00] end:   ##<pn> => |56789|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: lf and uf\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<ds;misc;abcd>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<lf;misc>
+[00] end:   #<lf> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<es;misc>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<es;misc>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<es;misc>
+[01] end:   ##<es> => TTM_ELOCKED
+[00] end:   ##<catch> => |<TTM_ELOCKED;-115>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ndf;misc;exists;erased>
+[00] end:   ##<ndf> => |exists|
+[0] frame{active=1 argc=0}
+
+[00] begin: #<uf;misc>
+[00] end:   #<uf> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<es;misc>
+[00] end:   #<es> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ndf;misc;exists;erased>
+[00] end:   ##<ndf> => |erased|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ttm.info.name\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;ttm>
+[00] end:   ##<ttm> => |<ttm,1;*;SV;locked=1>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;name;defcr>
+[00] end:   ##<ttm> => |<defcr,0;*;SV;locked=1;segindex=1;residual=0;body=<##<ds;^{1};<^{4}>>##<ss;^{1};^{2}>##<cr;^{1};^{3}>>>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: ttm.info.class\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;class;allcl>
+[00] end:   ##<ttm> => |<allcl;[^]>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;class;nonlc>
+[00] end:   ##<ttm> => |<nonlc;[^abcdefghijklmnopqrstuvwxyz]>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<dcl;escclass;abc[def>
+[00] end:   ##<dcl> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;info;class;escclass>
+[00] end:   ##<ttm> => |<escclass;[abc@[def]>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<classes>
+[00] end:   ##<classes> => |allcl,digits,escclass,lc,nonlc|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<catch;<##<ttm;info;class;nosuchclass>>>
+[0] frame{active=0 argc=2 0:|catch| 1:|##<ttm;info;class;nosuchclass>|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<ttm;info;class;nosuchclass>
+[01] end:   ##<ttm> => TTM_ENOCLASS
+[00] end:   ##<catch> => |<TTM_ENOCLASS;-113>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;list;all>
+[00] end:   ##<ttm> => |<ps,psr,properties,printf,pf,pn,ap,abs,ad,argv,argc,rrp,rs,resetprop,removeprop,rp,breakpoint,cf,sc,ss,cr,cc,cn,sn,cp,cs,scn,ccl,scl,su,cm,classes,ctime,comment,setprop,srp,sort,catch,switch,clearpassive,classes1,classes2,classes3,ds,trl,thd,dcl,dncl,tcl,dv,dvr,time,tf,tn,ttm,tru,tdh,tn?,trim,def,defcr,dscopy,es,ecl,eq,eq?,exit,eos,uf,emojis,eostest,flip,void,fprintf,fps,有為の,gn,gt,gt?,ge,getprop,wd,greek,xtime,isc,include,zlc,zlcp,kanji,katakana,lt,lt?,lf,le,mu,names,ndf,norm,names1,names2>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;list;builtin>
+[00] end:   ##<ttm> => |<ps,psr,properties,printf,pf,pn,ap,abs,ad,argv,argc,rrp,rs,resetprop,removeprop,rp,breakpoint,cf,sc,ss,cr,cc,cn,sn,cp,cs,scn,ccl,scl,su,cm,classes,ctime,comment,setprop,srp,sort,catch,switch,clearpassive,ds,trl,thd,dcl,dncl,tcl,dv,dvr,time,tf,tn,ttm,tru,tdh,tn?,trim,dscopy,es,ecl,eq,eq?,exit,eos,uf,flip,void,fprintf,fps,gn,gt,gt?,ge,getprop,wd,xtime,isc,include,zlc,zlcp,lt,lt?,lf,le,mu,names,ndf,norm>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;list;string>
+[00] end:   ##<ttm> => |<classes1,classes2,classes3,def,defcr,emojis,eostest,有為の,greek,kanji,katakana,names1,names2>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;list;class>
+[00] end:   ##<ttm> => |<allcl,digits,escclass,lc,nonlc>|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ttm;meta;escape;>
+[00] end:   ##<ttm> => |@|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<argc>
+[00] end:   ##<argc> => |4|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<argv;0>
+[00] end:   ##<argv> => |ttm.exe|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<argv;1>
+[00] end:   ##<argv> => |a|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<argv;2>
+[00] end:   ##<argv> => |b|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<argv;3>
+[00] end:   ##<argv> => |c|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<argv;4>
+[00] end:   ##<argv> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: void\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[0] frame{active=0 argc=1 0:|void|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<classes>
+[01] end:   ##<classes> => |allcl,digits,escclass,lc,nonlc|
+[00] begin: ##<void;allcl,digits,escclass,lc,nonlc>
+[00] end:   ##<void> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: properties\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<properties>
+[00] end:   ##<properties> => |execcount,showcall,showfinal,stacksize|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: setprop\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<setprop;execcount;1999>
+[00] end:   ##<setprop> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: getprop\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<getprop;execcount>
+[00] end:   ##<getprop> => |1999|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: resetprop\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<resetprop;execcount>
+[00] end:   ##<resetprop> => |1999|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<getprop;execcount>
+[00] end:   ##<getprop> => |1048576|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: removeprop\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<setprop;key;value>
+[00] end:   ##<setprop> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<getprop;key>
+[00] end:   ##<getprop> => |value|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<removeprop;key>
+[00] end:   ##<removeprop> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<getprop;key>
+[00] end:   ##<getprop> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: sort\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ds;sorttest;abc,a,ab,def>
+[00] end:   ##<ds> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sort;sorttest>
+[00] end:   ##<sort> => ||
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<sorttest>
+[00] end:   ##<sorttest> => |a,ab,abc,def|
+[0] frame{active=0 argc=0}
+
+[00] begin: ##<ps;--- Testing: include\n>
+[00] end:   ##<ps> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=2 0:|ds| 1:|WD|}
+
+[1] frame{active=0 argc=0}
+
+[01] begin: ##<wd>
+[01] end:   ##<wd> => |C:/ttm/src/C|
+[00] begin: #<ds;WD;C:/ttm/src/C>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=2 0:|ds| 1:|WD|}
+
+[1] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=2 0:|ds| 1:|WD|}
+
+[1] frame{active=1 argc=1 0:|scn|}
+
+[2] frame{active=0 argc=0}
+
+[02] begin: ##<fps>
+[02] end:   ##<fps> => |/|
+[0] frame{active=1 argc=2 0:|ds| 1:|WD|}
+
+[1] frame{active=1 argc=3 0:|scn| 1:|/Windows| 2:|WD|}
+
+[2] frame{active=0 argc=0}
+
+[02] begin: ##<WD>
+[02] end:   ##<WD> => |C:/ttm/src/C|
+[01] begin: #<scn;/Windows;WD;C:/ttm/src/C>
+[01] end:   #<scn> => |C:/ttm/src/C|
+[00] begin: #<ds;WD;C:/ttm/src/C>
+[00] end:   #<ds> => ||
+[0] frame{active=1 argc=0}
+
+[0] frame{active=1 argc=1 0:|ps|}
+
+[1] frame{active=0 argc=0}
+
+[0] frame{active=1 argc=1 0:|ps|}
+
+[1] frame{active=0 argc=1 0:|include|}
+
+[2] frame{active=0 argc=0}
+
+[02] begin: ##<WD>
+[02] end:   ##<WD> => |C:/ttm/src/C|
+[0] frame{active=1 argc=1 0:|ps|}
+
+[1] frame{active=0 argc=1 0:|include|}
+
+[2] frame{active=0 argc=0}
+
+[02] begin: ##<fps>
+[02] end:   ##<fps> => |/|
+[01] begin: ##<include;C:/ttm/src/C/test.rs>
+[01] end:   ##<include> => |line1.line2
+line3
+|
+[00] begin: #<ps;line1.line2\nline3\n>
+[00] end:   #<ps> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<clearpassive>
+[00] end:   #<clearpassive> => ||
+[0] frame{active=1 argc=0}
+
+[00] begin: #<exit>
+[00] end:   #<exit> => ||
+<def,0;*;SV;locked=1;segindex=1;residual=0;body=<##<ds;^{1};<^{3}>>##<ss;^{1};^{2}>>>
+--- Testing: ds
+<testfcn,0;*;SV;locked=0;segindex=1;residual=0;body=<functionxx>>
+--- Testing: ap
+<testfcn,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+--- Testing: cf
+<testfcn,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+<testfcncopy1,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+<testfcncopy2,0;*;SV;locked=0;segindex=1;residual=12;body=<functionxxyy>>
+<ds,2;2;S;locked=1>
+<dscopy,2;2;S;locked=1>
+--- Testing: es and ndf
+<TTM_ELOCKED;-115>
+dscopy defined
+testfcncopy1 not defined
+testfcncopy2 not defined
+--- Testing: ss
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34567890>>
+12theta34567890
+--- Testing: sc
+1
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34^{1}7890>>
+12greek34greek7890
+--- Testing: cr
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<12^{1}34^{1}7^{CR}0>>
+12greek34greek700010
+--- Testing: cc
+0
+<x,0;*;SV;locked=0;segindex=1;residual=1;body=<0123456789>>
+1
+2
+<x,0;*;SV;locked=0;segindex=1;residual=3;body=<0123456789>>
+3456789
+--- Testing: cn
+01234567
+89
+--- Testing: sn
+0123456789
+89
+--- Testing: isc
+success
+<x,0;*;SV;locked=0;segindex=1;residual=5;body=<0123456789>>
+fail
+fail
+<x,0;*;SV;locked=0;segindex=1;residual=5;body=<0123456789>>
+--- Testing: scn
+2345
+--- Testing: cp
+abc
+def
+ghi
+11
+abc
+<def;ghi>
+jkl
+--- Testing: cs
+<x,0;*;SV;locked=0;segindex=1;residual=0;body=<abc;^{1};ghi>>
+abc;fed;ghi
+abc;
+;ghi
+--- Testing: rrp and rp
+0
+0123
+4
+0
+--- Testing: gn
+0123
+456789
+012
+--- Testing: zlc
+a
+(a,b)
+a;b;c;d
+a;(b,c);d
+a;((b,c),d);e
+a;(b,c,d
+a;(b,c)
+--- Testing: zlcp
+a;b
+a;b;c)
+a;b
+b,(c);f
+a;b
+--- Testing: flip
+9876543θ210
+--- Testing: trl
+abcθdef
+--- Testing: tru
+ABCΘDEF
+--- Testing: thd
+<TTM_EINVAL;-114>
+2587
+<TTM_EINVAL;-114>
+--- Testing: tdh
+953
+<TTM_EINVAL;-114>
+<TTM_EINVAL;-114>
+--- Testing: dcl and dncl
+allcl,digits,emptycl,lc,nonlc
+--- Testing: ccl
+3754
+4
+A
+5
+a
+27
+8
+8
+3754Aa27
+3754Aa27
+--- Testing: scl
+3754Aa27
+4
+--- Testing: tcl
+<cltest,0;*;SV;locked=0;segindex=1;residual=4;body=<3754Aa27>>
+false
+true
+<cltest,0;*;SV;locked=0;segindex=1;residual=4;body=<3754Aa27>>
+A
+<cltest,0;*;SV;locked=0;segindex=1;residual=5;body=<3754Aa27>>
+false
+<cltest,0;*;SV;locked=0;segindex=1;residual=5;body=<3754Aa27>>
+--- Testing: ad
+3
+6
+<TTM_EDECIMAL;-8>
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: su
+-1
+2
+<TTM_EDECIMAL;-8>
+<TTM_EDECIMAL;-8>
+--- Testing: mu
+14
+24
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: dv
+2
+1
+0
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: dvr
+0
+1
+2
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: abs
+1
+7
+<TTM_EDECIMAL;-8>
+--- Testing: eq
+false
+true
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: gt
+true
+false
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: lt
+false
+true
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: ge
+true
+true
+false
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: le
+false
+true
+true
+<TTM_EDECIMAL;-8>
+<TTM_EFEWPARMS;-5>
+--- Testing: eq?
+false
+true
+true
+false
+false
+<TTM_EFEWPARMS;-5>
+--- Testing: gt?
+true
+false
+false
+true
+true
+<TTM_EFEWPARMS;-5>
+--- Testing: lt?
+--- Testing: gt?
+false
+false
+true
+false
+false
+<TTM_EFEWPARMS;-5>
+--- Testing: ps
+|	
+||	
+|;
+a
+a;b
+--- Testing: rs and cm
+
+line1
+
+.
+line2
+line1
+##<rs>=line1
+line2
+##<rs>=line2
+--- Testing: psr
+reading line3:
+line3
+##<rs>=line3
+--- Testing: fprintf and printf
+13
+13
+4294967283
+15
+0xd
+18446744073709551603
+18446744073709551603
+abcd
+<a��c��e>
+<a^{1}c^{CR}e>
+--- Testing: pf
+--- Testing: names and sort
+ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ
+龥
+キャク
+奥山
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+<TTM_ELOCKED;-115>
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dscopy,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,fps,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,names1,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,time,tn,tn?,trim,trl,tru,ttm,uf,void,wd,xtime,zlc,zlcp,有為の
+true
+--- Testing: ecl
+allcl,digits,emptycl,lc,nonlc
+allcl,digits,lc,nonlc
+allcl,digits,lc,nonlc
+allcl,digits,emptycl,lc,nonlc
+allcl,digits,lc,nonlc
+false
+allcl,digits,lc,nonlc
+allcl,digits,lc,nonlc
+true
+--- Testing: norm
+0
+3
+6
+--- Testing: tn and tf
+traceoff
+traceon
+--- Testing: eos
+false
+abc
+3
+abc
+true
+--- Testing: time
+:time:
+--- Testing: xtime
+:xtime:
+--- Testing: ctime
+Sat Sep  8 19:46:40 2001
+--- Testing: pn
+56789
+--- Testing: lf and uf
+<TTM_ELOCKED;-115>
+exists
+erased
+--- Testing: ttm.info.name
+<ttm,1;*;SV;locked=1>
+<defcr,0;*;SV;locked=1;segindex=1;residual=0;body=<##<ds;^{1};<^{4}>>##<ss;^{1};^{2}>##<cr;^{1};^{3}>>>
+--- Testing: ttm.info.class
+<allcl;[^]>
+<nonlc;[^abcdefghijklmnopqrstuvwxyz]>
+<escclass;[abc@[def]>
+allcl,digits,escclass,lc,nonlc
+<TTM_ENOCLASS;-113>
+<ps,psr,properties,printf,pf,pn,ap,abs,ad,argv,argc,rrp,rs,resetprop,removeprop,rp,breakpoint,cf,sc,ss,cr,cc,cn,sn,cp,cs,scn,ccl,scl,su,cm,classes,ctime,comment,setprop,srp,sort,catch,switch,clearpassive,classes1,classes2,classes3,ds,trl,thd,dcl,dncl,tcl,dv,dvr,time,tf,tn,ttm,tru,tdh,tn?,trim,def,defcr,dscopy,es,ecl,eq,eq?,exit,eos,uf,emojis,eostest,flip,void,fprintf,fps,有為の,gn,gt,gt?,ge,getprop,wd,greek,xtime,isc,include,zlc,zlcp,kanji,katakana,lt,lt?,lf,le,mu,names,ndf,norm,names1,names2>
+<ps,psr,properties,printf,pf,pn,ap,abs,ad,argv,argc,rrp,rs,resetprop,removeprop,rp,breakpoint,cf,sc,ss,cr,cc,cn,sn,cp,cs,scn,ccl,scl,su,cm,classes,ctime,comment,setprop,srp,sort,catch,switch,clearpassive,ds,trl,thd,dcl,dncl,tcl,dv,dvr,time,tf,tn,ttm,tru,tdh,tn?,trim,dscopy,es,ecl,eq,eq?,exit,eos,uf,flip,void,fprintf,fps,gn,gt,gt?,ge,getprop,wd,xtime,isc,include,zlc,zlcp,lt,lt?,lf,le,mu,names,ndf,norm>
+<classes1,classes2,classes3,def,defcr,emojis,eostest,有為の,greek,kanji,katakana,names1,names2>
+<allcl,digits,escclass,lc,nonlc>
+@
+4
+./ttm
+a
+b
+c
+--- Testing: void
+allcl,digits,escclass,lc,nonlc
+--- Testing: properties
+execcount,showcall,showfinal,stacksize
+--- Testing: setprop
+--- Testing: getprop
+1999
+--- Testing: resetprop
+1999
+1048576
+--- Testing: removeprop
+value
+--- Testing: sort
+a,ab,abc,def
+--- Testing: include
+C:/ttm/src/C
+/
+C:/ttm/src/C
+C:/ttm/src/C
+C:/ttm/src/C
+/
+line1.line2
+line3
+line1.line2
+line3

@@ -88,7 +88,7 @@ vxprintf(TTM* ttm, const char* fmt, va_list ap)
 	fprintf(xfile,"%s",xbuf);
         xbuf[0] = '\0'; /* reset */
     }
-    fflush(stderr);
+    fflush(stdout); fflush(stderr);
     ttm->debug.xpr.outnl = hasnl;
 }
 
@@ -245,7 +245,7 @@ dumpstack(TTM* ttm)
 {
     int i;
     for(i=0;i<=ttm->frames.top;i++) {
-	xprintf(ttm,"[%zu] ",i);
+	xprintf(ttm,"[%d] ",i);
 	dumpframe(ttm,&ttm->frames.stack[i]);
 	xprintf(ttm,"\n");
     }
