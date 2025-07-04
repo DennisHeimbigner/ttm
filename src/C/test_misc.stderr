@@ -1704,8 +1704,8 @@ End startup commands
 [1] frame{active=0 argc=0}
 
 [01] begin: ##<time>
-[01] end:   ##<time> => |175158535868|
-[00] begin: #<void;time=175158535868>
+[01] end:   ##<time> => |175158969006|
+[00] begin: #<void;time=175158969006>
 [00] end:   #<void> => ||
 [0] frame{active=0 argc=0}
 
@@ -1718,8 +1718,8 @@ End startup commands
 [1] frame{active=0 argc=0}
 
 [01] begin: ##<xtime>
-[01] end:   ##<xtime> => |171|
-[00] begin: #<void;xtime=171>
+[01] end:   ##<xtime> => |10|
+[00] begin: #<void;xtime=10>
 [00] end:   #<void> => ||
 [0] frame{active=0 argc=0}
 
@@ -1848,7 +1848,7 @@ End startup commands
 [0] frame{active=0 argc=0}
 
 [00] begin: ##<argv;0>
-[00] end:   ##<argv> => |./ttm|
+[00] end:   ##<argv> => |./ttm.exe|
 [0] frame{active=0 argc=0}
 
 [00] begin: ##<argv;1>
@@ -1962,8 +1962,8 @@ End startup commands
 [1] frame{active=0 argc=0}
 
 [01] begin: ##<wd>
-[01] end:   ##<wd> => |/cygdrive/d/git/ttm/src/C|
-[00] begin: #<ds;WD;/cygdrive/d/git/ttm/src/C>
+[01] end:   ##<wd> => |/home/dmh/git/ttm/src/C|
+[00] begin: #<ds;WD;/home/dmh/git/ttm/src/C>
 [00] end:   #<ds> => ||
 [0] frame{active=1 argc=0}
 
@@ -1986,10 +1986,10 @@ End startup commands
 [2] frame{active=0 argc=0}
 
 [02] begin: ##<WD>
-[02] end:   ##<WD> => |/cygdrive/d/git/ttm/src/C|
-[01] begin: #<scn;/Windows;WD;/cygdrive/d/git/ttm/src/C>
-[01] end:   #<scn> => |/cygdrive/d/git/ttm/src/C|
-[00] begin: #<ds;WD;/cygdrive/d/git/ttm/src/C>
+[02] end:   ##<WD> => |/home/dmh/git/ttm/src/C|
+[01] begin: #<scn;/Windows;WD;/home/dmh/git/ttm/src/C>
+[01] end:   #<scn> => |/home/dmh/git/ttm/src/C|
+[00] begin: #<ds;WD;/home/dmh/git/ttm/src/C>
 [00] end:   #<ds> => ||
 [0] frame{active=1 argc=0}
 
@@ -2004,7 +2004,7 @@ End startup commands
 [2] frame{active=0 argc=0}
 
 [02] begin: ##<WD>
-[02] end:   ##<WD> => |/cygdrive/d/git/ttm/src/C|
+[02] end:   ##<WD> => |/home/dmh/git/ttm/src/C|
 [0] frame{active=1 argc=1 0:|ps|}
 
 [1] frame{active=0 argc=1 0:|include|}
@@ -2013,7 +2013,7 @@ End startup commands
 
 [02] begin: ##<fps>
 [02] end:   ##<fps> => |/|
-[01] begin: ##<include;/cygdrive/d/git/ttm/src/C/test.rs>
+[01] begin: ##<include;/home/dmh/git/ttm/src/C/test.rs>
 [01] end:   ##<include> => |line1.line2
 line3
 |

@@ -1962,8 +1962,8 @@ End startup commands
 [1] frame{active=0 argc=0}
 
 [01] begin: ##<wd>
-[01] end:   ##<wd> => |C:/ttm/src/C|
-[00] begin: #<ds;WD;C:/ttm/src/C>
+[01] end:   ##<wd> => |/ttm/src/C|
+[00] begin: #<ds;WD;/ttm/src/C>
 [00] end:   #<ds> => ||
 [0] frame{active=1 argc=0}
 
@@ -1986,10 +1986,10 @@ End startup commands
 [2] frame{active=0 argc=0}
 
 [02] begin: ##<WD>
-[02] end:   ##<WD> => |C:/ttm/src/C|
-[01] begin: #<scn;/Windows;WD;C:/ttm/src/C>
-[01] end:   #<scn> => |C:/ttm/src/C|
-[00] begin: #<ds;WD;C:/ttm/src/C>
+[02] end:   ##<WD> => |/ttm/src/C|
+[01] begin: #<scn;/Windows;WD;/ttm/src/C>
+[01] end:   #<scn> => |/ttm/src/C|
+[00] begin: #<ds;WD;/ttm/src/C>
 [00] end:   #<ds> => ||
 [0] frame{active=1 argc=0}
 
@@ -2004,7 +2004,7 @@ End startup commands
 [2] frame{active=0 argc=0}
 
 [02] begin: ##<WD>
-[02] end:   ##<WD> => |C:/ttm/src/C|
+[02] end:   ##<WD> => |/ttm/src/C|
 [0] frame{active=1 argc=1 0:|ps|}
 
 [1] frame{active=0 argc=1 0:|include|}
@@ -2013,7 +2013,7 @@ End startup commands
 
 [02] begin: ##<fps>
 [02] end:   ##<fps> => |/|
-[01] begin: ##<include;C:/ttm/src/C/test.rs>
+[01] begin: ##<include;/ttm/src/C/test.rs>
 [01] end:   ##<include> => |line1.line2
 line3
 |
@@ -2323,7 +2323,7 @@ allcl,digits,escclass,lc,nonlc
 <allcl,digits,escclass,lc,nonlc>
 @
 4
-./ttm
+./ttm.exe
 a
 b
 c
@@ -2342,11 +2342,11 @@ value
 --- Testing: sort
 a,ab,abc,def
 --- Testing: include
-C:/ttm/src/C
+/ttm/src/C
 /
-C:/ttm/src/C
-C:/ttm/src/C
-C:/ttm/src/C
+/ttm/src/C
+/ttm/src/C
+/ttm/src/C
 /
 line1.line2
 line3

@@ -12,8 +12,8 @@ timeline == 1 && /^[0-9]{12}$/ {timeline = 0; sub(/^[0-9]{12}$/,":time:")}
 xtimeline == 1 && /^[0-9]+$/ {xtimeline = 0; sub(/^[0-9]+$/,":xtime:")}
 /<argv>[ \t]+=>[ \t]+\|.*ttm(\.exe)?\|/ {sub(/\|.*ttm(\.exe)?\|/,"|ttm.exe|")}
 /<wd>[ \t]+=>[ \t]+\|[a-zA-z]:*ttm(\.exe)?\|/ {sub(/\|.*ttm(\.exe)?\|/,"|ttm.exe|")}
-/\/cygdrive\/[a-zA-Z]\// {sub(/\/cygdrive\/[a-zA-Z]\//,"C:")}
-/\|[a-zA-Z]:\// {sub(/\|[a-zA-Z]:/,"|C:")}
-/;[a-zA-Z]:\// {sub(/;[a-zA-Z]:/,";C:")}
-/C:.*ttm\/src\/C/ {sub(/C:.*ttm\/src\/C/,"C:/ttm/src/C")}
+/\|.*\/ttm\/src/ {sub(/\|.*\/ttm\/src/,"|/ttm/src")}
+/;WD;.*\/ttm\/src/ {sub(/;WD;.*\/ttm\/src/,";WD;/ttm/src")}
+/<include;.*\/ttm\/src/ {sub(/<include;.*\/ttm\/src/,"<include;/ttm/src")}
+/^([a-zA-Z]:)?(\/[^\/]+)*\/ttm\/src/ {sub(/^([a-zA-Z]:)?(\/[^\/]+)*\/ttm\/src/,"/ttm/src")}
 /.*/
