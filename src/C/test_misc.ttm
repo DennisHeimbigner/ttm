@@ -1,0 +1,172 @@
+##<ps;xx#<ttm;info;name;comment>yy\n>
+##<comment;##<ttm;info;name;def>>
+##<ds;greek;<ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ>>
+##<ds;kanji;龥>
+##<ds;katakana;キャク>
+##<ds;有為の;奥山>
+##<ds;emojis;<😁✊🆚>>
+#<ttm;info;name;greek>
+#<ttm;info;name;kanji>
+#<ttm;info;name;katakana>
+#<ttm;info;name;有為の>
+
+#<ttm;info;name;emojis>
+#<ds;x;12θ34>
+#<ap;x;567890>
+#<ss;x;θ>
+##<x>
+#<rrp;x>
+#<ss;x;θ>
+##<ttm;info;name;x>
+##<cc;x>
+##<rp;x>
+##<cn;8;x>
+##<rp;x>
+##<cn;2;x>
+##<rp;x>
+#<ds;d;x:y>
+#<sc;d;x;y>
+##<ttm;info;name;d>
+#<ndf;d;d defined;d not defined>
+#<ndf;dd;dd defined;dd not defined>
+#<argc>
+#<argv;2>
+#<ad;3;4;7>
+#<su;1;17>
+#<mu;2;16;2>
+#<dv;200;13>
+#<dvr;200;13>
+#<def;XX;34;12345>
+#<XX;0000>
+##<abs;2>
+##<abs;-2>
+##<eq;2;2;equal;!equal>
+##<eq;2;3;equal;!equal>
+##<eq?;abcd;abcd;equal?;!equal?>
+##<eq?;abc;abcd;equal?;!equal?>
+##<gt;2;1;gt;!gt>
+##<gt;2;2;gt;!gt>
+##<gt?;abcd;abc;gt?;!gt?>
+##<gt?;abcd;abcd;gt?;!gt?>
+##<lt;1;2;lt;!lt>
+##<lt;2;2;lt;!lt>
+##<lt?;abc;abcd;lt?;!lt?>
+##<lt?;abcd;abcd;lt?;!lt?>
+##<flip;abcd>
+##<flip;>
+##<gn;2;12345>
+##<gn;-2;12345>
+##<gn;0;12345>
+##<catch;<##<gn;1;>>>
+##<gn;2;a>
+#<norm;12345>
+##<zlc;1,(a,b),c>
+##<zlcp;a(b)>
+##<zlcp;a,(b)>
+##<zlcp;(b,(c))f>
+#<ds;test;123>
+##<ndf;test;test defined;test not defined>
+#<es;test>
+##<ndf;test;test defined;test not defined>
+#<ds;test;123>
+#<eos;test;test eos;test not eos>
+#<cn;3;test>
+#<eos;test;test eos;test not eos>
+##<ds;test_sn;123456>
+##<sn;6;test_sn>
+#<eos;test_sn;test_sn eos;test_sn not eos>
+##<dcl;digits;0123456789>
+##<dncl;nonlc;abcdefghijklmnopqrstuvwxyz>
+##<ds;testclass;01Ab5>
+##<rp;testclass>
+##<ccl;digits;testclass>
+##<rp;testclass>
+##<scl;nonlc;testclass>
+##<ttm;info;name;testclass>
+##<cn;100;testclass>
+##<ttm;info;name;testclass>
+##<rrp;testclass>
+##<ttm;info;name;testclass>
+##<tcl;digits;testclass;digit found;digit not found>
+##<cn;100;testclass>
+##<classes>
+##<ecl;digits>
+##<ecl;#<zlc;##<classes>>>
+##<classes>
+#<ds;testisc;012345>
+##<isc;012;testisc;match;no match>
+##<ttm;info;name;testisc>
+##<isc;34;testisc;match;no match>
+##<ttm;info;name;testisc>
+##<isc;34;testisc;match;no match>
+##<ttm;info;name;testisc>
+##<isc;5;testisc;match;no match>
+##<ttm;info;name;testisc>
+##<isc;;testisc;match;no match>
+##<ttm;info;name;testisc>
+#<ds;testscn;012345>
+##<scn;01;testscn;not substring>
+##<ttm;info;name;testscn>
+##<scn;234;testscn;not substring>
+##<ttm;info;name;testscn>
+##<scn;02;testscn;not substring>
+##<ttm;info;name;testscn>
+##<ctime;135258979000>
+##<catch;<#<es;#<zlc;##<names>>>>> // attempt to delete all names, but locked names will remain
+#<names>
+#<ds;testcr;abcxxdefxx>
+#<cr;testcr;xx>
+##<ttm;info;name;testcr>
+##<testcr>
+#<ds;testcp;<a<b;c>;d;<;>>>
+##<cp;testcp>
+##<ttm;info;name;testcp>
+##<cp;testcp>
+##<ttm;info;name;testcp>
+##<cp;testcp>
+##<ttm;info;name;testcp>
+#<ds;testcs;abcdefgcd>
+#<sc;testcs;cd>
+##<ttm;info;name;testcs>
+##<cs;testcs>
+##<cs;testcs>
+##<cs;testcs>
+##<ttm;info;name;testcs>
+#<ds;testlf;abcd>
+#<lf;testlf>
+##<catch;<#<es;testlf>>>
+#<ndf;testlf;testlf defined;testlf not defined>
+#<uf;testlf>
+#<es;testlf>
+#<void;<##<names>>>
+#<ndf;testlf;testlf defined;testlf not defined>
+#<ds;testcf;abccdcce>
+#<sc;testcf;cc>
+##<ttm;info;name;testcf>
+#<cf;testcf2;testcf>
+##<ttm;info;name;testcf2>
+#<ds;testtn;<functionbodyxx>>
+#<ss;testtn;xx>
+#<tn;testtn>
+##<testtn;y1>
+#<pf>
+#<tf;testtn>
+##<testtn;y2>
+#<tf>
+##<ps;<##<testtn;y3>\n>>
+##<testtn;y3>
+#<tn>
+##<testtn;y4>
+#<pf>
+#<cm;.> // change EOL
+##<eq?;##<psr;reading line1:>;line1;<##<psr>=line1>;<##<psr> failed>> // read upto meta char ('.')
+#<cm;\n>// restore EOL
+##<eq?;##<rs>;line2;<##<psr>=line2>;<##<psr> failed>> // read upto meta char: '.'
+##<eq?;##<rs>;line3;<##<psr>=line3>;<##<psr> failed>> // read upto meta char: '.'
+#<def;n!;N;<#<le;N;1;1;<#<mu;N;#<n!;#<su;N;1>>>>>>>
+##<ttm;info;name;n!>
+#<n!;3>
+##<ps;<\n>>
+##<breakpoint>
+##<clearpassive>
+#<exit>
