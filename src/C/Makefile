@@ -27,23 +27,22 @@ unityttm.c: ${TTM}.c ${INCLUDES}
 ${TTM}.exe: ${TTM}.c ${INCLUDES}
 	${CC} ${CCWARN} ${CCDEBUG} ${CCMEM} -o $@ $<
 
-TESTPROG = -p ./test.ttm
 TESTARGS = a b c
 TESTRFLAG = -f ./test.rs
 BASELINE = ./test.baseline
 	
-check:: ttm.output ttm_misc.output
+check:: test.output test_misc.output
 	diff -wBb test.baseline test.output
 	diff -wBb test_misc.baseline test_misc.output
 
-ttm.output: ${TTM}.exe ${TESTFILES}
+test.output: ${TTM}.exe ${TESTFILES}
 	rm -f test.stdout test.stderr test.output
-	./${TTM}.exe -Pshowcall -d1 -dt ${TESTPROG} ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
+	./${TTM}.exe -Pshowcall -d1 -dt -p test.ttm ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
 	cat test.stderr test.stdout | awk -f cleanoutput.awk > test.output
 
-ttm_misc.output: ${TTM}.exe ${TESTFILES}
+test_misc.output: ${TTM}.exe ${TESTFILES}
 	rm -f test_misc.stdout test_misc.stderr test_misc.output
-	./${TTM}.exe -Pshowcall -d1 -dt ${TESTPROG} ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
+	./${TTM}.exe -Pshowcall -d1 -dt -p test_misc.ttm ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
 	cat test_misc.stderr test_misc.stdout | awk -f cleanoutput.awk > test_misc.output
 
 clean::

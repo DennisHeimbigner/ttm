@@ -1,5 +1,4 @@
 top_srcdir = ../../..
-srcCdir = ${top_srcdir}/src/C
 
 .PHONEY: check
 .PHONEY: clean
@@ -11,10 +10,9 @@ TTM = ttm
 
 all: check
 
-TESTPROG = -p ${srcCdir}/test.ttm
 TESTARGS = a b c
-TESTRFLAG = -f ${srcCdir}/test.rs
-BASELINE = ${srcCdir}/test.baseline
+TESTRFLAG = -f ../test.rs
+BASELINE = ../test.baseline
 	
 check:: ttm.output ttm_misc.output
 	diff -wBb ../test.baseline test.output
@@ -22,12 +20,12 @@ check:: ttm.output ttm_misc.output
 
 ttm.output: ${TTM}.exe ${TESTFILES}
 	rm -f test.stdout test.stderr test.output
-	rm -f test_misc.stdout test_misc.stderr test_misc.output
-	./${TTM}.exe -Pshowcall -d1 -dt ${TESTPROG} ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
+	./${TTM}.exe -Pshowcall -d1 -dt -p ../test.ttm ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
 	cat test.stderr test.stdout | awk -f ../cleanoutput.awk > test.output
 
 ttm_misc.output: ${TTM}.exe ${TESTFILES}
-	./${TTM}.exe -Pshowcall -d1 -dt ${TESTPROG} ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
+	rm -f test_misc.stdout test_misc.stderr test_misc.output
+	./${TTM}.exe -Pshowcall -d1 -dt -p ../test_misc.ttm ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
 	cat test_misc.stderr test_misc.stdout | awk -f ../cleanoutput.awk > test_misc.output
 
 ${TTM}.exe: ${ARCH}/${STATE}/${TTM}.exe

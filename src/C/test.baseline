@@ -2323,7 +2323,7 @@ allcl,digits,escclass,lc,nonlc
 <allcl,digits,escclass,lc,nonlc>
 @
 4
-[0] ./ttm.exe
+./ttm.exe
 a
 b
 c

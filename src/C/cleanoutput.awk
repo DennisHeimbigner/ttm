@@ -16,6 +16,6 @@ xtimeline == 1 && /^[0-9]+$/ {xtimeline = 0; sub(/^[0-9]+$/,":xtime:")}
 /;WD;.*\/ttm\/src/ {sub(/;WD;.*\/ttm\/src/,";WD;/ttm/src")}
 /<include;.*\/ttm\/src/ {sub(/<include;.*\/ttm\/src/,"<include;/ttm/src")}
 /^([a-zA-Z]:)?(\/[^\/]+)*\/ttm\/src/ {sub(/^([a-zA-Z]:)?(\/[^\/]+)*\/ttm\/src/,"/ttm/src")}
-/^\.\/ttm$/ {sub(/^\.\/ttm$/,"[0] ./ttm.exe")}
-/^\[0\][ \t]*\.\/ttm$/ {sub(/^\[0\][ \t]*\.\/ttm$/,"[0] ./ttm.exe")}
+/^(\[0\][ \t]*)?\.\/ttm$/ {sub(/\.\/ttm$/,"./ttm.exe")}
+#/^\.\/ttm$/ {sub(/^\.\/ttm$/,"[0] ./ttm.exe")}
 /.*/
