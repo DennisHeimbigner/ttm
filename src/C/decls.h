@@ -35,6 +35,23 @@ struct Debug dfalt_debug = {
 	}
 };
 
+/* Cause <argv;0>, <wd>, <time>, <xtime> to output fixed values
+   so that we can compare to baseline without massaging
+*/
+struct Testing {
+    const char* argv0;
+    const char* wd;
+    const char* time;
+    const char* xtime;
+    const char* fps;
+} fixedtestvalues = {
+    "ttm.exe",		/* .argv0 */
+    "/ttm/src/C",	/* .wd */
+    ":time:",		/* .time */
+    ":xtime:",		/* .xtime */
+    "/",		/* .fps */
+};
+
 static VList* argoptions = NULL; /* command line arguments */
 static VList* propoptions = NULL; /* command line properties */
 

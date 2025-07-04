@@ -2034,13 +2034,17 @@ ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
     long long time;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(timeofday(&tv) < 0)
-	EXIT(TTM_ETIME);
-    time = (long long)tv.tv_sec;
-    time *= 1000000; /* convert to microseconds */
-    time += tv.tv_usec;
-    time = time / 10000; /* Need time in 100th second */
-    snprintf(value,sizeof(value),"%lld",time);
+    if(ttm->opts.testing) {
+	strncpy(value,fixedtestvalues.time,sizeof(value));
+    } else {
+	if(timeofday(&tv) < 0)
+	    EXIT(TTM_ETIME);
+	time = (long long)tv.tv_sec;
+	time *= 1000000; /* convert to microseconds */
+	time += tv.tv_usec;
+	time = time / 10000; /* Need time in 100th second */
+	snprintf(value,sizeof(value),"%lld",time);
+    }
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
@@ -2052,12 +2056,15 @@ ttm_xtime(TTM* ttm, Frame* frame, VString* result) /* Obtain Execution Time */
 {
     TTMERR err = TTM_NOERR;
     TTMFCN_DECLS(ttm,frame);
-    long long time;
     char value[MAXINTCHARS+1];
 
     TTMFCN_BEGIN(ttm,frame,result);
-    time = getRunTime();
-    snprintf(value,sizeof(value),"%lld",time);
+    if(ttm->opts.testing) {
+	strncpy(value,fixedtestvalues.xtime,sizeof(value));
+    } else {
+	long long time = getRunTime();
+	snprintf(value,sizeof(value),"%lld",time);
+    }
     vsappendn(result,value,strlen(value));
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
@@ -2145,13 +2152,17 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     TTMFCN_DECLS(ttm,frame);
     long long index = 0;
     int arglen;
-    char* arg;
+    const char* arg;
 
     TTMFCN_BEGIN(ttm,frame,result);
     if((1 != sscanf((const char*)frame->argv[1],"%lld",&index))) EXIT(TTM_EDECIMAL);
     if(index < 0) EXIT(TTM_ERANGE);
     if(((size_t)index) < vllength(argoptions)) {
-        arg = vlget(argoptions,(size_t)index);
+	if(ttm->opts.testing && index == 0) {
+	    arg = fixedtestvalues.argv0;
+	} else {
+	    arg = vlget(argoptions,(size_t)index);
+	}
         arglen = (int)strlen(arg);
         vsappendn(result,arg,arglen);
     }
@@ -2456,15 +2467,50 @@ ttm_include(TTM* ttm, Frame* frame, VString* result)  /* Include text of a file 
 {
     TTMERR err = TTM_NOERR;
     TTMFCN_DECLS(ttm,frame);
-    const char* path;
+    char* path;
+    char realpath[4096]; /* if testing */
+    char* baseseg = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    path = (const char*)frame->argv[1];
-    if(path == NULL || strlen(path) == 0) EXIT(TTM_EINCLUDE);
-    readfile(ttm,path,ttm->vs.tmp);
+    if(strlen(frame->argv[1])==0) EXIT(TTM_EINCLUDE);
+    path = strdup(frame->argv[1]);
+
+    if(ttm->opts.testing) {
+	char* p;
+    /* Convert '\\' to '/' */
+    for (p = path; *p; p++) {if (*p == '\\') *p = '/';}
+	/* Get the basefile of path */
+	p = strrchr(path,'/');
+	if(p == NULL) { /* point to base segment */
+	    baseseg = strdup(path);
+	    *p = '\0'; /* remove base file from path */
+	} else {
+	    baseseg = strdup(p); /* include leading '/' */
+	    *p = '\0';  /* remove base file from path */
+	}
+	/* Get the current directory */
+	if(getcwd(realpath, sizeof(realpath))==NULL) EXIT(TTM_EMEMORY);
+    /* Convert '\\' to '/' */
+    for (p = realpath; *p; p++) { if (*p == '\\') *p = '/'; }
+	/* If last directory is '/Windows' then remove it from path */
+	p = strrchr(realpath,'/');
+	if(p == NULL) p = realpath;
+	if(strcmp(p,LOCALWINSEG)==0) *p = '\0';
+	/* append the base file segment */
+	strcat(realpath,baseseg);
+#ifdef MSWINDOWS
+    for (p = realpath; *p; p++) { if (*p == '/') *p = '\\'; }
+#endif
+    } else {
+        strcpy(realpath,frame->argv[1]);
+    }
+    if(strlen(realpath) == 0) EXIT(TTM_EINCLUDE);
+    readfile(ttm,realpath,ttm->vs.tmp);
     vsappendn(result,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
     vsclear(ttm->vs.tmp);
 done:
+    nullfree(baseseg);
+    nullfree(path);
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
 }
@@ -2488,10 +2534,13 @@ ttm_wd(TTM* ttm, Frame* frame, VString* result) /* return current working direct
     char wd[2048];
     
     TTMFCN_BEGIN(ttm,frame,result);
-    wd[0] = '\0';
-    if(getcwd(wd, sizeof(wd))==NULL) EXIT(TTM_EMEMORY);
+    if(ttm->opts.testing) {
+	strncpy(wd,fixedtestvalues.wd,sizeof(wd));
+    } else {
+	wd[0] = '\0';
+	if(getcwd(wd, sizeof(wd))==NULL) EXIT(TTM_EMEMORY);
+    }
     vsappendn(result,wd,strlen(wd));
-
 done:
     TTMFCN_END(ttm,frame,result);
     return THROW(err);
@@ -2504,10 +2553,13 @@ ttm_fps(TTM* ttm, Frame* frame, VString* result) /* return current working direc
     TTMFCN_DECLS(ttm,frame);
     
     TTMFCN_BEGIN(ttm,frame,result);
+    if(ttm->opts.testing)
+        vsappendn(result,"/",1);
+    else
 #ifdef MSWINDOWS
-    vsappendn(result,"\\",1);
+	vsappendn(result,"\\",1);
 #else
-    vsappendn(result,"/",1);
+	vsappendn(result,"/",1);
 #endif
 
     TTMFCN_END(ttm,frame,result);

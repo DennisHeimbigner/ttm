@@ -1795,7 +1795,7 @@ main(int argc, char** argv)
     vlpush(argoptions,strdup(argv[0]));
 
     /* Option processing */
-    while ((c = getopt(argc, argv, "d:f:io:p:qvP:VB-")) != EOF) {
+    while ((c = getopt(argc, argv, "d:f:io:p:qvBP:TV-")) != EOF) {
 	switch(c) {
 	case 'd':
 	    strcat(debugargs,optarg);
@@ -1831,6 +1831,7 @@ main(int argc, char** argv)
 	    break;
 	case 'v': opts.verbose = 1; break;
 	case 'B': opts.bare = 1; break;
+	case 'T': opts.testing = 1; break;
 	case 'V':
 	    printf("ttm version: %s\n",VERSION);
 	    exit(0);

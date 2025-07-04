@@ -1356,11 +1356,11 @@ End startup commands
 [00] end:   ##<fprintf> => ||
 [0] frame{active=0 argc=0}
 
-[00] begin: ##<fprintf;stdout;0x%lx\n;13>
+[00] begin: ##<fprintf;stdout;0x%x\n;13>
 [00] end:   ##<fprintf> => ||
 [0] frame{active=0 argc=0}
 
-[00] begin: ##<fprintf;stdout;%lu\n;-13>
+[00] begin: ##<fprintf;stdout;%u\n;-13>
 [00] end:   ##<fprintf> => ||
 [0] frame{active=0 argc=0}
 
@@ -2256,7 +2256,7 @@ line3
 4294967283
 15
 0xd
-18446744073709551603
+4294967283
 18446744073709551603
 abcd
 <a€c€€e>
@@ -2323,7 +2323,7 @@ allcl,digits,escclass,lc,nonlc
 <allcl,digits,escclass,lc,nonlc>
 @
 4
-./ttm.exe
+ttm.exe
 a
 b
 c

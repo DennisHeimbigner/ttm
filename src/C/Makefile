@@ -37,13 +37,13 @@ check:: test.output test_misc.output
 
 test.output: ${TTM}.exe ${TESTFILES}
 	rm -f test.stdout test.stderr test.output
-	./${TTM}.exe -Pshowcall -d1 -dt -p test.ttm ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
-	cat test.stderr test.stdout | awk -f cleanoutput.awk > test.output
+	./${TTM}.exe -Pshowcall -T -d1 -dt -p test.ttm ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
+	cat test.stderr test.stdout > test.output
 
 test_misc.output: ${TTM}.exe ${TESTFILES}
 	rm -f test_misc.stdout test_misc.stderr test_misc.output
-	./${TTM}.exe -Pshowcall -d1 -dt -p test_misc.ttm ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
-	cat test_misc.stderr test_misc.stdout | awk -f cleanoutput.awk > test_misc.output
+	./${TTM}.exe -Pshowcall -T -d1 -dt -p test_misc.ttm ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
+	cat test_misc.stderr test_misc.stdout > test_misc.output
 
 clean::
 	rm -f ${TTM}.exe ${TTM} ${TTM}.txt ${TTM}.obj

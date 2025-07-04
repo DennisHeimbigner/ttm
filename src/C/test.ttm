@@ -375,8 +375,8 @@
 ##<fprintf;stdout;<%u\n>;13>
 ##<fprintf;stdout;<%u\n>;-13>
 ##<fprintf;stdout;<%o\n>;13>
-##<fprintf;stdout;<0x%lx\n>;13>
-##<fprintf;stdout;<%lu\n>;-13>
+##<fprintf;stdout;<0x%x\n>;13>
+##<fprintf;stdout;<%u\n>;-13>
 ##<fprintf;stdout;<%llu\n>;-13>
 ##<printf;<%s\n>;abcd>
 ##<ds;fprintfsegtest;aBcDe>

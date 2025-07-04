@@ -269,6 +269,7 @@ struct TTM {
 	int catchdepth;
     } flags;
     struct OPTS { /* non-debug options */
+	int testing; /* Cause <wd>, <time>, <xtime> to output fixed values */
         int quiet;
 	int bare;
 	int verbose;

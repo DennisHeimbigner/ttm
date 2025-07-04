@@ -95,3 +95,5 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 /* Max number of open files */
 #define MAXOPENFILES 256
 
+/* Path segment for ./Windows */
+#define LOCALWINSEG "/Windows"
