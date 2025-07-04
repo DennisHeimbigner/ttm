@@ -268,9 +268,9 @@ abc
 abc
 true
 --- Testing: time
-175158969006
+175159291912
 --- Testing: xtime
-10
+234
 --- Testing: ctime
 Sat Sep  8 19:46:40 2001
 --- Testing: pn
@@ -294,7 +294,7 @@ allcl,digits,escclass,lc,nonlc
 <allcl,digits,escclass,lc,nonlc>
 @
 4
-./ttm.exe
+./ttm
 a
 b
 c
@@ -313,11 +313,11 @@ value
 --- Testing: sort
 a,ab,abc,def
 --- Testing: include
-/home/dmh/git/ttm/src/C
+/cygdrive/d/git/ttm/src/C
 /
-/home/dmh/git/ttm/src/C
-/home/dmh/git/ttm/src/C
-/home/dmh/git/ttm/src/C
+/cygdrive/d/git/ttm/src/C
+/cygdrive/d/git/ttm/src/C
+/cygdrive/d/git/ttm/src/C
 /
 line1.line2
 line3
