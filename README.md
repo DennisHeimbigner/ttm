@@ -48,7 +48,7 @@ functions exist and are defined in the
 [TTM reference manual](https://github.com/Unidata/ttm/blob/master/ttm_batch_processing_pr_08.pdf).
 
 ## External Links
-* [A reference implementation of TTM.](https://github.com/Unidata/ttm)
+* [A reference implementation of TTM.](https://github.com/DennisHeimbigner/ttm)
 * [Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.](https://github.com/Unidata/ttm/blob/master/ttm_interpretive_language_pr_07.pdf)
 * [Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.](https://github.com/Unidata/ttm/blob/master/ttm_batch_processing_pr_08.pdf)
 
