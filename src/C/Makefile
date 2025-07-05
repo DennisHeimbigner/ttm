@@ -1,4 +1,4 @@
-top_srcdir = ../..
+# Enable if you want to check for memory leaks
 #MEM = 1
 
 .PHONEY: check
@@ -28,8 +28,6 @@ ${TTM}.exe: ${TTM}.c ${INCLUDES}
 	${CC} ${CCWARN} ${CCDEBUG} ${CCMEM} -o $@ $<
 
 TESTARGS = a b c
-TESTRFLAG = -f ./test.rs
-BASELINE = ./test.baseline
 	
 check:: test.output test_misc.output
 	diff -wBb test.baseline test.output
@@ -37,12 +35,12 @@ check:: test.output test_misc.output
 
 test.output: ${TTM}.exe ${TESTFILES}
 	rm -f test.stdout test.stderr test.output
-	./${TTM}.exe -Pshowcall -T -d1 -dt -p test.ttm ${TESTRFLAG} ${TESTARGS} > ./test.stdout 2> test.stderr
+	./${TTM}.exe -Pshowcall -T -d1 -dt -p test.ttm -f ./test.rs ${TESTARGS} > ./test.stdout 2> test.stderr
 	cat test.stderr test.stdout > test.output
 
 test_misc.output: ${TTM}.exe ${TESTFILES}
 	rm -f test_misc.stdout test_misc.stderr test_misc.output
-	./${TTM}.exe -Pshowcall -T -d1 -dt -p test_misc.ttm ${TESTRFLAG} ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
+	./${TTM}.exe -Pshowcall -T -d1 -dt -p test_misc.ttm -f ./test.rs ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
 	cat test_misc.stderr test_misc.stdout > test_misc.output
 
 clean::
