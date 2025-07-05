@@ -3,7 +3,7 @@ set -x
 GIT=git
 DST=$GIT/ttm
 
-FILES=`cat Inventory |tr -d '\r' |tr '\n' '  '`
+FILES=`cat Manifest |tr -d '\r' |tr '\n' '  '`
 
 rm -fr ${GIT}
 mkdir -p ${DST}
