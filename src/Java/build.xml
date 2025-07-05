@@ -9,9 +9,9 @@
 <property name="build.classes"	location="${build.dir}/classes"/>
 
 <!-- Test cases and baselines -->
-<property name="test.program"	      location="test.ttm"/>
-<property name="test.input"	      location="test.rs"/>
-<property name="test.baseline"	      location="test.baseline"/>
+<property name="test.program"	      location="../C/test.ttm"/>
+<property name="test.input"	      location="../C/test.rs"/>
+<property name="test.baseline"	      location="../C/test.baseline"/>
 <property name="test.output"	      location="test.output"/>
 <property name="test.error"	      location="test.error"/>
 
