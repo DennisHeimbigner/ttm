@@ -28,6 +28,8 @@ unityttm.c: ${TTM}.c ${INCLUDES}
 	for I in ${INCLUDES} ; do sed -i.bak -e "/^\#include[ ][ ]*\"${I}\".*/r ${I}" -e "s|^\#include[ ][ ]*\"${I}\".*|/*\0*/|" $@; done
 
 ##################################################
+TESTFILES = test.ttm test_misc.ttm
+
 TESTARGS = a b c
 	
 check:: test.output test_misc.output

@@ -2,7 +2,7 @@
 <project name="ttm" default="all" basedir=".">
 
 <!-- Source directories -->
-<property name="src"	     location="src/main/java/ucar/ttm"/>
+<property name="src"	     location="src/main/java/ttm"/>
 
 <!-- Build Directories -->
 <property name="build.dir" value="target"/>
@@ -20,7 +20,7 @@
 
 <!-- jar files -->
 <property name="ttm.jar" value="ttm.jar"/>
-<property name="main.class" value="ucar.ttm.TTM"/>
+<property name="main.class" value="ttm.TTM"/>
 
 <!-- Misc. -->
 <property name="javadocs.dir" value="docs"/>
