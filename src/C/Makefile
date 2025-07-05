@@ -18,15 +18,16 @@ all: ${TTM}.exe
 # Assemble ttm8.c from pieces
 INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h  va.h
   
+${TTM}.exe: ${TTM}.c ${INCLUDES}
+	${CC} ${CCWARN} ${CCDEBUG} ${CCMEM} -o $@ $<
+
 # Create a single, unified file by replacing #includes with the actual file
 unityttm.c: ${TTM}.c ${INCLUDES}
 	rm -f $@ $@.bak
 	cp ${TTM}.c $@
 	for I in ${INCLUDES} ; do sed -i.bak -e "/^\#include[ ][ ]*\"${I}\".*/r ${I}" -e "s|^\#include[ ][ ]*\"${I}\".*|/*\0*/|" $@; done
 
-${TTM}.exe: ${TTM}.c ${INCLUDES}
-	${CC} ${CCWARN} ${CCDEBUG} ${CCMEM} -o $@ $<
-
+##################################################
 TESTARGS = a b c
 	
 check:: test.output test_misc.output
