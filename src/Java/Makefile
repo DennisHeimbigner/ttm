@@ -1,13 +1,12 @@
 # Enable if you want to check for memory leaks
 #MEM = 1
 
-.PHONEY: build
 .PHONEY: check
 .PHONEY: clean
 
-all: build
+all: target/ttm.jar
 
-build: ./src/main/java/ttm/TTM.java
+target/ttm.jar: ./src/main/java/ttm/TTM.java
 	ant
 
 ##################################################
@@ -20,18 +19,19 @@ check:: test.output test_misc.output
 	diff -wBb ../C/test.baseline test.output
 	diff -wBb ../C/test_misc.baseline test_misc.output
 
-test.output: build ${TESTFILES}
+test.output: target/ttm.jar ${TESTFILES}
 	rm -f test.stdout test.stderr test.output
-	java -jar ./target/ttm.jar -Pshowcall -T -d1 -dt -p test.ttm -f ./test.rs ${TESTARGS} > ./test.stdout 2> test.stderr
+	java -jar ./target/ttm.jar -Pshowcall -T -d1 -dt -p ../C/test.ttm -f ../C/test.rs ${TESTARGS} > ./test.stdout 2> test.stderr
 	cat test.stderr test.stdout > test.output
 
-test_misc.output: build ${TESTFILES}
+test_misc.output: target/ttm.jar ${TESTFILES}
 	rm -f test_misc.stdout test_misc.stderr test_misc.output
-	java -jar ./target/ttm.jar -Pshowcall -T -d1 -dt -p test_misc.ttm -f ./test.rs ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
+	java -jar ./target/ttm.jar -Pshowcall -T -d1 -dt -p ../C/test_misc.ttm -f ../C/test.rs ${TESTARGS} > ./test_misc.stdout 2> test_misc.stderr
 	cat test_misc.stderr test_misc.stdout > test_misc.output
 
 clean::
-	rm -fr target
 	rm -f test.output test.stderr test.stdout
 	rm -f test_misc.output test_misc.stderr test_misc.stdout
 
+cleanall::
+	rm -fr target

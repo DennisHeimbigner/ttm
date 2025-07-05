@@ -34,11 +34,11 @@
 ./src/C/Windows/ttm.vcxproj
 ./src/C/Windows/ttm.vcxproj.filters
 ./src/C/Windows/ttm.vcxproj.user
+./src/Python/Makefile
+./src/Python/ttm2.py
+./src/Python/ttm3.py
 ./src/Java/Makefile
 ./src/Java/build.xml
 ./src/Java/pom.xml
 ./src/Java/ttm.iml
-./src/Java/main/java/ucar/ttm/TTM.java
-./src/Python/Makefile
-./src/Python/ttm2.py
-./src/Python/ttm3.py
+./src/Java/main/java/ttm/TTM.java
