@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 # Enable if you want to check for memory leaks
-MEM = 1
+#MEM = 1
 
 .PHONEY: check
 .PHONEY: clean
@@ -9,7 +9,7 @@ MEM = 1
 TTM = ttm
 
 CC = gcc
-CCWARN = -Wsign-compare -Wall -Wdeclaration-after-statement
+CCWARN = -Wall
 CCDEBUG = -g -O0
 ifdef MEM
 CCMEM = -fsanitize=address -fsanitize=leak
@@ -66,6 +66,8 @@ ifndef VS
 CCFLAG="-DCMAKE_C_COMPILER=/usr/bin/gcc"
 endif
 
+CFG = Debug
+
 # G = -G 'Visual Studio 17 2022'
 # G="-G Unix Makefiles"
 
@@ -86,7 +88,7 @@ cmake-check: cmake-test cmake-fix
 	diff -wBb test_misc.baseline ${BUILDDIR}/test_misc.log
 
 cmake-test: cmake-compile
-	cd ${BUILDDIR}; ctest -V > ${CTESTLOG}
+	cd ${BUILDDIR}; ctest -V -C ${CFG} > ${CTESTLOG}
 
 cmake-compile: ${BUILDDIR}
 	cd ${BUILDDIR}; cmake --build .

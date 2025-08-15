@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(TTM)
 
 add_executable(ttm ttm.c)
+target_compile_options(ttm PRIVATE /Zc:preprocessor)
 
 enable_testing()
 
