@@ -5,14 +5,13 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 
 /**************************************************/
 
-#define VERSION "1.0"
+#define VERSION "2.0"
 
 /**************************************************/
 
-#define CATCH
 /* Debug has a level attached: 0 is equivalent to undef */
 #define DEBUG 0
-#define GDB
+#undef GDB
 
 #if DEBUG > 0
 #ifndef GDB
@@ -202,10 +201,11 @@ static Property*
 newProperty(TTM* ttm, const char* key)
 {
     Property* f = (Property*)calloc(1,sizeof(Property));
-    if(f == NULL) FAIL(ttm,TTM_EMEMORY);
+    if(f == NULL) goto done;
     assert(f->entry.name == NULL);
     f->entry.name = strdup(key);
     f->entry.hash = computehash(key);
+done:
     return f;
 }
 
@@ -345,14 +345,14 @@ freeTTM(TTM* ttm)
 static Frame*
 pushFrame(TTM* ttm)
 {
-    Frame* frame;
+    Frame* frame = NULL;
     ttm->frames.top++;
-    if(ttm->frames.top >= (int)ttm->properties.stacksize)
-	FAIL(ttm,TTM_ESTACKOVERFLOW);
+    if(ttm->frames.top >= (int)ttm->properties.stacksize) goto done;
     frame = &ttm->frames.stack[ttm->frames.top];
     frame->argc = 0;
     frame->active = 0;
     frame->result = vsnew();
+done:
     return frame;
 }
 
@@ -362,9 +362,9 @@ Release contents of ttm->frames.results[ttm->frames.top]
 static void
 popFrame(TTM* ttm)
 {
-    Frame* frame;
+    Frame* frame = NULL;
     int top = ttm->frames.top--;
-    if(top < 0) FAIL(ttm,TTM_ESTACKUNDERFLOW); /* Actually an internal error */
+    if(top < 0) return;
     frame = &ttm->frames.stack[top];
     clearFrame(ttm,frame);
 }
@@ -406,10 +406,11 @@ static Function*
 newFunction(TTM* ttm, const char* name)
 {
     Function* f = (Function*)calloc(1,sizeof(Function));
-    if(f == NULL) FAIL(ttm,TTM_EMEMORY);
+    if(f == NULL) goto done;
     f->fcn.nextsegindex = SEGINDEXFIRST;
     assert(f->entry.name == NULL);
     f->entry.name = strdup(name);
+done:
     return f;
 }
 
@@ -452,9 +453,10 @@ static Charclass*
 newCharclass(TTM* ttm, const char* name)
 {
     Charclass* cl = (Charclass*)calloc(1,sizeof(Charclass));
-    if(cl == NULL) FAIL(ttm,TTM_EMEMORY);
+    if(cl == NULL) goto done;
     assert(cl->entry.name == NULL);
     cl->entry.name = strdup(name);
+done:
     return cl;
 }
 
@@ -546,6 +548,7 @@ ttmenumdetect(const char* s)
     if(strcmp("list",s)==0) return TE_LIST;
     if(strcmp("all",s)==0) return TE_ALL;
     if(strcmp("builtin",s)==0) return TE_BUILTIN;
+    if(strcmp("system",s)==0) return TE_SYSTEM;
     return TE_UNDEF;
 }
 
@@ -580,7 +583,7 @@ scan(TTM* ttm)
 		/* It is a real call */
 		TTMCP8SET(ttm);
 		err = exec(ttm);
-		if(err != TTM_NOERR) EXIT(err);
+		if(err) EXIT(ttm,err);
 		if(ttm->flags.exit) goto done;
 	    } else {/* not an call; just pass the # along passively */
 		vsindexappendn(ttm->vs.passive,cp8,ncp);
@@ -590,11 +593,11 @@ scan(TTM* ttm)
 	    int depth = 1;
 	    TTMCP8NXT(ttm); /* skip outermost '<' */
 	    while(depth > 0) {
-		if(isnul(cp8)) EXIT(TTM_EEOS); /* unexpected eof */
+		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
 		if(isescape(cp8)) {
 		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
 		    TTMCP8NXT(ttm); /* Skip escape char */
-		    if(isnul(cp8)) EXIT(TTM_EEOS); /* unexpected eof */
+		    if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
 		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
 		    TTMCP8NXT(ttm); /* Skip escaped char */
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
@@ -619,11 +622,11 @@ scan(TTM* ttm)
 
     if(ttm->properties.showfinal && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
 	/* Print out final contents */
-	printf("%s\n",vscontents(ttm->vs.passive));
+	xfprintf(ttm, ttm->io._stderr,"%s\n",vscontents(ttm->vs.passive));
     }
 
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -631,42 +634,44 @@ Compute a function and leave the result into:
 1. ttm->vs.active if the function is active or
 2. ttm->vs.passive
 @param ttm
-@return TTMERR
+@return error
 */
 static TTMERR
 exec(TTM* ttm)
 {
     TTMERR err = TTM_NOERR;
-    Frame* frame = NULL;
     Function* fcn = NULL;
     size_t savepassive;
     TRACE tracebefore = TR_UNDEF;
     char* cp8 = NULL;
     int ncp;
+    int active = 0;
+    Frame* frame = NULL;
 
     UNUSED(ncp);
 
-    if(ttm->properties.execcount-- <= 0) EXIT(TTM_EEXECCOUNT);
+    if(ttm->properties.execcount-- <= 0) EXIT(ttm,TTM_EEXECCOUNT);
 
-    frame = pushFrame(ttm);
-
-    TTMCP8SET(ttm);    
-    
+    TTMCP8SET(ttm);      
     /* Skip to the start of the function name */
     if(u8equal(peek(ttm->vs.active,1),ttm->meta.openc)) {
 	TTMCP8NXT(ttm); /* skip '#' */
 	TTMCP8NXT(ttm); /* skip '<' */
-	frame->active = 1;
+	active = 1;
     } else {
 	TTMCP8NXT(ttm); /* skip '#' */
 	TTMCP8NXT(ttm); /* skip '#' */
 	TTMCP8NXT(ttm); /* skip '<' */
-	frame->active = 0;
+	active = 0;
     }
 
     /* Parse and store relevant pointers into frame. */
     savepassive = vslength(ttm->vs.passive);
-    collectargs(ttm,frame);
+    err = collectargs(ttm,active,&frame);
+    if(err)
+        EXIT(ttm,err);
+    if(frame == NULL)
+	EXIT(ttm,TTM_ETTM);
     vssetlength(ttm->vs.passive,savepassive);
     if(ttm->flags.exit) goto done;
 
@@ -676,13 +681,14 @@ exec(TTM* ttm)
     }
 
     /* Now execute this function, which will leave result in bb->result */
-    if(frame->argc == 0) EXIT(TTM_EBADCALL);
-    if(strlen((char*)frame->argv[0])==0) EXIT(TTM_EBADCALL);
+    if(frame->argc == 0) EXIT(ttm,TTM_EBADCALL);
+    if(strlen((char*)frame->argv[0])==0) EXIT(ttm,TTM_EBADCALL);
     /* Locate the function to execute */
     fcn = dictionaryLookup(ttm,frame->argv[0]);
-    if(fcn == NULL) EXIT(TTM_ENONAME);
+    if(fcn == NULL)
+	{xsprintf(ttm,"Undefined name: %s",frame->argv[0]);EXIT(ttm,TTM_ENONAME);}
     if(fcn->fcn.minargs > (frame->argc - 1)) /* -1 to account for function name*/
-	EXIT(TTM_EFEWPARMS);
+	EXIT(ttm,TTM_EFEWPARMS);
     /* Reset the result buffer */
     vsclear(ttm->vs.result);
 
@@ -697,6 +703,7 @@ exec(TTM* ttm)
 
     if(fcn->fcn.builtin) {
 	err = fcn->fcn.fcn(ttm,frame,ttm->vs.result);
+	if(err) EXIT(ttm,err);
 	if(fcn->fcn.novalue) vsclear(ttm->vs.result);
     } else /* invoke the pseudo function "call" */
 	call(ttm,frame,vscontents(fcn->fcn.body),ttm->vs.result);
@@ -708,16 +715,17 @@ exec(TTM* ttm)
     
     if(err != TTM_NOERR && ttm->flags.catchdepth == 0) {
 	vsclear(ttm->vs.result);
-	EXIT(err);
+	EXIT(ttm,err);
     }
 
     if(ttm->properties.showcall && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
 	char* u8;
 	/* Print out results of a function call */
 	if(vslength(ttm->vs.result) > 0) {
-	    printf("%s",vscontents(ttm->vs.result));
+	    printstring(ttm,vscontents(ttm->vs.result),ttm->io._stdout);
 	    u8 = vsgetp(ttm->vs.result,vslength(ttm->vs.result)-1);
-	    if(*u8 != '\n') printf("\n");
+	    if(*u8 != '\n') printstring(ttm,"\n",ttm->io._stdout);
+	    ttmflush(ttm,ttm->io._stdout);
 	}
     }
 
@@ -745,8 +753,8 @@ exec(TTM* ttm)
 	TTMCP8SET(ttm); /* update */
     }
 done:
-    if(err == TTM_NOERR || ttm->flags.catchdepth > 0)  popFrame(ttm);
-    return THROW(err);
+    if(err == TTM_NOERR || ttm->flags.catchdepth > 0)  {popFrame(ttm); frame = NULL;}
+    return THROW(ttm,err);
 }
 
 /**
@@ -756,7 +764,7 @@ Construct a frame; leave ttm->vs.active pointing just past the closing '>'
 @return TTMERR
 */
 static TTMERR
-collectargs(TTM* ttm, Frame* frame)
+collectargs(TTM* ttm, int active, Frame** framep)
 {
     TTMERR err = TTM_NOERR;
     int done,depth;
@@ -764,25 +772,13 @@ collectargs(TTM* ttm, Frame* frame)
     size_t argoff = 0;
     char* cp8 = NULL;
     int ncp;
+    Frame* frame = NULL;
 
-#if 0
-{
-const char* p;
-TTMCP8SET(ttm);
-for(p=cp8;*p;p++) {
-if(strchr("	 \r\n",*p) != NULL)
-p++;
-}
-fprintf(stderr,"@@@ |%50s|\n",p);
-dumpstack(ttm);
-}
-#endif
-dumpstack(ttm);
     argoff = vsindex(ttm->vs.passive);
     done = 0; depth = 0;
     while(!done) { /* Loop until all args are collected */
 	TTMCP8SET(ttm);
-	if(isnul(cp8)) EXIT(TTM_EEOS); /* Unexpected end of buffer */
+	if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* Unexpected end of buffer */
 	if(isescape(cp8)) {
 	    TTMCP8NXT(ttm);
 	    vsindexappendn(ttm->vs.passive,cp8,ncp);
@@ -790,8 +786,12 @@ dumpstack(ttm);
 	} else if(u8equal(cp8,ttm->meta.semic) || u8equal(cp8,ttm->meta.closec)) {
 	    /* End of an argument */
 	    /* move to next arg */
+            if(frame == NULL) {
+		frame = pushFrame(ttm);
+		frame->active = active;
+	    }
 	    if(u8equal(cp8,ttm->meta.closec)) done=1;
-	    if(frame->argc >= MAXARGS) EXIT(TTM_EMANYPARMS)
+	    if(frame->argc >= MAXARGS) EXIT(ttm,TTM_EMANYPARMS)
 	    vsindexset(ttm->vs.passive,argoff);
 	    argp = vsindexp(ttm->vs.passive);
 	    frame->argv[frame->argc++] = strdup(argp);
@@ -809,7 +809,7 @@ dumpstack(ttm);
 		/* Recurse to compute inner call */
 		TTMCP8SET(ttm);
 		err = exec(ttm);
-		if(err != TTM_NOERR) EXIT(err);
+		if(err) EXIT(ttm,err);
 		TTMCP8SET(ttm);
 		if(ttm->flags.exit) goto done;
 	    }
@@ -817,7 +817,7 @@ dumpstack(ttm);
 	    depth = 1;
 	    TTMCP8NXT(ttm); /* skip '<' */
 	    for(;;) {
-		if(isnul(cp8)) EXIT(TTM_EEOS); /* Unexpected EOF */
+		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* Unexpected EOF */
 		if(isescape(cp8)) {
 		    vsindexappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
 		    TTMCP8NXT(ttm);
@@ -843,9 +843,11 @@ dumpstack(ttm);
 	    TTMCP8NXT(ttm);
 	}
     } /* collect argument for */
+    if(framep) {*framep = frame; frame = NULL;}
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
+
 /**************************************************/
 /**
 Execute a non-builtin function
@@ -878,7 +880,7 @@ call(TTM* ttm, Frame* frame, char* body, VString* result)
 	} else
 	    vsappendn(result,b8,u8size(b8));
     }
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**************************************************/
@@ -898,7 +900,7 @@ printstring(TTM* ttm, const char* s8arg, TTMFILE* output)
 
     if(s8arg == NULL) goto done;
     if((slen = (int)strlen(s8arg))==0) goto done;
-    s8 = unescape(s8arg);
+    s8 = unescape(ttm,s8arg);
 	
     for(p=s8;*p;p += u8size(p)) {
 	if(issegmark(p)) {
@@ -911,7 +913,7 @@ printstring(TTM* ttm, const char* s8arg, TTMFILE* output)
 	    fputs(info,output->file);
 	} else {
 #ifdef DEE
-	    if(deescape(p,cpa) < 0) {err = THROW(TTM_EUTF8); goto done;}
+	    if(deescape(p,cpa) < 0) {err = THROW(ttm,TTM_EUTF8); goto done;}
 	    /* print codepoint */
 	    ttmputc8(ttm,cpa,output);
 #else
@@ -920,10 +922,11 @@ printstring(TTM* ttm, const char* s8arg, TTMFILE* output)
 #endif
 	}
     }
+    fflush(stderr);
     fflush(output->file);
 done:
     nullfree(s8);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 #ifdef GDB
@@ -972,9 +975,10 @@ cleanstring(const char* s8, char* ctrls, size_t* pfinallen)
     const char* p = NULL;
     char* q = NULL;
     size_t len = 0;
-	char c;
+    char c;
 
     if(ctrls == NULL) ctrls = "\t\n\f";
+    if(s8 == NULL) s8 = "";
     len = strlen(s8);
     clean = (char*)calloc(sizeof(char),((4*len)+1)); /* max possible */
     for(p=s8,q=clean;*p;) {
@@ -1113,15 +1117,17 @@ fail:
 @param ttm
 @param frame
 @param i
-@return string or fail if not found or builtin.
+@return string or NULL if not found or builtin.
 */
 static Function*
 getdictstr(TTM* ttm, const Frame* frame, size_t i)
 {
     Function* str = NULL;
 
-    if((str = dictionaryLookup(ttm,frame->argv[i]))==NULL) FAILNONAME(i);
-    if(str && str->fcn.builtin) FAIL(ttm,TTM_ENOPRIM);
+    str = dictionaryLookup(ttm,frame->argv[i]);
+    if(str == NULL) goto done;
+    if(str->fcn.builtin) goto done;
+done:
     return str;
 }
 
@@ -1182,7 +1188,7 @@ of the TTM '@' escape character because it is only used by readline on external 
 @return copy of s8 with escaped characters modified || NULL if non codepoint encountered
 */
 static char*
-unescape(const char* s8)
+unescape(TTM* ttm, const char* s8)
 {
     TTMERR err = TTM_NOERR;
     char* deesc = NULL;
@@ -1195,7 +1201,7 @@ unescape(const char* s8)
     deesc = (char*)malloc(sizeof(char)*((4*len)+1)); /* max possible */
     for(p=s8,q=deesc;*p;) {
 	len = u8size(p);
-	if(len <= 0) EXITX(TTM_EUTF8); /* illegal utf8 char */
+	if(len <= 0) FATAL(ttm,TTM_EUTF8,NULL); /* illegal utf8 char */
 	if(len > 1) {
 	    /* non-ascii utf8 char */
 	    memcpycp(q,p); /* pass as is */
@@ -1212,11 +1218,11 @@ unescape(const char* s8)
 		    case 'f': c = '\f'; p++; break;
 		    case 't': c = '\t'; p++; break;
 		    case '1': case '0': /* apparently octal */
-			if(1!=scanf(p,"%03o",&c)) EXITX(TTM_EDECIMAL);
+			if(1!=scanf(p,"%03o",&c)) FATAL(ttm,TTM_EDECIMAL,NULL);
 			if(c > '\177') {err = TTM_EUTF8; goto done;}
 			p += 3; /* skip the octal digits */
 		    case 'x': case 'X': /* apparently hex */
-			if(1!=scanf(p,"%02x",&c)) EXITX(TTM_EDECIMAL);
+			if(1!=scanf(p,"%02x",&c)) FATAL(ttm,TTM_EDECIMAL,NULL);
 			p += 2; /* skip the hex digits */
 		    default: p++; break;
 		    }
@@ -1247,7 +1253,7 @@ of the TTM '@' escape mechanism because it is only used by readline.
 @return copy of line with comments elided || NULL if non codepoint encountered
 */
 static char*
-uncomment(const char* line)
+uncomment(TTM* ttm, const char* line)
 {
     TTMERR err = TTM_NOERR;
     char* decmt = NULL;
@@ -1261,7 +1267,7 @@ uncomment(const char* line)
     decmt = (char*)malloc(sizeof(char)*((4*len)+1)); /* max possible */
     for(p=line,q=decmt;*p;) {
 	ncp = u8size(p);
-	if(ncp <= 0) EXITX(TTM_EUTF8); /* illegal utf8 char */
+	if(ncp <= 0) FATAL(ttm,TTM_EUTF8,NULL); /* illegal utf8 char */
 	if(ncp == 1 && *p == SLASH && p[1] == SLASH) {/* look for comment */
 	    size_t rem = strlen(p); /* length of the comment */
 	    const char* pe = (p) + rem; /* point to trailing nul char */
@@ -1459,18 +1465,21 @@ usage(const char* msg)
 	fprintf(stderr,"%s\n",msg);
     fprintf(stderr,"%s\n",
 "usage: ttm <options> where the options are as follows:\n"
-"[-d [t]]	  -- set debug flags:\n"
-"		     't' -- turn on tracing\n"
-"		     'v' -- turn on verbose output\n"
-"		     '[0..9]*' -- set debug level\n"
-"[-f inputfile]	  -- defaults to stdin\n"
-"[-o file]	  -- defaults to stdout\n"
-"[-p programfile] -- main program to execute\n"
-"[-q]		  -- operate in quiet mode\n"
-"[-B]		  -- bare executionl; suppress startup commands\n"
-"[-P tag=value]	  -- set interpreter properties\n"
-"[-V]		  -- print version\n"
-"[--]		  -- stop processing command line options\n"
+"[-d t|v|0-9]	  -- set debug flags:\n"
+"			't' -- turn on tracing\n"
+"			'v' -- turn on verbose output\n"
+"			'[0..9]*' -- set debug level\n"
+"[-f file]	  -- read input from file; defaults to stdin.\n"
+"[-o file]	  -- send output to file; defaults to stdout.\n"
+"[-p programfile] -- main program to execute.\n"
+"[-q]		  -- operate in quiet mode.\n"
+"[-B]		  -- bare executionl; suppress startup commands.\n"
+"[-P tag=value]	  -- set interpreter properties.\n"
+"[-T]		  -- Tell the ttm processor that it is performing tests.\n"
+"[-V]		  -- print version.\n"
+"[-&]		  -- send error output to -o output ; otherwise it goes to stderr.\n"
+"			Note: the & may need escaping if command invoked in shell script (e.g -\\&)..\n"
+"[--]		  -- stop processing command line options.\n"
 "[arg...]	  -- arbitrary string arguments; accessible by argv/argc TTM function"
 );
     fprintf(stderr,"Options may be repeated\n");
@@ -1502,11 +1511,11 @@ readline(TTM* ttm, TTMFILE* f, char** linep)
     
     vsclear(line);
     for(;;) { /* Read thru next \n or \0 (EOF) */
-	if((np8=ttmnonl(ttm,f,p8)) <= 0) {err = THROW(TTM_EUTF8); goto done;}
+	if((np8=ttmnonl(ttm,f,p8)) <= 0) {err = THROW(ttm,TTM_EUTF8); goto done;}
 	if(isnul(p8)) {err = TTM_EEOF; goto done;}
 	if(*p8 == '\\') { /* Don't use ttm->meta.escapec */
 	    /* peek to see if this escape at end of line: '\''\n' */
-	    if((np8=ttmnonl(ttm,f,p8)) <= 0) {err = THROW(TTM_EUTF8); goto done;}
+	    if((np8=ttmnonl(ttm,f,p8)) <= 0) {err = THROW(ttm,TTM_EUTF8); goto done;}
 	    if(u8equal(p8,"\n")) {
 		/* escape of \n => elide escape and \n and continue reading */
 	    } else { /* pass the escape and the escaped char */
@@ -1522,9 +1531,9 @@ readline(TTM* ttm, TTMFILE* f, char** linep)
 	}
     }
     /* Check for comments */
-    decom = uncomment(vscontents(line));
+    decom = uncomment(ttm,vscontents(line));
     /* Convert any escapes to produce final result */
-    result = unescape(decom);
+    result = unescape(ttm,decom);
     if(linep) {*linep = result; result = NULL;}
 done:
     nullfree(decom);
@@ -1653,7 +1662,7 @@ processdebugargs(TTM* ttm, const char* debugargs)
     const char* p;
 	int level;
 
-    ttm->debug = dfalt_debug;
+    ttm->debug = dfalt_debug();
     for(p=debugargs;*p;p++) {
 	switch (*p) {
 	case 't':
@@ -1694,7 +1703,7 @@ execcmd(TTM* ttm, const char* cmd)
     ttmreset(ttm);
     ttm->debug.trace = savetrace;
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1705,31 +1714,28 @@ startup(TTM* ttm)
 
     if(!ttm->opts.bare) {
 	char** cmdp;
-#ifndef GDB
-	TRACE trprev = ttm->debug.trace;
-#endif
+        TRACE trprev = ttm->debug.trace;
 #ifdef GDB
-	fprintf(stderr,"Begin startup commands\n");
-#else
-	ttm->debug.trace = TR_OFF;
+	ttm->debug.trace = TR_ON;
 #endif
+	if(ttm->debug.trace == TR_ON)
+	    xfprintf(ttm,ttm->io._stderr,"Begin startup commands\n");
 	ttm->flags.starting = 1;
 	for(cmdp=startup_commands;*cmdp != NULL;cmdp++) {
 	    cmd = strdup(*cmdp);
-	    if((err = execcmd(ttm,cmd))) EXIT(err);
+	    if((err = execcmd(ttm,cmd))) EXIT(ttm,err);
 	    nullfree(cmd); cmd = NULL;
 	}
-#ifdef GDB
-	fprintf(stderr,"End startup commands\n");
-	fflush(stderr);
-#else
+	if(ttm->debug.trace == TR_ON)
+	    xfprintf(ttm,ttm->io._stderr,"End startup commands\n");
 	ttm->debug.trace = trprev;
-#endif
     }
 done:
+    ttmflush(ttm,ttm->io._stdout);
+    ttmflush(ttm,ttm->io._stderr);
     ttm->flags.starting = 0;
     nullfree(cmd);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1748,7 +1754,7 @@ eval(TTM* ttm)
 	cmd = vscontents(ttm->vs.tmp);
 	cmd = nulldup(cmd); /* avoid compiler complaint */
 #endif
-	if(cmd == NULL) {err = THROW(TTM_EMEMORY); goto done;}
+	if(cmd == NULL) {err = THROW(ttm,TTM_EMEMORY); goto done;}
 #if DEBUG > 0
 	if(ttm->debug.trace) {
 	    char* tmp = (char*)cleanstring(cmd,"\t",NULL);
@@ -1756,12 +1762,12 @@ eval(TTM* ttm)
 	    nullfree(tmp); tmp = NULL;
 	}
 #endif
-	if((err=execcmd(ttm,cmd))) EXIT(err);
+	if((err=execcmd(ttm,cmd))) EXIT(ttm,err);
 	if(ttm->flags.exit) goto done;
     }
 done:
     nullfree(cmd);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**************************************************/
@@ -1777,6 +1783,7 @@ main(int argc, char** argv)
     char debugargs[16] = {'\0'};
     char* outputfilename = NULL;
     char* inputfilename = NULL; /* This is data for #<rs> */
+    int mergeerrout = 0;
     int c;
     struct OPTS opts;
     struct Properties option_props;
@@ -1795,7 +1802,7 @@ main(int argc, char** argv)
     vlpush(argoptions,strdup(argv[0]));
 
     /* Option processing */
-    while ((c = getopt(argc, argv, "d:f:io:p:qvBP:TV-")) != EOF) {
+    while ((c = getopt(argc, argv, "d:f:o:p:qvBP:TV&-")) != EOF) {
 	switch(c) {
 	case 'd':
 	    strcat(debugargs,optarg);
@@ -1836,6 +1843,9 @@ main(int argc, char** argv)
 	    printf("ttm version: %s\n",VERSION);
 	    exit(0);
 	    break;
+	case '&':
+	    mergeerrout = 1;
+	    break;
 	case '-':
 	    break;
 	case '?':
@@ -1864,7 +1874,7 @@ main(int argc, char** argv)
     /* Lock up all the currently defined functions */
     lockup(ttm);
 
-    if((err=setupio(ttm,inputfilename,outputfilename))) {
+    if((err=setupio(ttm,inputfilename,outputfilename,mergeerrout))) {
 	fprintf(stderr,"IO setup failure: (%d) %s\n",(int)err,ttmerrmsg(err));
 	exit(1);
     }
@@ -1876,8 +1886,13 @@ main(int argc, char** argv)
 
 done:
     exitcode = ttm->flags.exitcode;
-    if(err) exitcode = 1;
-    if(err) FAIL(ttm,err);
+
+    /* Report any error */
+    if(err) {
+	xfail(ttm,"Fatal Error: %s",ttm->debug.ei.xpr.xbuf);
+	exitcode = 0;
+    }
+
     /* cleanup */
     closeio(ttm);
     /* Clean up misc state */
@@ -1885,7 +1900,7 @@ done:
     nullfree(inputfilename);
     freeTTM(ttm);
     reclaimglobals();
-    return (exitcode?1:0); // exit(exitcode);
+    return exitcode; // exit(exitcode);
 }
 
 /**************************************************/
@@ -1909,6 +1924,7 @@ code for higher levels.
 static int
 ttmgetc8(TTM* ttm, TTMFILE* f, char* p8)
 {
+    int err = TTM_NOERR;
     int c;
     int i, cplen;
 
@@ -1918,7 +1934,10 @@ ttmgetc8(TTM* ttm, TTMFILE* f, char* p8)
     } else {
 	c = fgetc(f->file); /* read first char of codepoint */
 	if(ttmeof(ttm,f)) c = '\0';
-	if(ttmerror(ttm,f)) FAIL(ttm,errno);
+	if((err=ttmerror(ttm,f))) {
+	    xprintf(ttm,"%s",ttmerrmsg(err));
+	    abort();
+	}
 	p8[0] = c;
 	cplen = u8sizec(c);
 	for(i=1;i<cplen;i++) { /* read rest of the codepoint */
@@ -1926,11 +1945,15 @@ ttmgetc8(TTM* ttm, TTMFILE* f, char* p8)
 	    p8[i] = (char)c;
 	    if(c == EOF) {p8[0] = NUL8; cplen = 1; break;}
 	}
-	if(ttmerror(ttm,f)) FAIL(ttm,TTM_EIO);
+	if((err=ttmerror(ttm,f))) {
+	    xprintf(ttm,"%s",ttmerrmsg(TTM_EIO));
+	    abort();
+	}
 	cplen = u8size(p8);
-	if(cplen == 0) FAIL(ttm,TTM_EUTF8);
-	if(u8validcp(p8) < 0) FAIL(ttm,TTM_EUTF8);
+	if(cplen == 0) EXIT(ttm,TTM_EUTF8);
+	if(u8validcp(p8) < 0) EXIT(ttm,TTM_EUTF8);
     }
+done:
     return cplen;
 }
 
@@ -1939,13 +1962,16 @@ Push back a codepoint; the pushed codepoints form a stack.
 @param ttm
 @param f the file being read
 @param p8 the codepoint to push
-@return void
+@return TTMERR
 */
-static void
+static TTMERR
 ttmpushbackc(TTM* ttm, TTMFILE* f, char* p8)
 {
-    if(f->npushed >= (MAXPUSHBACK)) FAIL(ttm,TTM_EIO); /* too many pushes */
+    int err = TTM_NOERR;
+    if(f->npushed >= (MAXPUSHBACK)) EXIT(ttm,TTM_EIO); /* too many pushes */
     memcpycp(f->stack[f->npushed++],p8); /* push to stack */
+done:
+    return THROW(ttm,err);
 }
 
 /**
@@ -1991,7 +2017,10 @@ ttmputc8(TTM* ttm, const char* p8, TTMFILE* f)
     int c;
 
     cplen = u8size(p8);
-    if(cplen == 0) FAIL(ttm,TTM_EUTF8);
+    if(cplen == 0) {
+	xprintf(ttm,"%s",ttmerrmsg(TTM_EUTF8));
+	abort();
+    }
     for(i=0;i<cplen;i++) {
 	c = (UTF8P(p8)[i] & 0xFF);
 	/* Track if current output is at newline */

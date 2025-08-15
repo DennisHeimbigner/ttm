@@ -1,6 +1,6 @@
 /* ttmX.c Core execution functions */
 static TTMERR scan(TTM* ttm);
-static TTMERR collectargs(TTM* ttm, Frame* frame);
+static TTMERR collectargs(TTM* ttm, int active, Frame** framep);
 static TTMERR exec(TTM* ttm);
 static TTMERR call(TTM* ttm, Frame* frame, char* body, VString* result);
 static TTMERR printstring(TTM* ttm, const char* s8, TTMFILE* output);
@@ -17,7 +17,7 @@ static void initTTM();
 static void usage(const char* msg);
 static TTMERR readline(TTM* ttm, TTMFILE* f, char** linep);
 static TTMERR readfile(TTM* ttm, const char* fname, VString* buf);
-static char* unescape(const char* s8);
+static char* unescape(TTM*, const char* s8);
 static void setproperty(TTM*, const char* key, const char* value);
 static void syncproperty(TTM* ttm, const char* key, const char* value);
 static const char* propdfalt2str(enum PropEnum dfalt, size_t n);
@@ -35,7 +35,7 @@ static const char* u8ithcp(const char* base, size_t n);
 static int u8ith(const char* base, size_t n);
 static const char* u8backup(const char* p0, const char* base);
 static TTMERR u8peek(char* s, size_t n, char* cpa);
-static TTMERR strsubcp(const char* sstart, size_t send, size_t* pncp);
+static TTMERR strsubcp(TTM*,const char* sstart, size_t send, size_t* pncp);
 static const char* strchr8(const char* s, const char* cp);
 static const char* strstr8(const char* s, const char* pattern);
 /* ttmX.c Utility functions */
@@ -78,11 +78,14 @@ static enum MetaEnum metaenumdetect(const char* s);
 /* ttmX.c IO utilities */
 static int ttmgetc8(TTM* ttm, TTMFILE* f, char* cp8);
 static int ttmnonl(TTM* ttm, TTMFILE* f, char* cp8);
-static void ttmpushbackc(TTM* ttm, TTMFILE* f, char* cp8);
+static TTMERR ttmpushbackc(TTM* ttm, TTMFILE* f, char* cp8);
 static int ttmputc8(TTM* ttm, const char* c8, TTMFILE* f);
-static void xprintf(TTM*,const char* fmt,...);
-static void vxprintf(TTM*,const char* fmt, va_list ap);
-static TTMERR setupio(TTM* ttm, const char* infile, const char* outfile);
+static void xfprintf(TTM*,TTMFILE*,const char* fmt,...);
+static void xsprintf(TTM*,const char* fmt,...);
+static void vxfprintf(TTM*, TTMFILE*, const char* fmt, va_list ap);
+static void vxsprintf(TTM* ttm, char* xbuf, const char* fmt, va_list ap);
+static TTMERR setupio(TTM* ttm, const char* infile, const char* outfile, int merge_err_out);
+static TTMERR buildfile(TTM* ttm, const char* fname, FILE* std, int mode, TTMFILE** iop);
 static void closeio1(TTM* ttm, TTMFILE* f);
 static void closeio(TTM* ttm);
 
@@ -186,7 +189,6 @@ static TTMERR ttm_switch(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_clearpassive(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_include(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_void(TTM* ttm, Frame* frame, VString* result);
-static TTMERR ttm_wd(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_breakpoint(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_setprop(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_resetprop(TTM* ttm, Frame* frame, VString* result);
@@ -212,16 +214,18 @@ static void ttmrmfile(TTM* ttm, const char* filename);
 /* Debug.h */
 static void ttmbreak(TTMERR err);
 static TTMERR ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line);
+static void seterrinfo(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line);
+static void seterrmsg(TTM* ttm, const char* fmt, va_list ap);
 static void dumpframe(TTM* ttm, Frame* frame);
 static void dumpstack(TTM* ttm);
 static void traceframe(TTM* ttm, Frame* frame, int traceargs);
 static void trace1(TTM* ttm, TTMERR err, int depth, int entering, int tracing);
 static void trace(TTM* ttm, TTMERR err, int entering, int tracing);
-static void fail(TTM* ttm, TTMERR eno, const char* fcn, int line);
-static TTMERR failx(TTM* ttm, TTMERR eno, const char* fcn, int line, const char* fmt, ...);
-static TTMERR failxcxt(TTM* ttm, TTMERR eno, const char* fcn, int line);
+static TTMERR xfail(TTM* ttm,const char* fmt,...);
+static TTMERR failxcxt(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line);
 static const char* ttmerrmsg(TTMERR err);
 static const char* ttmerrname(TTMERR err);
+static TTMERR ttmerrfor(const char* ename);
 
 #ifdef GDB
 static void dumpnames(TTM* ttm);

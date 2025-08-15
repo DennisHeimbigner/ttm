@@ -161,12 +161,11 @@
 #<cm;.> // change EOL
 ##<eq?;##<psr;reading line1:>;line1;<##<psr>=line1>;<##<psr> failed>> // read upto meta char ('.')
 #<cm;\n>// restore EOL
-##<eq?;##<rs>;line2;<##<psr>=line2>;<##<psr> failed>> // read upto meta char: '.'
-##<eq?;##<rs>;line3;<##<psr>=line3>;<##<psr> failed>> // read upto meta char: '.'
+##<eq?;##<rs>;line2;<##<rs>=line2>;<##<rs> failed>> // read upto meta char: '.'
+##<eq?;##<rs>;line3;<##<rs>=line3>;<##<rs> failed>> // read upto meta char: '.'
 #<def;n!;N;<#<le;N;1;1;<#<mu;N;#<n!;#<su;N;1>>>>>>>
 ##<ttm;info;name;n!>
 #<n!;3>
 ##<ps;<\n>>
-##<breakpoint>
 ##<clearpassive>
 #<exit>

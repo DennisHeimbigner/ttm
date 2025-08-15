@@ -24,19 +24,19 @@
 /**************************************************/
 /* Macro Functions */
 
-#ifdef CATCH
-#define THROW(err) ttmthrow(ttm,err,__FILE__,__FUNCTION__,__LINE__)
-#define THROWX(err) ttmthrow(NULL,err,__FILE__,__FUNCTION__,__LINE__)
-#else
-#define THROW(err) (err)
-#define THROWX(err) (err)
-#endif
+#define THROW(ttm,eno) ttmthrow(ttm,eno,__FILE__,__FUNCTION__,__LINE__)
+#define THROWMSG(ttm,eno,fmt,...) ttmthrowmsg(ttm,eno,__FILE__,__FUNCTION__,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__)
 
-#define FAILX(ttm,eno,fmt,...) THROW(failx(ttm,eno,__FILE__,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__))
-#define FAIL(ttm,eno) fail(ttm,eno,__FILE__,__LINE__)
+#define EXIT(ttm,eno) {err = THROW(ttm,eno); goto done;}
+#define EXITMSG(ttm,eno,fmt,...) {err = THROWMSG(ttm,eno,fmt  __VA_OPT__(,) __VA_ARGS__); goto done;}
 
-#define EXIT(ttmerr) {err = THROW(ttmerr); goto done;}
-#define EXITX(ttmerr) {err = THROWX(ttmerr); goto done;}
+#define FAILNONAME(i)  FAILNONAMES(frame->argv[i])
+#define FAILNOCLASS(i) FAILNOCLASSS(frame->argv[i])
+#define FAILNONAMES(s)	EXITMSG(ttm,TTM_ENONAME,"Missing dict name=%s\n",(const char*)(s))
+#define FAILNOCLASSS(s) EXITMSG(ttm,TTM_ENOCLASS,"Missing class name=%s\n",(const char*)(s))
+
+/* When an err occurs in a function not returning TTMERR */
+#define FATAL(ttm,eno,fmt,...) assert(((void)THROWMSG(ttm,eno,fmt  __VA_OPT__(,) __VA_ARGS__),0))
 
 /**************************************************/
 /* "inline" functions */
@@ -77,8 +77,4 @@
 		? ((c - 'a') + 10) \
 		: -1)))
 
-#define FAILNONAME(i)  FAILNONAMES(frame->argv[i])
-#define FAILNOCLASS(i) FAILNOCLASSS(frame->argv[i])
-#define FAILNONAMES(s)	FAILX(ttm,TTM_ENONAME,"Missing dict name=%s\n",(const char*)(s))
-#define FAILNOCLASSS(s) FAILX(ttm,TTM_ENOCLASS,"Missing class name=%s\n",(const char*)(s))
 

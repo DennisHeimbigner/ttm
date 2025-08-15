@@ -97,3 +97,6 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 
 /* Path segment for ./Windows */
 #define LOCALWINSEG "/Windows"
+
+/* Name of the default key for #<switch> */
+#define DFALTKEY "__default__"

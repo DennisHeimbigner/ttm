@@ -1,5 +1,3 @@
-#ifdef CATCH
-
 /**************************************************/
 static void
 ttmbreak(TTMERR err)
@@ -8,69 +6,104 @@ ttmbreak(TTMERR err)
 }
 
 static TTMERR
+ttmthrowmsg(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line, const char* fmt, ...)
+{
+    va_list ap;
+    va_start(ap,fmt);
+    if(eno != TTM_NOERR) {
+	seterrmsg(ttm,fmt,ap);
+    }
+    va_end(ap);
+    return ttmthrow(ttm,eno,file,fcn,line);
+}
+
+static TTMERR
 ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line)
 {
-    UNUSED(ttm); UNUSED(file); UNUSED(fcn),UNUSED(line);
     if(err != TTM_NOERR) {
+	seterrinfo(ttm,err,file,fcn,line);
         if(ttm != NULL && ttm->debug.debug > 1) {
-	    fprintf(stderr,"THROW: (%d) %s; %s.%s.%d\n",err,ttmerrmsg(err),file,fcn,line);
+	    fprintf(stderr,"THROW: (%d) %s; %s.%d\n",err,ttmerrmsg(err),fcn,line);
 	    if(vslength(ttm->vs.active) > 0) {
 	        fprintf(stderr,"\tactive=%s\n",vscontents(ttm->vs.active));
     	        fprintf(stderr,"\tactive[%zu]=%s\n",vsindex(ttm->vs.active),vsindexp(ttm->vs.active));
 	    }
-	    if(vslength(ttm->vs.passive) > 0) {
-	        fprintf(stderr,"\tpassive=%s\n",vscontents(ttm->vs.passive));
-    	        fprintf(stderr,"\tpassive[%zu]=%s\n",vsindex(ttm->vs.passive),vsindexp(ttm->vs.passive));
+	    if(ttm->debug.debug > 2) {
+		if(vslength(ttm->vs.passive) > 0) {
+		    fprintf(stderr,"\tpassive=%s\n",vscontents(ttm->vs.passive));
+    	            fprintf(stderr,"\tpassive[%zu]=%s\n",vsindex(ttm->vs.passive),vsindexp(ttm->vs.passive));
+		}
 	    }
 	}
 	ttmbreak(err);
     }
     return err;
 }
-#endif
 
-/* Wrap vxprintf same way fprintf wraps vprintf */
 static void
-xprintf(TTM* ttm, const char* fmt,...)
+seterrinfo(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line)
 {
-    va_list ap;
-    va_start(ap,fmt);
-    vxprintf(ttm,fmt,ap);
-    va_end(ap);
+    ttm->debug.ei.eno = err;
+    ttm->debug.ei.file = file;
+    ttm->debug.ei.fcn = fcn;
+    ttm->debug.ei.line = line;
 }
 
+static void
+seterrmsg(TTM* ttm, const char* fmt, va_list ap)
+{
+    vxsprintf(ttm,ttm->debug.ei.xpr.xbuf,fmt,ap);
+}
+
+
 /**
-Similar to vprintf, but:
-1. calls cleanstring on the outgoing text.
-2. leaves the trailing '\n'
-3. remembers that output did/did-not end with a newline.
+Append formatted data to end of buf
 @param ttm
+@param xbuf
 @param fmt
 @param ap
 @return void
 */
 static void
-vxprintf(TTM* ttm, const char* fmt, va_list ap)
+vxsprintf(TTM* ttm, char* xbuf, const char* fmt, va_list ap)
 {
-    char* xbuf = NULL;
+    size_t xlen = 0;
+    char* p = NULL;
+    
+    if(fmt == NULL) return;
+    xlen = strlen(xbuf);
+    p = &xbuf[xlen];
+    /* print at end of xpr.xbuf */
+    (void)vsprintf(p, fmt, ap);
+}
+
+/**
+Similar to vfprintf, but:
+1. calls cleanstring on the outgoing text.
+2. leaves the trailing '\n'
+3. remembers that output did/did-not end with a newline.
+@param ttm
+@param file -- TTMFILE on which to print
+@param fmt
+@param ap
+@return void
+*/
+static void
+vxfprintf(TTM* ttm, TTMFILE* file, const char* fmt, va_list ap)
+{
     size_t xsize = 0;
     int hasnl = 0;
-    size_t xlen = 0;
     size_t xfinal = 0;
-    char* p = NULL;
     FILE* xfile = NULL;
-
-    xfile = ttm->io._stderr->file;
-    hasnl = ttm->debug.xpr.outnl;
+    char* xbuf;
     
-    xbuf = ttm->debug.xpr.xbuf;
-    xsize = sizeof(ttm->debug.xpr.xbuf);
-    xlen = strlen(xbuf);
-    assert(xsize >= (4*xlen)+1);
+    xfile = file->file;
+    xbuf = ttm->debug.ei.xpr.xbuf;
 
-    p = &xbuf[xlen];
-    (void)vsnprintf(p, xsize - xlen, fmt, ap);
+    /* Print at end of xpr.xbuf */
+    vxsprintf(ttm,xbuf,fmt,ap);
 
+    /* Prepare for printing to a file */
     xfinal = strlen(xbuf);
     if(xfinal > 0) {
 	char* tmp = NULL;
@@ -88,8 +121,40 @@ vxprintf(TTM* ttm, const char* fmt, va_list ap)
 	fprintf(xfile,"%s",xbuf);
         xbuf[0] = '\0'; /* reset */
     }
-    fflush(stdout); fflush(stderr);
-    ttm->debug.xpr.outnl = hasnl;
+    fflush(xfile);
+    ttm->debug.ei.xpr.outnl = hasnl;
+}
+
+/* Wrap vxfprintf (ala fprintf and vprintf) */
+static void
+xfprintf(TTM* ttm, TTMFILE* file, const char* fmt,...)
+{
+    va_list ap;
+    va_start(ap,fmt);
+    vxfprintf(ttm,file,fmt,ap);
+    va_end(ap);
+}
+
+/* Wrap vxfprintf (ala fprintf and vprintf) but using ttm->io._stderr */
+static void
+xprintf(TTM* ttm, const char* fmt,...)
+{
+    va_list ap;
+    va_start(ap,fmt);
+    vxfprintf(ttm,ttm->io._stderr,fmt,ap);
+    va_end(ap);
+}
+
+/* Wrap vxsprintf same way sprintf wraps vsprintf */
+static void
+xsprintf(TTM* ttm, const char* fmt,...)
+{
+    va_list ap;
+
+    ttm->debug.ei.xpr.xbuf[0] = '\0';
+    va_start(ap,fmt);
+    vxsprintf(ttm,ttm->debug.ei.xpr.xbuf,fmt,ap);
+    va_end(ap);
 }
 
 #if DEBUG > 0
@@ -244,10 +309,13 @@ static void
 dumpstack(TTM* ttm)
 {
     int i;
+    fflush(stdout); fflush(stderr);
     for(i=0;i<=ttm->frames.top;i++) {
-	xprintf(ttm,"[%d] ",i);
-	dumpframe(ttm,&ttm->frames.stack[i]);
-	xprintf(ttm,"\n");
+	Frame* frame = &ttm->frames.stack[i];
+	if(frame->argc > 0) {
+	    xprintf(ttm,"[%d] ",i);
+	    dumpframe(ttm,frame);
+	}
     }
     fflush(stderr);
 }
@@ -266,7 +334,7 @@ done:
 }
 
 static void
-traceframe(TTM* ttm, Frame* frame, int traceargs)
+traceframe(TTM* ttm, Frame* frame, int entering)
 {
     char tag[1+(4*MAXCP8SIZE)]; /* 4 codepoints + NUL8 */
     char* p;
@@ -288,7 +356,7 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
     *p = NUL8;
     xprintf(ttm,"%s",tag);
     xprintf(ttm,"%s",frame->argv[0]);
-    if(traceargs) {
+    if(entering) {
 	for(i=1;i<frame->argc;i++) {
 	    char* cleaned = cleanstring(frame->argv[i],"\t",NULL);
 	    int significant = chintersects(METACHARS,cleaned);
@@ -298,6 +366,31 @@ traceframe(TTM* ttm, Frame* frame, int traceargs)
 		cleaned,
 		significant?">":"");
 	    nullfree(cleaned);
+	}
+    } else {/*exiting*/
+	/* Special hack for ttm; print some additional args */
+	if(strcmp(frame->argv[0],"ttm")==0 && frame->argc >= 2) {
+	    enum TTMEnum cmd = ttmenumdetect(frame->argv[1]);
+	    xprintf(ttm,";%s",frame->argv[1]);
+	    switch (cmd) {
+	    case TE_META:
+		if(frame->argc >= 3)
+		    xprintf(ttm,";%s",frame->argv[2]);
+		break;
+	    case TE_INFO:
+		if(frame->argc >= 3)
+		    xprintf(ttm,";%s",frame->argv[2]);
+		break;
+	    case TE_LIST:
+		if(frame->argc >= 3)
+		    xprintf(ttm,";%s",frame->argv[2]);
+		break;
+	    case TE_SYSTEM:
+		if(frame->argc >= 3)
+		    xprintf(ttm,";%s",frame->argv[2]);
+		break;
+	    default: break;
+	    }
 	}
     }
     xprintf(ttm,"%s",ttm->meta.closec);
@@ -309,7 +402,7 @@ trace1(TTM* ttm, TTMERR err, int depth, int entering, int tracing)
 {
     Frame* frame;
 
-    if(!ttm->debug.xpr.outnl) xprintf(ttm,"\n");
+    if(!ttm->debug.ei.xpr.outnl) xprintf(ttm,"\n");
 
     if(tracing && ttm->frames.top < 0) {
 	xprintf(ttm,"trace: no frame to trace\n");
@@ -324,13 +417,14 @@ trace1(TTM* ttm, TTMERR err, int depth, int entering, int tracing)
 
     /* Dump the contents of result or err if !entering */
     if(!entering) {
-	if(err == TTM_NOERR)
-	    xprintf(ttm," => |%s|",vscontents(ttm->vs.result));
-	else	
+	if(err == TTM_NOERR) {
+	    char* cleaned = cleanstring(vscontents(ttm->vs.result),"\t",NULL);
+	    xprintf(ttm," => |%s|",cleaned);
+	    nullfree(cleaned);
+	} else
 	    xprintf(ttm," => %s",ttmerrname(err));
     } 
     xprintf(ttm,"\n");
-    fflush(stderr);
 }
 
 /**
@@ -373,18 +467,20 @@ fprintf(stderr,"%08x\n",x);
 }
 
 /**************************************************/
-/* Error reporting */
+/* Error reporting support functions */
 
+/* Report captured error message */
 static TTMERR
-failx(TTM* ttm, TTMERR eno, const char* file, int line, const char* fmt, ...)
+xfail(TTM* ttm,const char* fmt,...)
 {
     TTMERR err = TTM_NOERR;
     va_list ap;
 
-    err = failxcxt(ttm,eno,file,line);
+    err = ttm->debug.ei.eno;
+    failxcxt(ttm,err,ttm->debug.ei.file,ttm->debug.ei.fcn,ttm->debug.ei.line);
     if(fmt != NULL) {
 	va_start(ap, fmt);
-	vfprintf(stderr,fmt,ap);
+	vxsprintf(ttm,ttm->debug.ei.xpr.xbuf,fmt,ap);
 	va_end(ap);
     }
     return err;
@@ -409,11 +505,14 @@ shorten(const char* text,size_t len)
 
 /* Print context */
 static TTMERR
-failxcxt(TTM* ttm, TTMERR eno, const char* file, int line)
+failxcxt(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line)
 {
     fprintf(stderr,"Fatal error: %s(%d) %s\n",ttmerrname(eno),(int)eno,ttmerrmsg(eno));
-    fprintf(stderr,"\twhere: %s:%d\n",file,line);
+    fprintf(stderr,"\twhere: %s.%d\n",fcn,line);
+#if 0
+Fix
     fprintf(stderr,"\tinput line=%d\n",ttm->flags.lineno);
+#endif
     if(ttm != NULL) {
 	char* passivetext = NULL;
 	char* activetext = NULL;
@@ -421,33 +520,28 @@ failxcxt(TTM* ttm, TTMERR eno, const char* file, int line)
         fprintf(stderr,"frame stack:\n-------------------------\n");
         dumpstack(ttm);
 	fprintf(stderr,"-------------------------\n");
-	/* Dump passive and active strings*/
-	xprintf(ttm,"failx.context:\n");
-	passivetext = cleanstring(vscontents(ttm->vs.passive),"",NULL);
-	activetext = cleanstring(vscontents(ttm->vs.active)+vsindex(ttm->vs.active),"",NULL);
-	if(!ttm->opts.verbose) { /* Shorten active and passive printout */
-	    char* shorted = NULL;
-	    shorted = shorten(passivetext,SHORTTEXTLEN);
+	if(ttm->debug.debug > 2) {
+	    /* Optionally Dump passive and active strings*/
+	    xprintf(ttm,"failx.context:\n");
+	    passivetext = cleanstring(vscontents(ttm->vs.passive),"",NULL);
+	    activetext = cleanstring(vscontents(ttm->vs.active)+vsindex(ttm->vs.active),"",NULL);
+	    if(!ttm->opts.verbose) { /* Shorten active and passive printout */
+		char* shorted = NULL;
+		shorted = shorten(passivetext,SHORTTEXTLEN);
+		nullfree(passivetext);
+		passivetext = shorted;
+		shorted = shorten(activetext,SHORTTEXTLEN);
+		nullfree(activetext);
+		activetext = shorted;
+	    }
+	    xprintf(ttm,"\tpassive=|%s|\n",passivetext);
+	    xprintf(ttm,"\tactive=|%s|\n",activetext);
 	    nullfree(passivetext);
-	    passivetext = shorted;
-	    shorted = shorten(activetext,SHORTTEXTLEN);
 	    nullfree(activetext);
-	    activetext = shorted;
 	}
-	xprintf(ttm,"\tpassive=|%s|\n",passivetext);
-	xprintf(ttm,"\tactive=|%s|\n",activetext);
-	nullfree(passivetext);
-	nullfree(activetext);
     }
     fflush(stderr);
-    return THROW(eno);
-}
-
-static void
-fail(TTM* ttm, TTMERR eno, const char* file, int line)
-{
-    failx(ttm,eno,file,line,NULL);
-    exit(1);
+    return eno;
 }
 
 /* Name an message for each error.
@@ -541,6 +635,21 @@ ttmerrname(TTMERR err)
 	errname = ename0;
     }
     return errname;
+}
+
+static TTMERR
+ttmerrfor(const char* ename)
+{
+    TTMERR err = TTM_NOERR;
+    struct TTMERRINFO* tei = NULL;
+    int match;
+
+    /* Linear search */
+    for(match=0,tei=ttmerrinfo;!match || tei->errname != NULL;tei++) {/* stop at end of list signal */	
+	if(strcmp(tei->errname,ename)==0) {err = tei->err; match = 1; break;}
+    }	
+    if(!match) err = TTM_ERROR;
+    return err;
 }
 
 /**************************************************/

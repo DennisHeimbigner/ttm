@@ -157,7 +157,7 @@ Count number of codepoints in a sub-string of a string
 @return TTMERR; especially TTM_EEOS if eos encountered during codeppoint scan
 */
 static TTMERR
-strsubcp(const char* sstart, size_t slen, size_t* pnc)
+strsubcp(TTM* ttm, const char* sstart, size_t slen, size_t* pnc)
 {
     TTMERR err = TTM_NOERR;
     size_t ncodepoints = 0;
@@ -165,8 +165,8 @@ strsubcp(const char* sstart, size_t slen, size_t* pnc)
     const char* q = p + slen;
     for(ncodepoints=0;p < q;ncodepoints++) {
 	int ncp = u8size(p);
-	if(ncp <= 0) EXITX(TTM_EUTF8);
-	if(isnul(p)) EXITX(TTM_EEOS);
+	if(ncp <= 0) EXIT(ttm,TTM_EUTF8);
+	if(isnul(p)) EXIT(ttm,TTM_EEOS);
 	p += ncp;
     }
     if(pnc) *pnc = ncodepoints;

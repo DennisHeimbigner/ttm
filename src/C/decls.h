@@ -24,16 +24,18 @@ struct VList;
 struct Debug;
 
 /**************************************************/
-/* Global variables */
+/* Defaulters */
 
-struct Debug dfalt_debug = {
-	DFALTTRACE,		/* .trace */
-	0,			/* .debug */
-	{			/* .xpr */
-		{0},		/* /xpr.xbuf */
-		0,		/* /xpr.outnl */
-	}
+static struct Debug
+dfalt_debug(void)
+{
+    struct Debug dfalt;
+    memset(&dfalt,0,sizeof(struct Debug));
+    return dfalt;
 };
+
+/**************************************************/
+/* Global variables */
 
 /* Cause <argv;0>, <wd>, <time>, <xtime> to output fixed values
    so that we can compare to baseline without massaging
@@ -43,13 +45,15 @@ struct Testing {
     const char* wd;
     const char* time;
     const char* xtime;
-    const char* fps;
+    const char* sep;
+    const char* platform;
 } fixedtestvalues = {
     "ttm.exe",		/* .argv0 */
-    "/ttm/src/C",	/* .wd */
+    ":wd:",		/* .wd */
     ":time:",		/* .time */
     ":xtime:",		/* .xtime */
     "/",		/* .fps */
+    "Unix",		/* .platform */
 };
 
 static VList* argoptions = NULL; /* command line arguments */

@@ -10,8 +10,8 @@ struct Builtin;
 #define TTMFCN_END(ttm,frame,vsresult)
 
 /* Forward */
-static void defineBuiltinFunction1(TTM* ttm, struct Builtin* bin);
-static void defineBuiltinFunctions(TTM* ttm);
+static TTMERR defineBuiltinFunction1(TTM* ttm, struct Builtin* bin);
+static TTMERR defineBuiltinFunctions(TTM* ttm);
 static char* trim(const char* s0, const char* ws);
 
 /* Dictionary Operations */
@@ -30,7 +30,7 @@ ttm_ap(TTM* ttm, Frame* frame, VString* result) /* Append to a string */
 	err = ttm_ds(ttm,frame,result);
 	goto done;
     }
-    if(str->fcn.builtin) EXIT(TTM_ENOPRIM);
+    if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
     apstring = frame->argv[2];
     aplen = strlen((const char*)apstring);
     body = str->fcn.body;
@@ -38,7 +38,7 @@ ttm_ap(TTM* ttm, Frame* frame, VString* result) /* Append to a string */
     vsindexset(body,vslength(body));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -58,7 +58,7 @@ ttm_cf(TTM* ttm, Frame* frame, VString* result) /* Copy a function */
     struct HashEntry saveentry;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(oldfcn == NULL) {err = FAILNONAMES(oldname); goto done;}
+    if(oldfcn == NULL) FAILNONAMES(oldname);
     if(newfcn == NULL) {
 	/* create a new string object with given name */
 	newfcn = newFunction(ttm,newname);
@@ -73,7 +73,7 @@ ttm_cf(TTM* ttm, Frame* frame, VString* result) /* Copy a function */
 	newfcn->fcn.body = vsclone(newfcn->fcn.body);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -84,7 +84,7 @@ ttm_ds(TTM* ttm, Frame* frame, VString* result)
     Function* str = NULL;
     TTMFCN_BEGIN(ttm,frame,result);
     str = dictionaryLookup(ttm,frame->argv[1]);
-    if(str != NULL && str->fcn.locked) EXIT(TTM_ELOCKED);
+    if(str != NULL && str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     if(str != NULL) { /* clean for re-use */
 	resetFunction(ttm,str);
     } else {
@@ -102,7 +102,7 @@ ttm_ds(TTM* ttm, Frame* frame, VString* result)
     vsindexset(str->fcn.body,0);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -126,7 +126,7 @@ ttm_es(TTM* ttm, Frame* frame, VString* result) /* Erase string */
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -176,7 +176,7 @@ ttm_subst(TTM* ttm, VString* text, const char* pattern, size_t segindex, size_t*
 done:
     vsindexset(text,rp); /* restore */
     if(segcountp) *segcountp = segcount;
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 
@@ -192,15 +192,15 @@ ttm_sc(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     char count[64];
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(TTM_ENONAME);
-    if(str->fcn.builtin) EXIT(TTM_ENOPRIM);
-    if(str->fcn.locked) EXIT(TTM_ELOCKED);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
+    if(str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     text = str->fcn.body;
     segindex = SEGINDEXFIRST;
     segcount = 0;
     for(i=2;i<frame->argc;i++,segindex++) {
 	nsegs = 0;
-	if((err=ttm_subst(ttm,text,frame->argv[i],segindex,&nsegs))) EXIT(err);
+	if((err=ttm_subst(ttm,text,frame->argv[i],segindex,&nsegs))) EXIT(ttm,err);
 	segcount += nsegs;
     }
     snprintf(count,sizeof(count),"%zu",segcount);
@@ -208,7 +208,7 @@ ttm_sc(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     vsappendn(result,(const char*)count,strlen(count));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -221,17 +221,17 @@ ttm_ss(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     VString* text = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(TTM_ENONAME);
-    if(str->fcn.builtin) EXIT(TTM_ENOPRIM);
-    if(str->fcn.locked) EXIT(TTM_ELOCKED);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
+    if(str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     text = str->fcn.body;
     segindex = SEGINDEXFIRST;
     for(i=2;i<frame->argc;i++,segindex++) {
-	if((err=ttm_subst(ttm,text,frame->argv[i],segindex,NULL))) EXIT(err);
+	if((err=ttm_subst(ttm,text,frame->argv[i],segindex,NULL))) EXIT(ttm,err);
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -243,14 +243,14 @@ ttm_cr(TTM* ttm, Frame* frame, VString* result) /* Mark for creation */
     VString* text = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(TTM_ENONAME);
-    if(str->fcn.builtin) EXIT(TTM_ENOPRIM);
-    if(str->fcn.locked) EXIT(TTM_ELOCKED);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
+    if(str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     text = str->fcn.body;
     err = ttm_subst(ttm,text,frame->argv[2],CREATEINDEXONLY,NULL);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* String Selection */
@@ -263,8 +263,8 @@ ttm_cc(TTM* ttm, Frame* frame, VString* result) /* Call one character */
     Function* str = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(TTM_ENONAME);
-    if(str->fcn.builtin) EXIT(TTM_ENOPRIM);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
     if(vsindex(str->fcn.body) < vslength(str->fcn.body)) {
 	int ncp;
 	const char* p = vsindexp(str->fcn.body);
@@ -274,7 +274,7 @@ ttm_cc(TTM* ttm, Frame* frame, VString* result) /* Call one character */
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -289,11 +289,11 @@ ttm_cn(TTM* ttm, Frame* frame, VString* result) /* Call n characters (codepoints
     const char* p = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((fcn = getdictstr(ttm,frame,2))==NULL) {err = FAILNONAME(2); goto done;}
+    if((fcn = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
 
     /* Get number of codepoints to extract */
-    if(1 != sscanf((const char*)frame->argv[1],"%lld",&ln)) EXIT(TTM_EDECIMAL);
-    if(ln < 0) EXIT(TTM_ENOTNEGATIVE);
+    if(1 != sscanf((const char*)frame->argv[1],"%lld",&ln)) EXIT(ttm,TTM_EDECIMAL);
+    if(ln < 0) EXIT(ttm,TTM_ENOTNEGATIVE);
 
     vsclear(result);
     n = (int)ln;
@@ -311,7 +311,7 @@ ttm_cn(TTM* ttm, Frame* frame, VString* result) /* Call n characters (codepoints
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -324,20 +324,20 @@ ttm_sn(TTM* ttm, Frame* frame, VString* result) /* Skip n characters */
     const char* p;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = getdictstr(ttm,frame,2))==NULL) {err = FAILNONAME(2); goto done;}
-    if(1 != sscanf((const char*)frame->argv[1],"%lld",&num)) EXIT(TTM_EDECIMAL);
-    if(num < 0) EXIT(TTM_ENOTNEGATIVE);
+    if((str = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
+    if(1 != sscanf((const char*)frame->argv[1],"%lld",&num)) EXIT(ttm,TTM_EDECIMAL);
+    if(num < 0) EXIT(ttm,TTM_ENOTNEGATIVE);
 
     for(p=vsindexp(str->fcn.body);num-- > 0;) {
 	int ncp = u8size(p);
-	if(ncp < 0) EXIT(TTM_EUTF8);
+	if(ncp < 0) EXIT(ttm,TTM_EUTF8);
 	if(isnul(p)) break;
 	p += ncp;
 	vsindexskip(str->fcn.body,ncp);
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -372,7 +372,7 @@ ttm_isc(TTM* ttm, Frame* frame, VString* vsresult) /* Initial character scan; mo
     vsclear(vsresult);
     vsappendn(vsresult,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,vsresult);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -408,7 +408,7 @@ ttm_scn(TTM* ttm, Frame* frame, VString* result) /* Character scan */
 	vsindexskip(str->fcn.body,(len + arglen));
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -448,7 +448,7 @@ ttm_cp(TTM* ttm, Frame* frame, VString* result) /* Call parameter */
     vsindexskip(fcn->fcn.body,delta);
     if(*rp != NUL8) vsindexskip(fcn->fcn.body,1);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -464,14 +464,14 @@ ttm_cs(TTM* ttm, Frame* frame, VString* result) /* Call segment */
     TTMFCN_BEGIN(ttm,frame,result);
 
     fcn = getdictstr(ttm,frame,1);
-    if(fcn == NULL) EXIT(TTM_ENONAME);
+    if(fcn == NULL) EXIT(ttm,TTM_ENONAME);
     /* Locate the next segment mark */
     /* Unclear if create marks also qualify; assume yes */
     p0 = vsindexp(fcn->fcn.body);
     p = p0;
     for(;;) {
 	int ncp;
-	if((ncp = u8size(p))<=0) EXIT(TTM_EUTF8);
+	if((ncp = u8size(p))<=0) EXIT(ttm,TTM_EUTF8);
 	if(isnul(p))
 	    break;
 	if(issegmark(p)) break; /* Includes create mark */
@@ -487,7 +487,7 @@ ttm_cs(TTM* ttm, Frame* frame, VString* result) /* Call segment */
     if(*p != NUL8) vsindexskip(fcn->fcn.body,SEGMARKSIZE);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -499,7 +499,7 @@ ttm_rrp(TTM* ttm, Frame* frame, VString* result) /* Reset residual pointer */
     TTMFCN_BEGIN(ttm,frame,result);
     vsindexset(str->fcn.body,0);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -522,7 +522,7 @@ ttm_eos(TTM* ttm, Frame* frame, VString* vsresult) /* Test for end of string */
     vsclear(vsresult);
     vsappendn(vsresult,(const char*)result,strlen((const char*)result));
     TTMFCN_END(ttm,frame,vsresult);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* String Scanning Operations */
@@ -538,21 +538,21 @@ ttm_gn(TTM* ttm, Frame* frame, VString* result) /* Give n characters from argume
     int nbytes = 0;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(1 != sscanf((const char*)snum,"%lld",&num)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)snum,"%lld",&num)) EXIT(ttm,TTM_EDECIMAL);
     if(num > 0) {
 	nbytes = u8ith(s,(int)num);
-	if(nbytes <= 0) EXIT(TTM_EUTF8);
+	if(nbytes <= 0) EXIT(ttm,TTM_EUTF8);
 	vsappendn(result,(const char*)s,(size_t)nbytes);
     } else if(num < 0) {
 	num = -num;
 	nbytes = u8ith(s,(int)num);
-	if(nbytes <= 0) EXIT(TTM_EUTF8);
+	if(nbytes <= 0) EXIT(ttm,TTM_EUTF8);
 	s += nbytes;
 	vsappendn(result,(const char*)s,strlen((const char*)s));
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -591,7 +591,7 @@ ttm_zlc(TTM* ttm, Frame* frame, VString* result) /* Zero-level commas */
     }
     *p = NUL8; /* make sure it is terminated */
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -642,7 +642,7 @@ ttm_zlcp(TTM* ttm, Frame* frame, VString* result) /* Zero-level commas and paren
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -658,12 +658,12 @@ ttm_flip(TTM* ttm, Frame* frame, VString* result) /* Flip a string */
     s = frame->argv[1];
     for(p=s;*p;p+=ncp) {
 	ncp = u8size(p);
-	if(ncp <= 0) EXIT(TTM_EUTF8);
+	if(ncp <= 0) EXIT(ttm,TTM_EUTF8);
 	vsinsertn(result,0,p,ncp);
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -683,34 +683,34 @@ ttm_trl(TTM* ttm, Frame* frame, VString* result) /* translate to lower case */
 
 	/* Calculate the length required to hold wchar_t converted s */
 	mbslen = mbstowcs(NULL, s, 0);
-        if(mbslen == (size_t) -1) EXIT(TTM_EUTF8);
+        if(mbslen == (size_t) -1) EXIT(ttm,TTM_EUTF8);
 	/* Allocate wide character string of the desired size.  Add 1
 	  to allow for terminating null wide character (L'\0'). */
         vssetlength(ttm->vs.tmp,(mbslen + 1)*sizeof(wchar_t));
         sw = (wchar_t*)vscontents(ttm->vs.tmp);
         /* Convert the multibyte character string s to a wide character string. */
         mbslen = mbstowcs(NULL, s, 0);
-        if(mbslen == (size_t) -1) EXIT(TTM_EUTF8);
+        if(mbslen == (size_t) -1) EXIT(ttm,TTM_EUTF8);
         mbslen = mbstowcs(sw, s, mbslen + 1);
-        if(mbslen == (size_t) -1) EXIT(TTM_EUTF8);
+        if(mbslen == (size_t) -1) EXIT(ttm,TTM_EUTF8);
 	/* Convert to lower case */
 	for(i=0;i<mbslen;i++)
 	    sw[i] = (wchar_t)towlower(sw[i]);
 	/* Convert back to utf8 */
 	/* Get space required */
 	s8len = wcstombs(NULL, sw, 0);
-	if(s8len == ((size_t) -1)) EXIT(TTM_EUTF8);
+	if(s8len == ((size_t) -1)) EXIT(ttm,TTM_EUTF8);
 	/* Allocate memory for the utf8 character string */
 	vssetlength(result,s8len);
 	s8 = vscontents(result);
 	/* Insert into the result buffer */
 	s8len = wcstombs(s8,sw,s8len+1);
-        if(s8len == (size_t) -1) EXIT(TTM_EUTF8);
+        if(s8len == (size_t) -1) EXIT(ttm,TTM_EUTF8);
     }
 done:
     vsclear(ttm->vs.tmp);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -727,16 +727,16 @@ ttm_thd(TTM* ttm, Frame* frame, VString* result) /* convert hex to decimal */
     TTMFCN_BEGIN(ttm,frame,result);
     p = (char*)frame->argv[1];
     for(q=hex;*p;) {
-	if(!ishex(*p)) EXIT(TTM_EINVAL);        
+	if(!ishex(*p)) EXIT(ttm,TTM_EINVAL);        
 	*q++ = *p++;
     }
     *q = '\0';
-    if(1 != sscanf(hex,"%llx",&un)) EXIT(TTM_EINVAL);
+    if(1 != sscanf(hex,"%llx",&un)) EXIT(ttm,TTM_EINVAL);
     snprintf(dec,sizeof(dec),"%lld",(long long)un);
     vsappendn(result,dec,0);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* Shared helper for dcl and dncl */
@@ -745,7 +745,7 @@ ttm_dcl0(TTM* ttm, Frame* frame, int negative, VString* result)
 {
     TTMERR err = TTM_NOERR;
     Charclass* cl = NULL;
-    if(strlen(frame->argv[1])==0) EXIT(TTM_ENOCLASS);
+    if(strlen(frame->argv[1])==0) EXIT(ttm,TTM_ENOCLASS);
     cl = charclassLookup(ttm,frame->argv[1]);
     if(cl == NULL) {
 	/* create a new charclass object */
@@ -756,7 +756,7 @@ ttm_dcl0(TTM* ttm, Frame* frame, int negative, VString* result)
     cl->characters = strdup((const char*)frame->argv[2]);
     cl->negative = negative;
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -767,7 +767,7 @@ ttm_dcl(TTM* ttm, Frame* frame, VString* result) /* Define a negative class */
     TTMFCN_BEGIN(ttm,frame,result);
     err = ttm_dcl0(ttm,frame,0,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -778,7 +778,7 @@ ttm_dncl(TTM* ttm, Frame* frame, VString* result) /* Define a negative class */
     TTMFCN_BEGIN(ttm,frame,result);
     err = ttm_dcl0(ttm,frame,1,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -799,7 +799,7 @@ ttm_ecl(TTM* ttm, Frame* frame, VString* result) /* Erase a class */
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -815,7 +815,7 @@ ttm_ccl(TTM* ttm, Frame* frame, VString* result) /* call class */
     size_t rr0,delta;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = getdictstr(ttm,frame,2))==NULL) {err = FAILNONAME(2); goto done;}
+    if((str = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
     if((cl = charclassLookup(ttm,frame->argv[1]))==NULL) FAILNOCLASS(1);
 
     clseq = cl->characters;
@@ -831,7 +831,7 @@ ttm_ccl(TTM* ttm, Frame* frame, VString* result) /* call class */
     vsindexset(str->fcn.body,rr0+delta); /* final residual index */
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -847,7 +847,7 @@ ttm_scl(TTM* ttm, Frame* frame, VString* result) /* skip class */
     size_t rr0, delta;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = getdictstr(ttm,frame,2))==NULL) {err = FAILNONAME(2); goto done;}
+    if((str = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
     if((cl = charclassLookup(ttm,frame->argv[1]))==NULL) FAILNOCLASS(1);
 
     vsclear(result);
@@ -860,7 +860,7 @@ ttm_scl(TTM* ttm, Frame* frame, VString* result) /* skip class */
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -881,7 +881,7 @@ ttm_tcl(TTM* ttm, Frame* frame, VString* result) /* Test class */
     if((cl = charclassLookup(ttm,frame->argv[1]))==NULL) FAILNOCLASS(1);
 
     if(strlen(frame->argv[2]) > 0) {
-	if((str = getdictstr(ttm,frame,2))==NULL) {err = FAILNONAME(2); goto done;}
+	if((str = getdictstr(ttm,frame,2))==NULL) FAILNONAME(2);
     } else
         str = NULL;
 
@@ -900,7 +900,7 @@ ttm_tcl(TTM* ttm, Frame* frame, VString* result) /* Test class */
     vsappendn(result,(const char*)retval,strlen((const char*)retval));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* Arithmetic Operators */
@@ -916,14 +916,14 @@ ttm_abs(TTM* ttm, Frame* frame, VString* result) /* Obtain absolute value */
 
     TTMFCN_BEGIN(ttm,frame,result);
     slhs = frame->argv[1];
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
     if(lhs < 0) lhs = -lhs;
     snprintf(value,sizeof(value),"%lld",lhs);
     vsclear(result);
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -940,7 +940,7 @@ ttm_ad(TTM* ttm, Frame* frame, VString* result) /* Add */
     TTMFCN_BEGIN(ttm,frame,result);
     for(lhs=0,i=1;i<frame->argc;i++) {
 	srhs = frame->argv[i];
-	if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+	if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
 	lhs += rhs;
     }
     snprintf(value,sizeof(value),"%lld",lhs);
@@ -948,7 +948,7 @@ ttm_ad(TTM* ttm, Frame* frame, VString* result) /* Add */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -965,14 +965,14 @@ ttm_dv(TTM* ttm, Frame* frame, VString* result) /* Divide and give quotient */
     TTMFCN_BEGIN(ttm,frame,result);
     slhs = frame->argv[1];
     srhs = frame->argv[2];
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     snprintf(value,sizeof(value),"%lld",lhs / rhs);
     vsclear(result);
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -989,14 +989,14 @@ ttm_dvr(TTM* ttm, Frame* frame, VString* result) /* Divide and give remainder */
     TTMFCN_BEGIN(ttm,frame,result);
     slhs = frame->argv[1];
     srhs = frame->argv[2];
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     snprintf(value,sizeof(value),"%lld",lhs % rhs);
     vsclear(result);
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1013,7 +1013,7 @@ ttm_mu(TTM* ttm, Frame* frame, VString* result) /* Multiply */
     TTMFCN_BEGIN(ttm,frame,result);
     for(lhs=1,i=1;i<frame->argc;i++) {
 	srhs = frame->argv[i];
-	if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+	if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
 	lhs *= rhs;
     }
     snprintf(value,sizeof(value),"%lld",lhs);
@@ -1021,7 +1021,7 @@ ttm_mu(TTM* ttm, Frame* frame, VString* result) /* Multiply */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1038,14 +1038,14 @@ ttm_su(TTM* ttm, Frame* frame, VString* result) /* Substract */
     TTMFCN_BEGIN(ttm,frame,result);
     slhs = frame->argv[1];
     srhs = frame->argv[2];
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     snprintf(value,sizeof(value),"%lld",lhs - rhs);
     vsclear(result);
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1066,14 +1066,14 @@ ttm_eq(TTM* ttm, Frame* frame, VString* result) /* Compare numeric equal */
     t = frame->argv[3];
     f = frame->argv[4];
 
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     value = (lhs == rhs ? t : f);
     vsclear(result);
     vsappendn(result,(char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1094,14 +1094,14 @@ ttm_gt(TTM* ttm, Frame* frame, VString* result) /* Compare numeric greater-than 
     t = frame->argv[3];
     f = frame->argv[4];
 
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     value = (lhs > rhs ? t : f);
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1122,14 +1122,14 @@ ttm_lt(TTM* ttm, Frame* frame, VString* result) /* Compare numeric less-than */
     t = frame->argv[3];
     f = frame->argv[4];
 
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     value = (lhs < rhs ? t : f);
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1150,14 +1150,14 @@ ttm_ge(TTM* ttm, Frame* frame, VString* result) /* Compare numeric greater-than 
     t = frame->argv[3];
     f = frame->argv[4];
 
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     value = (lhs >= rhs ? t : f);
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1178,14 +1178,14 @@ ttm_le(TTM* ttm, Frame* frame, VString* result) /* Compare numeric less-than or 
     t = frame->argv[3];
     f = frame->argv[4];
 
-    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(TTM_EDECIMAL);
-    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)slhs,"%lld",&lhs)) EXIT(ttm,TTM_EDECIMAL);
+    if(1 != sscanf((const char*)srhs,"%lld",&rhs)) EXIT(ttm,TTM_EDECIMAL);
     value = (lhs <= rhs ? t : f);
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1209,7 +1209,7 @@ ttm_eql(TTM* ttm, Frame* frame, VString* result) /* ? Compare logical equal */
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1233,7 +1233,7 @@ ttm_gtl(TTM* ttm, Frame* frame, VString* result) /* ? Compare logical greater-th
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1257,7 +1257,7 @@ ttm_ltl(TTM* ttm, Frame* frame, VString* result) /* ? Compare logical less-than 
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* Peripheral Input/Output Operations */
@@ -1277,13 +1277,13 @@ selectfile(TTM* ttm, const char* fname, IOMODE required_modes, TTMFILE** targetp
     } else if(strcmp("-",(const char*)fname)==0) {
 	target = ttm->io._stdin; 
     } else
-    	EXIT(TTM_EACCESS);
+    	EXIT(ttm,TTM_EACCESS);
     /* Check the modes */
     if((target->mode & required_modes) != required_modes)
-	EXIT(TTM_EACCESS);
+	EXIT(ttm,TTM_EACCESS);
     if(targetp) *targetp = target;
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -1305,7 +1305,7 @@ ttm_ps0(TTM* ttm, TTMFILE* target, int argc, char** argv, VString* result) /* Pr
 	nullfree(cleaned);
     }
     ttmflush(ttm,target);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -1326,7 +1326,7 @@ ttm_ps(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String */
     if((err = ttm_ps0(ttm,target,1,frame->argv+1,result))) goto done;
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1343,7 +1343,7 @@ ttm_rs0(TTM* ttm, TTMFILE* target, VString* result) /* Read a String from option
 	if(u8equal(cp8,ttm->meta.metac)) break;
 	vsappendn(result,(const char*)cp8,ncp);
     }
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -1366,7 +1366,7 @@ ttm_rs(TTM* ttm, Frame* frame, VString* result) /* Read a Function/String */
     if((err=ttm_rs0(ttm,target,result))) goto done;
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* This only makes sense when using /dev/tty; but use stdin+stdout if necessary */
@@ -1385,7 +1385,7 @@ ttm_psr(TTM* ttm, Frame* frame, VString* result) /* Print a string and then read
     ttmflush(ttm,ttm->io._stdout);
     ttm_rs0(ttm,reader,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1397,21 +1397,21 @@ ttm_cm(TTM* ttm, Frame* frame, VString* result) /* Change meta character and ret
     utf8cpa prev = empty_u8cpa;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 1) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 1) EXIT(ttm,TTM_EFEWPARMS);
     replacement = frame->argv[1];
-    if(u8size(replacement) <= 0) EXIT(TTM_EUTF8);
+    if(u8size(replacement) <= 0) EXIT(ttm,TTM_EUTF8);
     memcpycp(prev,ttm->meta.metac);
     if(strlen(replacement) > 0) memcpycp(ttm->meta.metac,replacement);
     vsappendn(result,prev,u8size(prev));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* printf helper functions */
 
 static TTMERR
-parsespec(const char* fmt, int* lcountp, char* typp, int* ispcentp, size_t* speclenp)
+parsespec(TTM* ttm, const char* fmt, int* lcountp, char* typp, int* ispcentp, size_t* speclenp)
 {
     TTMERR err = TTM_NOERR;
     const char* p = fmt;
@@ -1420,13 +1420,13 @@ parsespec(const char* fmt, int* lcountp, char* typp, int* ispcentp, size_t* spec
     int ispcent = 0;
 
     p++; /* skip leading '%' */
-    if(isnul(p)) EXITX(TTM_EIO);
+    if(isnul(p)) EXIT(ttm,TTM_EIO);
     if(*p == '%') {p++; ispcent = 1; goto havevalue;}
-    if(isnul(p)) EXITX(TTM_EIO);	    
+    if(isnul(p)) EXIT(ttm,TTM_EIO);	    
     if(*p == 'l') {lcount++; p++;}
-    if(isnul(p)) EXITX(TTM_EIO);
+    if(isnul(p)) EXIT(ttm,TTM_EIO);
     if(*p == 'l') {lcount++; p++;}
-    if(isnul(p)) EXITX(TTM_EIO);
+    if(isnul(p)) EXIT(ttm,TTM_EIO);
     switch (*p) {
     case 'd': case 'u': case 'o': case 'x': case 's': typ = *p; p++; break;
     default: break;
@@ -1437,7 +1437,7 @@ havevalue:
     if(typp) *typp = typ;
     if(speclenp) *speclenp = (size_t)(p - fmt);
 done:
-    return THROWX(err);
+    return THROW(ttm,err);
 }
 
 static void
@@ -1458,10 +1458,10 @@ intconvert(char* arg, long long* lldp)
     int count;
     long long lld;
     count = sscanf(arg,"%lld",&lld);
-    if(count != 1) EXITX(TTM_EDECIMAL);
+    if(count != 1) {err = TTM_EDECIMAL; goto done;}
     if(lldp) *lldp = lld;
 done:
-    return THROWX(err);
+    return err;
 }
 
 static void
@@ -1524,13 +1524,13 @@ ttm_vprintf(TTM* ttm, TTMFILE* target, const char* fmt8, size_t argc, char** arg
 	    p += SEGMARKSIZE;
 	} else if(*p == '%') { /* collect the %... spec */
 	    lcount = 0; typ = '\0'; ispcent = 0; /* re-initialize */
-	    if((err = parsespec(p,&lcount,&typ,&ispcent,&speclen))) goto done;
+	    if((err = parsespec(ttm,p,&lcount,&typ,&ispcent,&speclen))) goto done;
 	    if(ispcent) {  /* special case for "%%" */
 	        vsappend(result,'%');
 		p += 2;
 		continue;
 	    }
-	    if(argi >= argc) EXIT(TTM_EFEWPARMS);
+	    if(argi >= argc) EXIT(ttm,TTM_EFEWPARMS);
 	    /* check the type */
 	    if(typ == 's') {/* Handle string separately */
 		vsappendn(result,(char*)argv[argi++],0);
@@ -1553,7 +1553,7 @@ ttm_vprintf(TTM* ttm, TTMFILE* target, const char* fmt8, size_t argc, char** arg
     ttmflush(ttm,target);
 #endif
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -1575,7 +1575,7 @@ ttm_fprintf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String 
     const char* fname = NULL;
     
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 3) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
     /* Figure out the target file */
     fname = frame->argv[1];
     if((err = selectfile(ttm,fname,IOM_WRITE,&target))!=TTM_NOERR) {
@@ -1588,7 +1588,7 @@ ttm_fprintf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String 
     err = ttm_vprintf(ttm,target,fmt,frame->argc-3,frame->argv+3,result);
 
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -1608,7 +1608,7 @@ ttm_printf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String *
     char* fmt = NULL;
     
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 2) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 2) EXIT(ttm,TTM_EFEWPARMS);
     /* Printf always writes to stdout */
     target = ttm->io._stdout; /* default */
 
@@ -1618,7 +1618,7 @@ ttm_printf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String *
     err = ttm_vprintf(ttm,target,fmt,frame->argc-2,frame->argv+2,result);
 
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1637,11 +1637,11 @@ ttm_pf(TTM* ttm, Frame* frame, VString* result) /* Flush stdout and/or stderr */
         filename = frame->argv[1];
     /* Convert file name to file */
     file = ttmfindfile(ttm,filename);
-    if(file == NULL) EXIT(TTM_EACCESS);
+    if(file == NULL) EXIT(ttm,TTM_EACCESS);
     ttmflush(ttm,file);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1661,34 +1661,34 @@ ttm_tru(TTM* ttm, Frame* frame, VString* result) /* translate to upper case */
 
 	/* Calculate the length required to hold wchar_t converted s */
 	mbslen = mbstowcs(NULL, s, 0);
-        if(mbslen == (size_t) -1) EXIT(TTM_EUTF8);
+        if(mbslen == (size_t) -1) EXIT(ttm,TTM_EUTF8);
 	/* Allocate wide character string of the desired size.  Add 1
 	  to allow for terminating null wide character (L'\0'). */
         vssetlength(ttm->vs.tmp,(mbslen + 1)*sizeof(wchar_t));
         sw = (wchar_t*)vscontents(ttm->vs.tmp);
         /* Convert the multibyte character string s to a wide character string. */
         mbslen = mbstowcs(NULL, s, 0);
-        if(mbslen == (size_t) -1) EXIT(TTM_EUTF8);
+        if(mbslen == (size_t) -1) EXIT(ttm,TTM_EUTF8);
         mbslen = mbstowcs(sw, s, mbslen + 1);
-        if(mbslen == (size_t) -1) EXIT(TTM_EUTF8);
+        if(mbslen == (size_t) -1) EXIT(ttm,TTM_EUTF8);
 	/* Convert to lower case */
 	for(i=0;i<mbslen;i++)
 	    sw[i] = (wchar_t)towupper(sw[i]);
 	/* Convert back to utf8 */
 	/* Get space required */
 	s8len = wcstombs(NULL, sw, 0);
-	if(s8len == ((size_t) -1)) EXIT(TTM_EUTF8);
+	if(s8len == ((size_t) -1)) EXIT(ttm,TTM_EUTF8);
 	/* Allocate memory for the utf8 character string */
 	vssetlength(result,s8len);
 	s8 = vscontents(result);
 	/* Insert into the result buffer */
 	s8len = wcstombs(s8,sw,s8len+1);
-        if(s8len == (size_t) -1) EXIT(TTM_EUTF8);
+        if(s8len == (size_t) -1) EXIT(ttm,TTM_EUTF8);
     }
 done:
     vsclear(ttm->vs.tmp);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1708,16 +1708,16 @@ ttm_tdh(TTM* ttm, Frame* frame, VString* result) /* convert hex to decimal */
     if(*p == '+') p++;
     else if(*p == '-') *q++ = *p++;
     while(*p) {
-	if(!isdec(*p)) EXIT(TTM_EINVAL);        
+	if(!isdec(*p)) EXIT(ttm,TTM_EINVAL);        
 	*q++ = *p++;
     }
     *q = '\0';
-    if(1 != sscanf(dec,"%lld",&ln)) EXIT(TTM_EINVAL);
+    if(1 != sscanf(dec,"%lld",&ln)) EXIT(ttm,TTM_EINVAL);
     snprintf(hex,sizeof(hex),"%llx",(unsigned long long)ln);
     vsappendn(result,hex,0);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1731,9 +1731,9 @@ ttm_rp(TTM* ttm, Frame* frame, VString* result) /* return residual pointer*/
     char srp[128];
     
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = getdictstr(ttm,frame,1))==NULL) {err = FAILNONAME(1); goto done;}
+    if((str = getdictstr(ttm,frame,1))==NULL) FAILNONAME(1);
     s = vscontents(str->fcn.body);
-    switch(err = strsubcp(s,vsindex(str->fcn.body),&rp)) {
+    switch(err = strsubcp(ttm,s,vsindex(str->fcn.body),&rp)) {
     case TTM_NOERR: case TTM_EEOS: break;
     default: goto done;
     }
@@ -1742,7 +1742,7 @@ ttm_rp(TTM* ttm, Frame* frame, VString* result) /* return residual pointer*/
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1755,22 +1755,22 @@ ttm_srp(TTM* ttm, Frame* frame, VString* result) /* set residual pointer*/
     
     TTMFCN_BEGIN(ttm,frame,result);
     switch (frame->argc) {
-    case 0: case 1: EXIT(TTM_EFEWPARMS);
+    case 0: case 1: EXIT(ttm,TTM_EFEWPARMS);
     case 2:
 	srp = 0; /* default if rp not defined */
 	break;
     default:
-        if(1!=sscanf(frame->argv[2],"%zu",&srp)) EXIT(TTM_EDECIMAL);
+        if(1!=sscanf(frame->argv[2],"%zu",&srp)) EXIT(ttm,TTM_EDECIMAL);
 	break;
     }
-    if((str = getdictstr(ttm,frame,1))==NULL) {err = FAILNONAME(1); goto done;}
+    if((str = getdictstr(ttm,frame,1))==NULL) FAILNONAME(1);
     /* convert from codepoint offset to byte offset */
     srp = cptorp(ttm,vscontents(str->fcn.body)+srp,srp);
     vsindexset(str->fcn.body,srp);
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static int
@@ -1832,7 +1832,7 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
     default: klass = TTM_NAMES_SPECIFIC; break;
     }
 
-    if(klass == 0) EXIT(TTM_EFEWPARMS);
+    if(klass == 0) EXIT(ttm,TTM_EFEWPARMS);
 
     /* Collect all the relevant Functions. */
     for(i=0;i<HASHSIZE;i++) {
@@ -1872,7 +1872,7 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
 done:
     vlfree(nameset);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1884,7 +1884,7 @@ ttm_exit(TTM* ttm, Frame* frame, VString* result) /* Return from TTM */
     TTMFCN_BEGIN(ttm,frame,result);
     ttm->flags.exit = 1;
     if(frame->argc > 1) {
-	if(1!=sscanf((const char*)frame->argv[1],"%lld",&exitcode)) EXIT(TTM_EDECIMAL);
+	if(1!=sscanf((const char*)frame->argv[1],"%lld",&exitcode)) EXIT(ttm,TTM_EDECIMAL);
 	if(exitcode < 0) exitcode = - exitcode;
     }
     ttm->flags.exitcode = (int)exitcode;
@@ -1892,7 +1892,7 @@ ttm_exit(TTM* ttm, Frame* frame, VString* result) /* Return from TTM */
     vsclear(ttm->vs.active);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* Utility Operations */
@@ -1914,7 +1914,7 @@ ttm_ndf(TTM* ttm, Frame* frame, VString* result) /* Determine if a name is defin
     value = (str == NULL ? f : t);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -1928,7 +1928,7 @@ ttm_norm(TTM* ttm, Frame* frame, VString* result) /* Obtain the Norm of a string
 
     TTMFCN_BEGIN(ttm,frame,result);
     s = frame->argv[1];
-    switch (err = strsubcp(s,strlen((const char*)s),&count)) {
+    switch (err = strsubcp(ttm,s,strlen((const char*)s),&count)) {
     case TTM_NOERR: case TTM_EEOS: break;
     default: goto done;
     }
@@ -1936,7 +1936,7 @@ ttm_norm(TTM* ttm, Frame* frame, VString* result) /* Obtain the Norm of a string
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 #ifdef MSWINDOWS
@@ -2038,7 +2038,7 @@ ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
 	strncpy(value,fixedtestvalues.time,sizeof(value));
     } else {
 	if(timeofday(&tv) < 0)
-	    EXIT(TTM_ETIME);
+	    EXIT(ttm,TTM_ETIME);
 	time = (long long)tv.tv_sec;
 	time *= 1000000; /* convert to microseconds */
 	time += tv.tv_usec;
@@ -2048,7 +2048,7 @@ ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2067,7 +2067,7 @@ ttm_xtime(TTM* ttm, Frame* frame, VString* result) /* Obtain Execution Time */
     }
     vsappendn(result,value,strlen(value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2083,7 +2083,7 @@ ttm_ctime(TTM* ttm, Frame* frame, VString* result) /* Convert ##<time> to printa
 
     TTMFCN_BEGIN(ttm,frame,result);
     stod = frame->argv[1];
-    if(1 != sscanf((const char*)stod,"%lld",&tod)) EXIT(TTM_EDECIMAL);
+    if(1 != sscanf((const char*)stod,"%lld",&tod)) EXIT(ttm,TTM_EDECIMAL);
     tod = tod/100; /* need seconds */
     ttod = (time_t)tod;
     snprintf(value,sizeof(value),"%s",ctime(&ttod));
@@ -2096,7 +2096,7 @@ ttm_ctime(TTM* ttm, Frame* frame, VString* result) /* Convert ##<time> to printa
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2117,7 +2117,7 @@ ttm_tf(TTM* ttm, Frame* frame, VString* result) /* Turn Trace Off */
 	ttm->debug.trace = TR_OFF;
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2138,7 +2138,7 @@ ttm_tn(TTM* ttm, Frame* frame, VString* result) /* Turn Trace On */
 	ttm->debug.trace = TR_ON;
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**************************************************/
@@ -2155,8 +2155,8 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     const char* arg;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((1 != sscanf((const char*)frame->argv[1],"%lld",&index))) EXIT(TTM_EDECIMAL);
-    if(index < 0) EXIT(TTM_ERANGE);
+    if((1 != sscanf((const char*)frame->argv[1],"%lld",&index))) EXIT(ttm,TTM_EDECIMAL);
+    if(index < 0) EXIT(ttm,TTM_ERANGE);
     if(((size_t)index) < vllength(argoptions)) {
 	if(ttm->opts.testing && index == 0) {
 	    arg = fixedtestvalues.argv0;
@@ -2169,7 +2169,7 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /* Get the length of argoptions */
@@ -2186,7 +2186,7 @@ ttm_argc(TTM* ttm, Frame* frame, VString* result)
     snprintf(value,sizeof(value),"%d",argc);
     vsappendn(result,value,strlen(value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2203,7 +2203,7 @@ ttm_classes(TTM* ttm, Frame* frame, VString* result) /* Obtain all character cla
     /* Now collect all the classes */
     /* Note the reason we collect the classes is because we need to sort them */
     classes = vlnew();
-    if(classes == NULL) EXIT(TTM_EMEMORY);
+    if(classes == NULL) EXIT(ttm,TTM_EMEMORY);
     for(i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->tables.charclasses.table[i].next;
 	while(entry != NULL) {
@@ -2226,7 +2226,7 @@ ttm_classes(TTM* ttm, Frame* frame, VString* result) /* Obtain all character cla
 done:
     vlfree(classes);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2254,7 +2254,7 @@ ttm_lf(TTM* ttm, Frame* frame, VString* result) /* Lock a list of function from 
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2282,7 +2282,7 @@ ttm_uf(TTM* ttm, Frame* frame, VString* result) /* Un-Lock a function from being
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2300,7 +2300,7 @@ ttm_istn(TTM* ttm, Frame* frame, VString* result) /* return current global trace
     }
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2312,7 +2312,7 @@ ttm_pn(TTM* ttm, Frame* frame, VString* result)  /* pass n chars of a string */
     size_t n,len;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(1!=sscanf(frame->argv[1],"%zu",&n)) EXIT(TTM_EDECIMAL);
+    if(1!=sscanf(frame->argv[1],"%zu",&n)) EXIT(ttm,TTM_EDECIMAL);
     str = frame->argv[2];    
     /* convert from code points */
     n = cptorp(ttm,str,n);
@@ -2321,7 +2321,7 @@ ttm_pn(TTM* ttm, Frame* frame, VString* result)  /* pass n chars of a string */
     vsappendn(result,str+n,len - n);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static char*
@@ -2353,11 +2353,11 @@ ttm_trim(TTM* ttm, Frame* frame, VString* result) /* right and left trim argv[1]
 
     TTMFCN_BEGIN(ttm,frame,result);
     switch (frame->argc) {
-    case 0: case 1:  EXIT(TTM_EFEWPARMS);
-    case 2: arg = frame->argv[2]; ws = WHITESPACE;
+    case 0: case 1:  EXIT(ttm,TTM_EFEWPARMS);
+    case 2: arg = frame->argv[1]; ws = WHITESPACE; break;
     default: 
-	arg = frame->argv[2];
-	ws = frame->argv[3];
+	arg = frame->argv[1];
+	ws = frame->argv[2];
 	break;
     }
     trimmed = trim(arg,ws);    
@@ -2366,7 +2366,136 @@ ttm_trim(TTM* ttm, Frame* frame, VString* result) /* right and left trim argv[1]
 done:
     nullfree(trimmed);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
+}
+
+/**
+Form: #<switch;testvalue;key1;value1;key2;value2;...;__default__:valuedfalt>
+If default key+value is missing, then treat like "".
+The test value and all keys are trimmed before comparison
+*/
+static TTMERR
+ttm_switch(TTM* ttm, Frame* frame, VString* result) /* return current global trace state */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* test = NULL;
+    const char* value = NULL;
+    size_t pair;
+    char* dfaltkey = NULL;
+    char* dfalt = NULL;
+    size_t dfaltpos = 0;
+    int match = 0;
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 3)
+        EXIT(ttm,TTM_EFEWPARMS);
+    if((frame->argc % 2) != 1) /* n*(key,value) + argv[0] */
+        EXIT(ttm,TTM_EFEWPARMS);
+    dfaltpos = (frame->argc - 2);
+    dfaltkey = trim(frame->argv[dfaltpos],WHITESPACE);
+    if(strcmp(dfaltkey,DFALTKEY)==0)
+    	dfalt = frame->argv[dfaltpos+1];
+    else
+        dfaltpos = frame->argc;
+    test = trim(frame->argv[1],WHITESPACE);
+    for(match=0,pair=2;match || pair<dfaltpos;pair+=2) {
+	char* trkey = trim(frame->argv[pair],WHITESPACE);
+	if(strcmp(trkey,test)==0) {
+	    value = frame->argv[pair+1];
+	    match = 1;
+	    break;
+	}
+    }
+    if(!match && dfalt != NULL)
+        value = dfalt;
+    vsappendn(result,(const char*)value,strlen((const char*)value));
+done:
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+static TTMERR
+ttm_clearpassive(TTM* ttm, Frame* frame, VString* result) /* clear ttm->vs.passive */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    vsclear(ttm->vs.passive);
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+static TTMERR
+ttm_include(TTM* ttm, Frame* frame, VString* result)  /* Include text of a file */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* path;
+    char realpath[4096]; /* if testing */
+    char* baseseg = NULL;
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(strlen(frame->argv[1])==0) EXIT(ttm,TTM_EINCLUDE);
+    path = strdup(frame->argv[1]);
+
+    if(ttm->opts.testing) {
+	char* p;
+    /* Convert '\\' to '/' */
+    for (p = path; *p; p++) {if (*p == '\\') *p = '/';}
+	/* Get the basefile of path */
+	p = strrchr(path,'/');
+	if(p == NULL) { /* point to base segment */
+	    baseseg = strdup(path);
+	    *p = '\0'; /* remove base file from path */
+	} else {
+	    baseseg = strdup(p); /* include leading '/' */
+	    *p = '\0';  /* remove base file from path */
+	}
+	/* Get the current directory */
+	if(getcwd(realpath, sizeof(realpath))==NULL) EXIT(ttm,TTM_EMEMORY);
+    /* Convert '\\' to '/' */
+    for (p = realpath; *p; p++) { if (*p == '\\') *p = '/'; }
+	/* If last directory is '/Windows' then remove it from path */
+	p = strrchr(realpath,'/');
+	if(p == NULL) p = realpath;
+	if(strcmp(p,LOCALWINSEG)==0) *p = '\0';
+	/* append the base file segment */
+	strcat(realpath,baseseg);
+#ifdef MSWINDOWS
+    for (p = realpath; *p; p++) { if (*p == '/') *p = '\\'; }
+#endif
+    } else {
+        strcpy(realpath,frame->argv[1]);
+    }
+    if(strlen(realpath) == 0) EXIT(ttm,TTM_EINCLUDE);
+    readfile(ttm,realpath,ttm->vs.tmp);
+    vsappendn(result,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
+    vsclear(ttm->vs.tmp);
+done:
+    nullfree(baseseg);
+    nullfree(path);
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+static TTMERR
+ttm_void(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+static TTMERR
+ttm_breakpoint(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
+{
+    TTMERR err = TTM_NOERR;
+    return THROW(ttm,err);
 }
 
 /**
@@ -2410,167 +2539,27 @@ ttm_catch(TTM* ttm, Frame* frame, VString* result) /* evaluate ttm expression an
     vsfree(ttm->vs.passive);
     ttm->vs.passive = passive;
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
-Form: #<switch;testvalue;default;key1;value1;key2;value2;...>
-If last value is missing, then treat like "".
-The test value and all keys are trimmed before comparison
+Form: ##<throw;TTM_EXXX>
+Generate a specifie error.
 */
 static TTMERR
-ttm_switch(TTM* ttm, Frame* frame, VString* result) /* return current global trace state */
-{
-    TTMERR err = TTM_NOERR;
-    TTMFCN_DECLS(ttm,frame);
-    char* test = NULL;
-    const char* value = NULL;
-    const char* _default = NULL;
-    size_t pair;
-    int odd;
-
-    TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 3) EXIT(TTM_EFEWPARMS);
-    test = trim(frame->argv[1],WHITESPACE);
-    _default = frame->argv[2];
-    odd = ((frame->argc - 3) % 2) == 1;
-    if(odd) {frame->argv[frame->argc] = strdup(""); frame->argc++;}
-    for(pair=3;pair<frame->argc;pair+=2) {
-	char* trkey = trim(frame->argv[pair],WHITESPACE);
-	if(strcmp(trkey,test)==0) {
-	    value = frame->argv[pair+1];
-	    break;
-	}
-    }
-    if(value == NULL)
-        value = _default;
-    vsappendn(result,(const char*)value,strlen((const char*)value));
-done:
-    TTMFCN_END(ttm,frame,result);
-    return THROW(err);
-}
-
-static TTMERR
-ttm_clearpassive(TTM* ttm, Frame* frame, VString* result) /* clear ttm->vs.passive */
+ttm_throw(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
 {
     TTMERR err = TTM_NOERR;
     TTMFCN_DECLS(ttm,frame);
 
     TTMFCN_BEGIN(ttm,frame,result);
-    vsclear(ttm->vs.passive);
-    TTMFCN_END(ttm,frame,result);
-    return THROW(err);
-}
 
-static TTMERR
-ttm_include(TTM* ttm, Frame* frame, VString* result)  /* Include text of a file */
-{
-    TTMERR err = TTM_NOERR;
-    TTMFCN_DECLS(ttm,frame);
-    char* path;
-    char realpath[4096]; /* if testing */
-    char* baseseg = NULL;
-
-    TTMFCN_BEGIN(ttm,frame,result);
-    if(strlen(frame->argv[1])==0) EXIT(TTM_EINCLUDE);
-    path = strdup(frame->argv[1]);
-
-    if(ttm->opts.testing) {
-	char* p;
-    /* Convert '\\' to '/' */
-    for (p = path; *p; p++) {if (*p == '\\') *p = '/';}
-	/* Get the basefile of path */
-	p = strrchr(path,'/');
-	if(p == NULL) { /* point to base segment */
-	    baseseg = strdup(path);
-	    *p = '\0'; /* remove base file from path */
-	} else {
-	    baseseg = strdup(p); /* include leading '/' */
-	    *p = '\0';  /* remove base file from path */
-	}
-	/* Get the current directory */
-	if(getcwd(realpath, sizeof(realpath))==NULL) EXIT(TTM_EMEMORY);
-    /* Convert '\\' to '/' */
-    for (p = realpath; *p; p++) { if (*p == '\\') *p = '/'; }
-	/* If last directory is '/Windows' then remove it from path */
-	p = strrchr(realpath,'/');
-	if(p == NULL) p = realpath;
-	if(strcmp(p,LOCALWINSEG)==0) *p = '\0';
-	/* append the base file segment */
-	strcat(realpath,baseseg);
-#ifdef MSWINDOWS
-    for (p = realpath; *p; p++) { if (*p == '/') *p = '\\'; }
-#endif
-    } else {
-        strcpy(realpath,frame->argv[1]);
-    }
-    if(strlen(realpath) == 0) EXIT(TTM_EINCLUDE);
-    readfile(ttm,realpath,ttm->vs.tmp);
-    vsappendn(result,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
-    vsclear(ttm->vs.tmp);
-done:
-    nullfree(baseseg);
-    nullfree(path);
-    TTMFCN_END(ttm,frame,result);
-    return THROW(err);
-}
-
-static TTMERR
-ttm_void(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
-{
-    TTMERR err = TTM_NOERR;
-    TTMFCN_DECLS(ttm,frame);
-
-    TTMFCN_BEGIN(ttm,frame,result);
-    TTMFCN_END(ttm,frame,result);
-    return THROW(err);
-}
-
-static TTMERR
-ttm_wd(TTM* ttm, Frame* frame, VString* result) /* return current working directory */
-{
-    TTMERR err = TTM_NOERR;
-    TTMFCN_DECLS(ttm,frame);
-    char wd[2048];
-    
-    TTMFCN_BEGIN(ttm,frame,result);
-    if(ttm->opts.testing) {
-	strncpy(wd,fixedtestvalues.wd,sizeof(wd));
-    } else {
-	wd[0] = '\0';
-	if(getcwd(wd, sizeof(wd))==NULL) EXIT(TTM_EMEMORY);
-    }
-    vsappendn(result,wd,strlen(wd));
-done:
-    TTMFCN_END(ttm,frame,result);
-    return THROW(err);
-}
-
-static TTMERR
-ttm_fps(TTM* ttm, Frame* frame, VString* result) /* return current working directory */
-{
-    TTMERR err = TTM_NOERR;
-    TTMFCN_DECLS(ttm,frame);
-    
-    TTMFCN_BEGIN(ttm,frame,result);
-    if(ttm->opts.testing)
-        vsappendn(result,"/",1);
+    if(frame->argc == 0)
+	err = TTM_ERROR;
     else
-#ifdef MSWINDOWS
-	vsappendn(result,"\\",1);
-#else
-	vsappendn(result,"/",1);
-#endif
-
+	err = ttmerrfor(frame->argv[1]);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
-}
-
-static TTMERR
-ttm_breakpoint(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
-{
-    TTMERR err = TTM_NOERR;
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /** Properties functions */
@@ -2584,7 +2573,7 @@ ttm_setprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property *
 
     TTMFCN_BEGIN(ttm,frame,result);
     switch(frame->argc) {
-    case 0: case 1: EXIT(TTM_EFEWPARMS);
+    case 0: case 1: EXIT(ttm,TTM_EFEWPARMS);
     case 2:
         key = frame->argv[1];
 	value = "";
@@ -2597,7 +2586,7 @@ ttm_setprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property *
     setproperty(ttm,key,value);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2611,7 +2600,7 @@ ttm_resetprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property
     size_t propdefault;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 2) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 2) EXIT(ttm,TTM_EFEWPARMS);
     key = frame->argv[1];
 
     /* get old value */
@@ -2628,7 +2617,7 @@ ttm_resetprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2640,7 +2629,7 @@ ttm_getprop(TTM* ttm, Frame* frame, VString* result) /* Get specified property  
     const char* value = NULL;
     
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 1) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 1) EXIT(ttm,TTM_EFEWPARMS);
     key = frame->argv[1];
     value = propertyLookup(ttm,key);
     if(value != NULL)
@@ -2648,7 +2637,7 @@ ttm_getprop(TTM* ttm, Frame* frame, VString* result) /* Get specified property  
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2659,12 +2648,12 @@ ttm_removeprop(TTM* ttm, Frame* frame, VString* result) /* remove specified prop
     char* key = NULL;
     
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 1) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 1) EXIT(ttm,TTM_EFEWPARMS);
     key = frame->argv[1];
     (void)propertyRemove(ttm,key);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 static TTMERR
@@ -2681,7 +2670,7 @@ ttm_properties(TTM* ttm, Frame* frame, VString* result) /* Obtain all property n
     /* Now collect all the properties */
     /* Note the reason we collect them is because we need to sort them */
     props = vlnew();
-    if(props == NULL) EXIT(TTM_EMEMORY);
+    if(props == NULL) EXIT(ttm,TTM_EMEMORY);
     for(i=0;i<HASHSIZE;i++) {
 	struct HashEntry* entry = ttm->tables.properties.table[i].next;
 	while(entry != NULL) {
@@ -2704,7 +2693,7 @@ ttm_properties(TTM* ttm, Frame* frame, VString* result) /* Obtain all property n
 done:
     vlfree(props);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**************************************************/
@@ -2729,7 +2718,7 @@ ttm_sort(TTM* ttm, Frame* frame, VString* result)
     size_t i;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 2) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 2) EXIT(ttm,TTM_EFEWPARMS);
     if(frame->argc > 2) {
 	char* a2 = (char*)frame->argv[2];
         memmovex((char*)sep8,a2,u8size(a2));
@@ -2738,7 +2727,7 @@ ttm_sort(TTM* ttm, Frame* frame, VString* result)
     seplen = u8size(sep8);
     assert(seplen > 0);
     name = dictionaryLookup(ttm,frame->argv[1]);
-    if(name == NULL) EXIT(TTM_ENONAME);
+    if(name == NULL) EXIT(ttm,TTM_ENONAME);
     p8 = vscontents(name->fcn.body);
     if(p8 == NULL || strlen((char*)p8)==0) goto done;
     /* parse the input string */
@@ -2777,7 +2766,7 @@ ttm_sort(TTM* ttm, Frame* frame, VString* result)
 done:
     vlfreeall(elems);
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -2804,11 +2793,11 @@ ttm_ttm_meta(TTM* ttm, Frame* frame, VString* result)
     utf8cpa prev = empty_u8cpa;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 4) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 4) EXIT(ttm,TTM_EFEWPARMS);
     which = frame->argv[2];
     replacement = frame->argv[3];
 
-    if(u8size(replacement) <= 0) EXIT(TTM_EUTF8);
+    if(u8size(replacement) <= 0) EXIT(ttm,TTM_EUTF8);
     switch (metaenumdetect(which)) {
     case ME_SHARP:
 	memcpycp(prev,ttm->meta.sharpc);
@@ -2847,7 +2836,7 @@ ttm_ttm_meta(TTM* ttm, Frame* frame, VString* result)
     vsappendn(result,prev,u8size(prev));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -2866,7 +2855,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
     size_t ncleaned = 0;
     int nargs;
 
-    if(frame->argc < 4) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 4) EXIT(ttm,TTM_EFEWPARMS);
     arg = frame->argv[3];
     arglen = strlen(arg);
     str = dictionaryLookup(ttm,arg);
@@ -2922,7 +2911,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
     vsappendn(result,ttm->meta.rbrc,u8size(ttm->meta.rbrc));
 done:
     nullfree(cleaned);
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -2938,11 +2927,11 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame, VString* result) /* Misc. combined ac
     const char* arg = NULL;
     size_t arglen;
 
-    if(frame->argc < 4) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 4) EXIT(ttm,TTM_EFEWPARMS);
     arg = frame->argv[3];
     arglen = strlen((const char*)arg);
     cl = charclassLookup(ttm,arg);
-    if(cl == NULL) EXIT(TTM_ENOCLASS);
+    if(cl == NULL) EXIT(ttm,TTM_ENOCLASS);
     vsappendn(result,ttm->meta.lbrc,u8size(ttm->meta.lbrc));
     vsappendn(result,arg,arglen);
     vsappendn(result,ttm->meta.semic,u8size(ttm->meta.semic));
@@ -2963,7 +2952,7 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame, VString* result) /* Misc. combined ac
     xprintf(ttm,"info.class: |%s|\n",vscontents(result));
 #endif
 done:
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -2979,7 +2968,7 @@ ttm_ttm_info_string(TTM* ttm, Frame* frame, VString* result) /* Misc. combined a
     Function* str;
     char* arg = NULL;
 
-    if(frame->argc < 4) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 4) EXIT(ttm,TTM_EFEWPARMS);
     arg = frame->argv[3];
     str = dictionaryLookup(ttm,arg);
     /* Surround the body with <...> */
@@ -2991,7 +2980,7 @@ ttm_ttm_info_string(TTM* ttm, Frame* frame, VString* result) /* Misc. combined a
     }
 done:
     vsappendn(result,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
-    return THROW(err);
+    return THROW(ttm,err);
 }
 
 /**
@@ -3002,7 +2991,7 @@ Where case is one of:
 "builtin" => list only builtin names
 "string" => list only user-defined names
 "class" => list all classes 
-Each result is ',' separated.
+Each result is ',' separated and sorted
 */
 
 static TTMERR
@@ -3017,13 +3006,13 @@ ttm_ttm_list(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions 
     enum TTMEnum tte;
     struct HashTable* table = NULL;
 
-    if(frame->argc < 3) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
 
     /* Figure out what we are collecting */
     switch (tte = ttmenumdetect(frame->argv[2])) {
     case TE_CLASS: table = &ttm->tables.charclasses; break;
     case TE_ALL: case TE_BUILTIN: case TE_STRING: table = &ttm->tables.dictionary; break;
-    default: EXIT(TTM_EINVAL);
+    default: EXIT(ttm,TTM_EINVAL);
     }
 
     /* Pass one: collect all the names */
@@ -3048,10 +3037,15 @@ ttm_ttm_list(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions 
 	    cl = (Charclass*)entry;
 	    vlpush(vl,strdup((const char*)cl->entry.name));
 	    break;
-	default: EXIT(TTM_EINVAL);
+	default: EXIT(ttm,TTM_EINVAL);
 	}
     }
     hashwalkstop(walker);
+    /* Quick sort the list */
+    {
+        void* content = vlcontents(vl);
+	qsort(content, vllength(vl), sizeof(char*), stringveccmp);
+    }
     /* construct the final result */
     vsappendn(result,(const char*)ttm->meta.lbrc,u8size(ttm->meta.lbrc));
     for(first=1,i=0;i<vllength(vl);i++,first=0) {
@@ -3061,7 +3055,63 @@ ttm_ttm_list(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions 
     }
     vsappendn(result,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
 done:
-    return THROW(err);
+    vlfreeall(vl);
+    return THROW(ttm,err);
+}
+
+/**
+#<ttm;system;which>
+where which is one of: "wd","sep", or "platform".
+Return the system specific value.
+*/
+static TTMERR
+ttm_ttm_system(TTM* ttm, Frame* frame, VString* result)
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* which = NULL;
+    char value[4096];
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
+    which = frame->argv[2];
+
+    if(strcmp(which,"wd")==0) {
+	if(ttm->opts.testing) {
+	    strncpy(value,fixedtestvalues.wd,sizeof(value));
+	} else
+	{
+	    value[0] = '\0';
+	    if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+	}
+	vsappendn(result,value,strlen(value));
+    } else if(strcmp(which,"sep")==0) {
+	if(ttm->opts.testing)
+	    strncpy(value,fixedtestvalues.sep,sizeof(value));
+	else
+#ifdef MSWINDOWS
+	    strncpy(value,"\\",sizeof(value));
+#else
+	    strncpy(value,"/",sizeof(value));
+#endif
+	vsappendn(result,value,strlen(value));
+    } else if(strcmp(which,"platform")==0) {
+	if(ttm->opts.testing)
+	    strncpy(value,fixedtestvalues.platform,sizeof(value));
+	else
+#ifdef MSWINDOWS
+	    strncpy(value,"Windows",sizeof(value));
+#elif defined(__APPLE__)
+	    strncpy(value,"OS/X",sizeof(value));
+#else
+	    strncpy(value,"Unix",sizeof(value));
+#endif
+	vsappendn(result,value,strlen(value));
+    } else EXIT(ttm,TTM_EINVAL);
+
+done:
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
 }
 
 /**
@@ -3069,6 +3119,7 @@ done:
 #<ttm;info;name;{name}*>	# return info about each {name}
 #<ttm;info;class;{class}*>	# return info about each {class}
 #<ttm;list;{case};{name}*>	# return sorted list of names defined by case
+#<ttm;system;wd|sep|platform>	# return various kinds of system info
 */
 static TTMERR
 ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
@@ -3079,14 +3130,14 @@ ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
     char* klass = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(frame->argc < 2) EXIT(TTM_EFEWPARMS);
+    if(frame->argc < 2) EXIT(ttm,TTM_EFEWPARMS);
     which = frame->argv[1];
     switch (ttmenumdetect(which)) {
     case TE_META:
 	err = ttm_ttm_meta(ttm,frame,result);
 	break;
     case TE_INFO:
-	if(frame->argc < 3) EXIT(TTM_EFEWPARMS);
+	if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
 	klass = frame->argv[2];
 	switch (ttmenumdetect(klass)) {
 	case TE_NAME:
@@ -3098,20 +3149,24 @@ ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
 	case TE_STRING:
 	    err = ttm_ttm_info_string(ttm,frame,result);
 	    break;
-	default: EXIT(TTM_ETTMCMD);
+	default: EXIT(ttm,TTM_ETTMCMD);
 	}
 	break;
     case TE_LIST:
 	err = ttm_ttm_list(ttm,frame,result);
 	break;
+    case TE_SYSTEM:
+	err = ttm_ttm_system(ttm,frame,result);
+	break;
     default:
-	EXIT(TTM_ETTMCMD);
+	EXIT(ttm,TTM_ETTMCMD);
 	break;
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(err);
+    return THROW(ttm,err);
 }
+
 
 /**************************************************/
 
@@ -3230,12 +3285,11 @@ static struct Builtin builtin_new[] = {
     {"tn?",0,0,SV_V,ttm_istn}, /* Return 1 if trace is on; 0 if false and "" if undefined */
     {"pn",2,2,SV_V,ttm_pn}, /* pass arg[1] chars and return all but first arg[1] characters of arg[2] */
     {"trim",1,2,SV_V,ttm_trim}, /* trim leading and trailing whitespace */
+    {"switch",2,ARB,SV_V,ttm_switch}, /* multiway conditional */
+    {"clearpassive",0,0,SV_S,ttm_clearpassive}, /* clear current passive results */
     {"breakpoint",0,0,SV_S,ttm_breakpoint},
     {"catch",1,1,SV_SV,ttm_catch}, /* evaluate a TTM expression and return any error code */
-    {"switch",1,ARB,SV_V,ttm_switch}, /* multiway conditional */
-    {"wd",0,0,SV_V,ttm_wd}, /* get current working directory */
-    {"fps",0,0,SV_V,ttm_fps}, /* platform specific file path separator */
-    {"clearpassive",0,0,SV_S,ttm_clearpassive}, /* clear current passive results */
+    {"throw",1,1,SV_S,ttm_throw}, /* signal a ttm error */
     {NULL,0,0,SV_SV,NULL} /* end of builtins list */
 };
 
@@ -3273,14 +3327,15 @@ static struct Builtin builtin_irrelevant[] = {
 };
 #endif /*0*/
 
-static void
+static TTMERR
 defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
 {
+    int err = TTM_NOERR;
     Function* fcn;
 
     /* Make sure we did not define builtin twice */
     fcn = dictionaryLookup(ttm,bin->name);
-    if(fcn != NULL) FAILX(ttm,TTM_EDUPNAME,"fcn=%s\n",bin->name);
+    if(fcn != NULL) EXITMSG(ttm,TTM_EDUPNAME,"duplicate fcn name = %s\n",bin->name);
     /* create a new function object */
     fcn = newFunction(ttm,bin->name);
     fcn->fcn.builtin = 1;
@@ -3296,16 +3351,21 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
     fcn->fcn.fcn = bin->fcn;
     if(!dictionaryInsert(ttm,fcn)) {
 	freeFunction(ttm,fcn);
-	FAIL(ttm,TTM_ETTM);
+	EXIT(ttm,TTM_ETTM);
     }
+done:
+    return THROW(ttm,err);
 }
 
-static void
+static TTMERR
 defineBuiltinFunctions(TTM* ttm)
 {
+    int err = TTM_NOERR;
     struct Builtin* bin;
     for(bin=builtin_orig;bin->name != NULL;bin++)
-	defineBuiltinFunction1(ttm,bin);
+	if((err=defineBuiltinFunction1(ttm,bin))) EXIT(ttm,err);
     for(bin=builtin_new;bin->name != NULL;bin++)
-	defineBuiltinFunction1(ttm,bin);
+	if((err=defineBuiltinFunction1(ttm,bin))) EXIT(ttm,err);
+done:
+    return THROW(ttm,err);
 }

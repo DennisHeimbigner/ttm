@@ -90,7 +90,8 @@ TE_LIST,
 TE_CLASS,
 TE_STRING,
 TE_BUILTIN,
-TE_ALL
+TE_ALL,
+TE_SYSTEM, /* System info */
 };
 
 /* Must be powers of two; simulated enum */
@@ -244,6 +245,18 @@ typedef struct TTMFILE {
 TTM state object
 */
 
+/* Track err info from point of occurrence */
+struct ErrInfo {
+    TTMERR eno;
+    const char* file;
+    const char* fcn;
+    int line;
+    struct Xprint {
+	char xbuf[1 << 14];
+	int outnl; /* current xprint line ended with newline */
+    } xpr;
+};
+
 /* Keep outside of struct TTM to keep Visual Studio happy.
    Apparently because I use it as a standalone type
    (see dfalt_debug), it causes an incomplete type error.
@@ -252,10 +265,7 @@ struct Debug {
 	/*Debug Flags */
 	TRACE trace;   /* Forcibly trace all function executions */
 	int debug; /* output debug info */
-	struct Xprint {
-		char xbuf[1 << 14];
-		int outnl; /* current xprint line ended with newline */
-	} xpr;
+	struct ErrInfo ei;
 };
 
 struct TTM {
