@@ -6,6 +6,9 @@ SHELL := /bin/bash
 .PHONEY: check
 .PHONEY: clean
 
+##################################################
+# Make Build: *nix* only (including Cygwin
+
 TTM = ttm
 
 CC = gcc
@@ -44,22 +47,20 @@ test_all.log: test_all.ttm ${TTM}.exe
 test_misc.log: test_misc.ttm ${TTM}.exe
 	./${TTM}.exe -\& -Pshowcall -T -d1 -dt -p test_misc.ttm -f ./test.rs ${TESTARGS} > $@
 
-clean::
-	rm -f ${TTM}.exe ${TTM} ${TTM}.txt ${TTM}.obj
-	rm -f test_all.log
-	rm -f test_misc.log
-	rm -f *.bak
 
 # This is to check cpp (C preprocessor) expansions
 ${TTM}.txt::
 	rm -f ${TTM}.txt
 	${CC} -E ${CCWARN} ${CCDEBUG} ${CCMEM} ${TTM}.c  > ${TTM}.txt
 
-
 ##################################################
-# CMake Construction
+# CMake Build: Windows or *nix*
 
-# Specify use of Visual Studio
+# In order to execute the tests under Windows, you will need to have
+# either Cygwin or Mingw installed so that the programs bash, sed,
+# diff, awk, etc. are available.
+
+# Specify use of Visual Studio; If not defined, then attempt to use gcc.
 VS=1
 
 ifndef VS
@@ -106,3 +107,42 @@ ${BUILDDIR}::
 	mkdir -p ./${BUILDDIR}
 	cp ${BUILDSRC} ${BUILDDIR}
 	cd ${BUILDDIR}; CFLAGS="${CFLAGS}" cmake ${CCFLAG} ${G} ..
+
+##################################################
+# Direct Visual Studio Build
+
+# In order to execute the tests, you will need to have either Cygwin or Mingw installed
+# so that the programs bash, sed, diff, awk, etc. are available.
+
+# To build, invoke Visual Studio, and open the .vcxproj file as an exsting project.
+# The exact process may vary slightly depending on the Visual Studio version.
+# 1. Start up Visual Studio
+# 2. Click "Open a project or solution"
+# 3. Select .../ttm/src/C/ttm.vcxproj to open
+# 4. Select menu build->build Solution
+# 5. Exit
+
+# The build action should put ttm.exe into ttm/src/C/Windows/<arch>/<config>.
+
+# Set Architecture and Config variables
+ARCH=x64
+CONFIG=Debug
+
+# Move ttm.exe from <arch>/<config> to current directory
+${TTM}.exe: ${ARCH}/${STATE}/${TTM}.exe
+	cp ${ARCH}/${STATE}/${TTM}.exe .
+
+##################################################
+# Cleanup Actions
+
+cmake-clean::
+	rm -fr build
+
+clean:: cmake-clean
+	rm -f ${TTM}.exe ${TTM} ${TTM}.txt ${TTM}.obj
+	rm -f test_all.log
+	rm -f test_misc.log
+	rm -f *.bak
+
+veryclean:: clean
+	rm -fr ttm x64 .vs # Remove unneeded Visual Studio files

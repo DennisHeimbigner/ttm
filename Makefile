@@ -11,9 +11,8 @@ check::
 	cd ./src/Python; make check
 	
 clean::
-	cd ./src/C; make clean
-	cd ./src/Python; make clean
-	cd ./src/Java; make clean
+	cd ./src/C; make very-clean
+	cd ./src/Python; make very-clean
 
 # Generate a directory called "git" that contains everything in the Manifest
 git::

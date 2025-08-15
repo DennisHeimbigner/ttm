@@ -52,12 +52,3 @@ functions exist and are defined in the
 * [Caine, S.H. and Gordon, E.K., TTM: An Experimental Interpretive Language. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 7, 1968.](https://github.com/Unidata/ttm/blob/master/ttm_interpretive_language_pr_07.pdf)
 * [Caine, S.H. and Gordon, E.K., TTM: A Macro Language for Batch Processing. California Institute of Technology, Willis H. Booth Computing Center, Programming Report No. 8 May, 1969.](https://github.com/Unidata/ttm/blob/master/ttm_batch_processing_pr_08.pdf)
 
-# Change Log
-
-## Nov 15, 2012
-* Initial commit
-
-## July 4, 2025
-* Convert from using UTF-32 internally to using UTF-8.
-* Added a number of new non-standard functions, mostly to support testing.
-
