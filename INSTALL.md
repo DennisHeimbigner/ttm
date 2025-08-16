@@ -6,11 +6,14 @@ There are two versions of the ttm interpreter in different programming languages
 1. C
 2. Python
 
+There is also an obsolete Java implementation. It needs to be updated to match the other implementations.
+
 ### 1. C Interpreter
 
 The C interpreter is constructed using the file ttm.c plus a number
-of .h include files.  A Makefile exists to create ttm.exe. Use of
-CMake will be attempted in the future.
+of .h include files.  A Makefile exists to create ttm.exe.
+A CMakeLists.txt builder also is provided, but note that it is invoked
+using "cmake*" rules in the "ttm/src/C/Makefile".
 
 As an aside, there is a rule in src/C/Makefile to create a single source file -- named
 unityttm.c -- by replacing the "#include" files with the corresponding file.
