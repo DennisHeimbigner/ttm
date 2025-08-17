@@ -129,8 +129,8 @@ ARCH=x64
 CONFIG=Debug
 
 # Move ttm.exe from <arch>/<config> to current directory
-${TTM}.exe: ${ARCH}/${STATE}/${TTM}.exe
-	cp ${ARCH}/${STATE}/${TTM}.exe .
+installvs: Windows/${ARCH}/${CONFIG}/${TTM}.exe
+	cp Windows/${ARCH}/${CONFIG}/${TTM}.exe .
 
 ##################################################
 # Cleanup Actions
