@@ -282,7 +282,6 @@ class Frame:
 
 # class Frame
 
-
 #Name Storage and the Dictionary
 # If you add field to this, you need
 #  to modify especially ttm_ds
@@ -988,12 +987,10 @@ def ttm_ss0(ttm, frame, br):
 def ttm_sc(ttm, frame, br):  # Segment and count
   nsegs = ttm_ss0(ttm, frame, br)
   br.append(str(nsegs))
-
 # end ttm_sc
 
 def ttm_ss(ttm, frame, br):  # Segment
   ttm_ss0(ttm, frame, br)
-
 # end ttm_ss
 
 # Name Selection
@@ -1010,7 +1007,6 @@ def ttm_cc(ttm, frame, br):  # Call one character
     c = entry.body[entry.residual]
     br.append(c)
     entry.residual += 1
-
 # end ttm_cc
 
 def ttm_cn(ttm, frame, br):  # Call n characters
@@ -1046,7 +1042,6 @@ def ttm_cn(ttm, frame, br):  # Call n characters
   br.append(entry.body, entry.residual, n)
   # increment residual
   entry.residual += n
-
 # end ttm_cn
 
 def ttm_cp(ttm, frame, br):  # Call parameter
@@ -1184,27 +1179,7 @@ def ttm_sn(ttm, frame, br):  # Skip n characters
   bodylen = len(entry.body)
   if (entry.residual > bodylen):
     entry.residual = bodylen
-
 #end ttm_sn
-
-def ttm_eos(ttm, frame, br):  # Test for end of string
-  arg = frame.argv(1)
-  if arg in ttm.dictionary:
-    entry = ttm.dictionary[arg]
-  else:
-    ttm.fail(ENONAME)
-  if (entry.builtin):
-    ttm.fail(ENOPRIM)
-  bodylen = len(entry.body)
-  t = frame.argv(2)
-  f = frame.argv(3)
-  if (entry.residual >= bodylen):
-    result = t
-  else:
-    result = f
-  br.append(result, 0, len(result))
-
-#end ttm_eos
 
 # Name Scanning Operations
 
@@ -1301,6 +1276,17 @@ def ttm_flip(ttm, frame, br):  # Flip a string
     br.put(s[p-1])
 #end ttm_flip
 
+def ttm_trl(ttm, frame, br):  # lowercase a string
+  s = frame.argv(1)
+  s.lower();
+  br.append(s)
+#end ttm_trl
+
+def ttm_thd(ttm, frame, br):  # convert hex string to decimal
+  s = frame.argv(1)
+  br.append(str(int(hex_string, 16)))
+#end ttm_thd
+
 def ttm_ccl(ttm, frame, br):  # Call class
   arg = frame.argv(1)
   arg2 = frame.argv(2)
@@ -1342,7 +1328,6 @@ def ttm_dcl0(ttm, frame, negative):
     # create a new charclass object
     cl = Charclass(arg, characters, negative)
     ttm.charclasses[arg] = cl
-
 # end ttm_dcl0
 
 def ttm_dcl(ttm, frame, br):  # Define a negative class
@@ -1352,7 +1337,6 @@ def ttm_dcl(ttm, frame, br):  # Define a negative class
 
 def ttm_dncl(ttm, frame, br):  # Define a negative class
   ttm_dcl0(ttm, frame, True)
-
 # end ttm_dncl
 
 def ttm_ecl(ttm, frame, br):  # Erase a class
@@ -1434,7 +1418,6 @@ def ttm_abs(ttm, frame, br):  # Obtain absolute value
     ttm.fail(EDECIMAL)
   if (lhs < 0): lhs = -lhs
   br.append(str(lhs))
-
 # end ttm_abs
 
 def ttm_ad(ttm, frame, br):  # Add
@@ -1486,7 +1469,6 @@ def ttm_mu(ttm, frame, br):  # Multiply
     br.append(str(total))
   except ValueError:
     ttm.fail(EDECIMAL)
-
 # end ttm_mu
 
 def ttm_su(ttm, frame, br):  # Substract
@@ -1569,7 +1551,6 @@ def ttm_gtl(ttm, frame, br):  # ? Compare logical greater-than
     br.append(t)
   else:
     br.append(f)
-
 # end ttm_gtl
 
 def ttm_ltl(ttm, frame, br):  # ? Compare logical less-than
@@ -1581,7 +1562,6 @@ def ttm_ltl(ttm, frame, br):  # ? Compare logical less-than
     br.append(t)
   else:
     br.append(f)
-
 # end ttm_ltl
 
 # Peripheral Input/Output Operations
@@ -1596,7 +1576,6 @@ def ttm_ps(ttm, frame, br):  # Print a Name
   else:
     target = ttm.stdout
   printstring(target, s, ttm.escapec)
-
 # end ttm_ps
 
 def ttm_rs(ttm, frame, br):  # Read a Name
@@ -1619,15 +1598,6 @@ def ttm_cm(ttm, frame, br):  # Change meta character
     if (ord(smeta[0]) > 127): ttm.fail(EASCII)
     ttm.metac = smeta[0]
 # end ttm_cm
-
-def ttm_pf(ttm, frame, br):  # Flush stdout and/or stderr
-  stdxx = None
-  if (frame.argc() > 1): stdxx = frame.argv(1)
-  if (stdxx == None or stdxx == "stdout"):
-    ttm.stdout.flush()
-  if (stdxx == None or stdxx == "stderr"):
-    ttm.stderr.flush()
-# end ttm_pf
 
 # Library Operations
 
@@ -1660,7 +1630,6 @@ def ttm_exit(ttm, frame, br):  # Return from TTM
       ttm.fail(EDECIMAL)
     if (exitcode < 0): exitcode = - exitcode
   ttm.exitcode = exitcode
-
 # end ttm_exit
 
 # Utility Operations
@@ -1673,13 +1642,11 @@ def ttm_ndf(ttm, frame, br):  # Determine if a Name is Defined
     br.append(t)
   else:
     br.append(f)
-
 # end ttm_ndf
 
 def ttm_norm(ttm, frame, br):  # Obtain the Norm (length) of a string
   s = frame.argv(1)
   br.append(str(len(s)))
-
 # end ttm_norm
 
 def ttm_time(ttm, frame, br):  # Obtain time of day
@@ -1687,7 +1654,6 @@ def ttm_time(ttm, frame, br):  # Obtain time of day
   dt *= 100  # need value to 1/100 second
   idt = int(dt)
   br.append(str(idt))
-
 # end ttm_time
 
 def ttm_xtime(ttm, frame, br):  # Obtain Execution Time
@@ -1722,7 +1688,6 @@ def ttm_tf(ttm, frame, br):  # Turn Trace Off
       fcn = ttm.dictionary[key]
       fcn.trace = False
     ttm.flags &= ~(FLAG_TRACE)
-
 # end ttm_tf
 
 def ttm_tn(ttm, frame, br):  # Turn Trace On
@@ -1736,76 +1701,27 @@ def ttm_tn(ttm, frame, br):  # Turn Trace On
       fcn.trace = True
   else:  # turn on all tracing
     ttm.flags |= (FLAG_TRACE)  #trace all#
-
 # end ttm_tn
 
-# Functions new to this implementation
-
-# Get ith command line argument; zero is command
-def ttm_argv(ttm, frame, br):
+def ttm_eos(ttm, frame, br):  # Test for end of string
   arg = frame.argv(1)
-  try:
-    index = int(arg)
-  except ValueError:
-    ttm.fail(EDECIMAL)
-  if (index < 0 or index >= len(argoptions)):
-    ttm.fail(ERANGE)
-  arg = argoptions[index]
-  br.append(arg)
-# end ttm_argv
+  if arg in ttm.dictionary:
+    entry = ttm.dictionary[arg]
+  else:
+    ttm.fail(ENONAME)
+  if (entry.builtin):
+    ttm.fail(ENOPRIM)
+  bodylen = len(entry.body)
+  t = frame.argv(2)
+  f = frame.argv(3)
+  if (entry.residual >= bodylen):
+    result = t
+  else:
+    result = f
+  br.append(result, 0, len(result))
+#end ttm_eos
 
-# Get the length of argoptions
-def ttm_argc(ttm, frame, br):
-  argc = len(argoptions)
-  br.append(str(argc))
-# end ttm_argc
-
-def ttm_classes(ttm, frame, br):  # Obtain all character class names
-  # Collect all the class names
-  clnames = []
-  for key in ttm.charclasses:
-    clnames.append(key)
-    # Now sort the set of names
-  clnames.sort()
-  # Return the set of names separated by commas
-  first = True
-  for name in clnames:
-    if not first: br.put(',')
-    br.append(name)
-    first = False
-# end ttm_classes
-
-def ttm_lf(ttm, frame, br):  # Lock a function from being deleted
-  for i in range(1, frame.argc()):
-    name = frame.argv(i)
-    if name in ttm.dictionary:
-      fcn = ttm.dictionary[name]
-      fcn.locked = True
-    else:
-      ttm.fail(ENONAME)
-
-# end ttm_lf
-
-def ttm_uf(ttm, frame, br):  # Un-Lock a function from being deleted
-  for i in range(1, frame.argc()):
-    name = frame.argv(i)
-    if name in ttm.dictionary:
-      fcn = ttm.dictionary[name]
-      fcn.locked = False
-    else:
-      ttm.fail(ENONAME)
-
-# end ttm_uf
-
-def ttm_include(ttm, frame, br):  # Include text of a file
-  path = frame.argv(1)
-  if (len(path) == 0):
-    ttm.fail(EINCLUDE)
-  try:
-    count = readfile(ttm,path,ttm.ba)
-  except IOError:
-    ttm.fail(EINCLUDE)
-# end ttm_include
+# Functions new to this implementation
 
 #Helper functions for all the ttm commands
 #and subcommands
@@ -1820,7 +1736,6 @@ def ttm_ttm_meta(ttm, frame, br):
   ttm.semic = arg[2]
   ttm.closec = arg[3]
   ttm.escapec = arg[4]
-
 # end ttm_ttm_meta
 
 #*
@@ -1919,6 +1834,211 @@ def ttm_ttm(ttm, frame, br):  # Misc. combined actions
     ttm.fail(ETTMCMD)
 # end ttm_ttm
 
+# Get ith command line argument; zero is command
+def ttm_argv(ttm, frame, br):
+  arg = frame.argv(1)
+  try:
+    index = int(arg)
+  except ValueError:
+    ttm.fail(EDECIMAL)
+  if (index < 0 or index >= len(argoptions)):
+    ttm.fail(ERANGE)
+  arg = argoptions[index]
+  br.append(arg)
+# end ttm_argv
+
+# Get the length of argoptions
+def ttm_argc(ttm, frame, br):
+  argc = len(argoptions)
+  br.append(str(argc))
+# end ttm_argc
+
+def ttm_classes(ttm, frame, br):  # Obtain all character class names
+  # Collect all the class names
+  clnames = []
+  for key in ttm.charclasses:
+    clnames.append(key)
+    # Now sort the set of names
+  clnames.sort()
+  # Return the set of names separated by commas
+  first = True
+  for name in clnames:
+    if not first: br.put(',')
+    br.append(name)
+    first = False
+# end ttm_classes
+
+def ttm_include(ttm, frame, br):  # Include text of a file
+  path = frame.argv(1)
+  if (len(path) == 0):
+    ttm.fail(EINCLUDE)
+  try:
+    count = readfile(ttm,path,ttm.ba)
+  except IOError:
+    ttm.fail(EINCLUDE)
+# end ttm_include
+
+def ttm_lf(ttm, frame, br):  # Lock a function from being deleted
+  for i in range(1, frame.argc()):
+    name = frame.argv(i)
+    if name in ttm.dictionary:
+      fcn = ttm.dictionary[name]
+      fcn.locked = True
+    else:
+      ttm.fail(ENONAME)
+# end ttm_lf
+
+def ttm_uf(ttm, frame, br):  # Un-Lock a function from being deleted
+  for i in range(1, frame.argc()):
+    name = frame.argv(i)
+    if name in ttm.dictionary:
+      fcn = ttm.dictionary[name]
+      fcn.locked = False
+    else:
+      ttm.fail(ENONAME)
+# end ttm_uf
+
+def ttm_ge(ttm, frame, br):  # Compare numeric greater-equal
+  slhs = frame.argv(1)
+  srhs = frame.argv(2)
+  t = frame.argv(3)
+  f = frame.argv(4)
+  try:
+    lhs = int(slhs)
+    rhs = int(srhs)
+    if (lhs >= rhs):
+      br.append(t)
+    else:
+      br.append(f)
+  except ValueError:
+    ttm.fail(EDECIMAL)
+# end ttm_ge
+
+def ttm_le(ttm, frame, br):  # Compare numeric less-equal
+  slhs = frame.argv(1)
+  srhs = frame.argv(2)
+  t = frame.argv(3)
+  f = frame.argv(4)
+  try:
+    lhs = int(slhs)
+    rhs = int(srhs)
+    if (lhs < rhs):
+      br.append(t)
+    else:
+      br.append(f)
+  except ValueError:
+    ttm.fail(EDECIMAL)
+# end ttm_ge
+
+def ttm_void(ttm, frame, br):  # throw away all arguments and return ""
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_thd
+
+def ttm_setprop(ttm, frame, br): # Set property
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_setprop
+
+def ttm_resetprop(ttm, frame, br): # set property to default
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_resetprop
+
+def ttm_getprop(ttm, frame, br): # get property value
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_getprop
+
+def ttm_removeprop(ttm, frame, br): # remove property value
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_removeprop
+
+def ttm_properties (ttm, frame, br): # list all property keys in form <key,...>
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_properties
+
+def ttm_printf(ttm, frame, br): # Emulate printf()
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_printf
+
+def ttm_fprintf(ttm, frame, br): # flush stderr and/or stdout
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_fprintf
+
+def ttm_pf(ttm, frame, br): # flush stderr and/or stdout
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_pf
+
+def ttm_tru(ttm, frame, br):  # uppercase a string
+  s = frame.argv(1)
+  s.upper();
+  br.append(s)
+#end ttm_tru
+
+def ttm_tdh(ttm, frame, br):  # convert decimal string to hex
+  s = frame.argv(1)
+  br.append(hex(int(s))[2])
+#end ttm_tdh
+
+def ttm_srp(ttm, frame, br): # set the value of the residual pointer
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_srp
+
+def ttm_rp(ttm, frame, br): # get the value of the residual pointer
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_rp
+
+def ttm_sort(ttm, frame, br): # sort the contents of a named string
+  arg = frame.argv(1)
+  if frame.argc > 2:
+    sep = frame.argv(2)
+  else:
+    sep = ":"
+  if arg in ttm.dictionary:
+    entry = ttm.dictionary[arg]
+  else:
+    ttm.fail(ENONAME)
+  if (entry.builtin):
+    ttm.fail(ENOPRIM)
+  # Get body
+  body = entry.body;
+  # parse string to list
+  l = arg.split(sep)
+  # Sort it
+  l.sort(reverse=true)
+  # unparse to string
+  br.append(sep.join(l))
+#end ttm_sort
+
+def ttm_istn(ttm, frame, br): # Return 1 if trace is on; 0 if false and "" if undefined
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_tn?
+
+def ttm_pn(ttm, frame, br): # pass arg[1] chars and return all but first arg[1] characters of arg[2]
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_pn
+
+def ttm_trim(ttm, frame, br): # trim leading and trailing whitespace
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_trim
+
+def ttm_switch(ttm, frame, br): # multiway conditional
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_switch
+
+def ttm_clearpassive(ttm, frame, br): # clear current passive results
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_clearpassive
+
+def ttm_breakpoint(ttm, frame, br): # Used for debugging
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_breakpoint
+
+def ttm_catch(ttm, frame, br): # evaluate a TTM expression and return any error code
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_catch
+
+def ttm_throw(ttm, frame, br): # signal a ttm error
+    raise Exception("Unimplemented: "+frame.argv(0))
+#end ttm_throw
+
 ##################################################
 # Builtin function table
 class Builtin:
@@ -1939,123 +2059,136 @@ class Builtin:
 ARB = MAXARGS
 
 builtin_orig = (
-  # Dictionary Operations
-  ("ap", 2, 2, "S", ttm_ap),  # Append to a string
-  ("cf", 2, 2, "S", ttm_cf),  # Copy a function
-  ("cr", 2, 2, "S", ttm_cr),  # Mark for creation
-  ("ds", 2, 2, "S", ttm_ds),  # Define string
-  ("es", 1, ARB, "S", ttm_es),  # Erase string
-  ("sc", 2, 63, "SV", ttm_sc),  # Segment and count
-  ("ss", 2, 2, "S", ttm_ss),  # Segment a string
-  # Name Selection
-  ("cc", 1, 1, "SV", ttm_cc),  # Call one character
-  ("cn", 2, 2, "SV", ttm_cn),  # Call n characters
-  ("sn", 2, 2, "S", ttm_sn),  # Skip n characters  #  #Batch#
-  ("cp", 1, 1, "SV", ttm_cp),  # Call parameter
-  ("cs", 1, 1, "SV", ttm_cs),  # Call segment
-  ("isc", 4, 4, "SV", ttm_isc),  # Initial character scan
-  ("rrp", 1, 1, "S", ttm_rrp),  # Reset residual pointer
-  ("scn", 3, 3, "SV", ttm_scn),  # Character scan
-  # Name Scanning Operations
-  ("gn", 2, 2, "V", ttm_gn),  # Give n characters
-  ("zlc", 1, 1, "V", ttm_zlc),  # Zero-level commas
-  ("zlcp", 1, 1, "V", ttm_zlcp),  # Zero-level commas and parentheses
-  ("flip", 1, 1, "V", ttm_flip),  # Flip a string  #  #Batch#
-  # Character Class Operations
-  ("ccl", 2, 2, "SV", ttm_ccl),  # Call class
-  ("dcl", 2, 2, "S", ttm_dcl),  # Define a class
-  ("dncl", 2, 2, "S", ttm_dncl),  # Define a negative class
-  ("ecl", 1, ARB, "S", ttm_ecl),  # Erase a class
-  ("scl", 2, 2, "S", ttm_scl),  # Skip class
-  ("tcl", 4, 4, "V", ttm_tcl),  # Test class
-  # Arithmetic Operations
-  ("abs", 1, 1, "V", ttm_abs),  # Obtain absolute value
-  ("ad", 2, ARB, "V", ttm_ad),  # Add
-  ("dv", 2, 2, "V", ttm_dv),  # Divide and give quotient
-  ("dvr", 2, 2, "V", ttm_dvr),  # Divide and give remainder
-  ("mu", 2, ARB, "V", ttm_mu),  # Multiply
-  ("su", 2, 2, "V", ttm_su),  # Substract
-  # Numeric Comparisons
-  ("eq", 4, 4, "V", ttm_eq),  # Compare numeric equal
-  ("gt", 4, 4, "V", ttm_gt),  # Compare numeric greater-than
-  ("lt", 4, 4, "V", ttm_lt),  # Compare numeric less-than
-  # Logical Comparisons
-  ("eq?", 4, 4, "V", ttm_eql),  # ? Compare logical equal
-  ("gt?", 4, 4, "V", ttm_gtl),  # ? Compare logical greater-than
-  ("lt?", 4, 4, "V", ttm_ltl),  # ? Compare logical less-than
-  # Peripheral Input/Output Operations
-  ("cm", 1, 1, "S", ttm_cm),  #Change Meta Character#
-  ("ps", 1, 2, "S", ttm_ps),  # Print a Name
-  ("psr", 1, 1, "SV", ttm_psr),  # Print Name and Read
-  #if IMPLEMENTED:
-  #  ("rcd",2,2,"S",ttm_rcd),  # Set to Read Prom Cards
-  #endif
-  ("rs", 0, 0, "V", ttm_rs),  # Read a Name
-  #Formated Output Operations
-  #if IMPLEMENTED:
-  # ("fm",1,ARB,"S",ttm_fm),  # Format a Line or Card
-  # ("tabs",1,8,"S",ttm_tabs),  # Declare Tab Positions
-  # ("scc",2,2,"S",ttm_scc),  # Set Continuation Convention
-  # ("icc",1,1,"S",ttm_icc),  # Insert a Control Character
-  #("outb",0,3,"S",ttm_outb),  # Output the Buffer
-  #endif
-  # Library Operations
-  #if IMPLEMENTED:
-  # ("store",2,2,"S",ttm_store),  # Store a Program
-  # ("delete",1,1,"S",ttm_delete),  # Delete a Program
-  # ("copy",1,1,"S",ttm_copy),  # Copy a Program
-  # ("show",0,1,"S",ttm_show),  # Show Program Names
-  # ("libs",2,2,"S",ttm_libs),  # Declare standard qualifiers  #  #Batch#
-  #endif
-  ("names", 0, 1, "V", ttm_names),  # Obtain Name Names
-  # Utility Operations
-  #if IMPLEMENTED:
-  # ("break",0,1,"S",ttm_break),  # Program Break
-  #endif
-  ("exit", 0, 0, "S", ttm_exit),  # Return from TTM
-  ("ndf", 3, 3, "V", ttm_ndf),  # Determine if a Name is Defined
-  ("norm", 1, 1, "V", ttm_norm),  # Obtain the Norm of a Name
-  ("time", 0, 0, "V", ttm_time),  # Obtain time of day (modified)
-  ("xtime", 0, 0, "V", ttm_xtime),  # Obtain execution time  #  #Batch#
-  ("tf", 0, 0, "S", ttm_tf),  # Turn Trace Off
-  ("tn", 0, 0, "S", ttm_tn),  # Turn Trace On
-  ("eos", 3, 3, "V", ttm_eos),  # Test for end of string  #  #Batch#
-
-  #if IMPLEMENTED:
-  # Batch Functions
-  #("insw",2,2,"S",ttm_insw),  # Control output of input monitor  #  #Batch#
-  #("ttmsw",2,2,"S",ttm_ttmsw),  # Control handling of ttm programs  #  #Batch#
-  # ("cd",0,0,"V",ttm_cd),  # Input one card (Batch)
-  # ("cdsw",2,2,"S",ttm_cdsw),  # Control cd input (Batch)
-  # ("for",0,0,"V",ttm_for),  # Input next complete fortran statement (Batch)
-  # ("forsw",2,2,"S",ttm_forsw)  # Control for input (Batch)
-  # ("pk",0,0,"V",ttm_pk),  # Look ahead one card (Batch)
-  # ("pksw",2,2,"S",ttm_pksw),  # Control pk input (Batch)
-  # ("ps",1,1,"S",ttm_ps),  # Print a string (Batch)  #Modified#
-  # ("page",1,1,"S",ttm_page),  # Specify page length (Batch)
-  # ("sp",1,1,"S",ttm_sp),  # Space before printing (Batch)
-  # ("fm",0,ARB,"S",ttm_fm),  # Format a line or card (Batch)
-  # ("tabs",1,10,"S",ttm_tabs),  # Declare tab positions (Batch)  #Modified#
-  # ("scc",3,3,"S",ttm_scc),  # Set continuation convention (Batch)
-  # ("fmsw",2,2,"S",ttm_fmsw),  # Control fm output (Batch)
-  # ("time",0,0,"V",ttm_time),  # Obtain time of day (Batch)  #Modified#
-  # ("des",1,1,"S",ttm_des),  # Define error string (Batch)
-  #endif
-);
+    # Dictionary Operations
+    ("ap",2,2,"S",ttm_ap), # Append to a string
+    ("cf",2,2,"S",ttm_cf), # Copy a function
+    ("ds",2,2,"S",ttm_ds), # Define string
+    ("es",0,ARB,"S",ttm_es), # Erase string
+    ("sc",2,63,"SV",ttm_sc), # Segment and count
+    ("ss",2,2,"S",ttm_ss), # Segment a string
+    ("cr",2,2,"S",ttm_cr), # Mark for creation
+    # Stateful String Selection
+    ("cc",1,1,"SV",ttm_cc), # Call one character
+    ("cn",2,2,"SV",ttm_cn), # Call n characters
+    ("sn",2,2,"S",ttm_sn), # Skip n characters#Batch
+    ("cp",1,1,"SV",ttm_cp), # Call parameter
+    ("cs",1,1,"SV",ttm_cs), # Call segment
+    ("isc",4,4,"SV",ttm_isc), # Initial character scan
+    ("rrp",1,1,"S",ttm_rrp), # Reset residual pointer
+    ("scn",3,3,"SV",ttm_scn), # Character scan
+    # Stateless String Scanning Operations
+    ("gn",2,2,"V",ttm_gn), # Give n characters
+    ("zlc",1,1,"V",ttm_zlc), # Zero-level commas
+    ("zlcp",1,1,"V",ttm_zlcp), # Zero-level commas and parentheses
+    ("flip",1,1,"V",ttm_flip), # Flip a string#Batch
+    ("trl",1,1,"V",ttm_trl), # Translate to lowercase#Batch
+    ("thd",1,1,"V",ttm_thd), # Convert hexidecimal to decimal#Batch
+    # Character Class Operations
+    ("ccl",2,2,"SV",ttm_ccl), # Call class
+    ("dcl",2,2,"S",ttm_dcl), # Define a class
+    ("dncl",2,2,"S",ttm_dncl), # Define a negative class
+    ("ecl",1,ARB,"S",ttm_ecl), # Erase a class
+    ("scl",2,2,"S",ttm_scl), # Skip class
+    ("tcl",4,4,"V",ttm_tcl), # Test class
+    # Arithmetic Operations
+    ("abs",1,1,"V",ttm_abs), # Obtain absolute value
+    ("ad",2,ARB,"V",ttm_ad), # Add
+    ("dv",2,2,"V",ttm_dv), # Divide and give quotient
+    ("dvr",2,2,"V",ttm_dvr), # Divide and give remainder
+    ("mu",2,ARB,"V",ttm_mu), # Multiply
+    ("su",2,2,"V",ttm_su), # Substract
+    # Numeric Comparisons
+    ("eq",4,4,"V",ttm_eq), # Compare numeric equal
+    ("gt",4,4,"V",ttm_gt), # Compare numeric greater-than
+    ("lt",4,4,"V",ttm_lt), # Compare numeric less-than
+    # Logical Comparisons
+    ("eq?",4,4,"V",ttm_eql), # ? Compare logical equal
+    ("gt?",4,4,"V",ttm_gtl), # ? Compare logical greater-than
+    ("lt?",4,4,"V",ttm_ltl), # ? Compare logical less-than
+    # Peripheral Input/Output Operations
+    ("cm",1,1,"SV",ttm_cm), #Change Meta Character; return previous value
+    ("ps",1,ARB,"S",ttm_ps), # Print a sequence of strings
+    ("psr",1,1,"SV",ttm_psr), # Print string and then read
+    ("rs",0,1,"V",ttm_rs), # Read a string
+    # Library Operations
+    ("names",0,0,"V",ttm_names), # Obtain name strings
+    # Utility Operations
+    ("exit",0,0,"S",ttm_exit), # Return from TTM
+    ("ndf",3,3,"V",ttm_ndf), # Determine if a name is defined
+    ("norm",1,1,"V",ttm_norm), # Obtain the norm (length) of a string
+    ("time",0,0,"V",ttm_time), # Obtain time of day (modified)
+    ("xtime",0,0,"V",ttm_xtime), # Obtain execution time#Batch
+    ("tf",0,0,"S",ttm_tf), # Turn Trace Off
+    ("tn",0,0,"S",ttm_tn), # Turn Trace On
+    ("eos",3,3,"V",ttm_eos), # Test for end of string#Batch
+)
 
 # Functions new to this implementation
 builtin_new = (
-  ("argv", 1, 1, "V", ttm_argv),  # Get ith command line argument; 0<=i<argc
-  ("argc", 0, 0, "V", ttm_argc),  # no. of command line arguments
-  ("classes", 0, 0, "V", ttm_classes),  # Obtain character class Names
-  ("ctime", 1, 1, "V", ttm_ctime),  # Convert time to printable string
-  ("include", 1, 1, "S", ttm_include),  # Include text of a file
-  ("lf", 0, ARB, "S", ttm_lf),  # Lock functions
-  ("pf", 0, 1, "S", ttm_pf),  # flush stderr and/or stdout
-  ("uf", 0, ARB, "S", ttm_uf),  # Unlock functions
-  ("ttm", 1, ARB, "SV", ttm_ttm),  # Misc. combined actions
-);
+    ("ttm",1,ARB,"SV",ttm_ttm), # Misc. combined actions
+    ("argv",1,1,"V",ttm_argv), # Get ith command line argument; 0<=i<argc
+    ("argc",0,0,"V",ttm_argc), # no. of command line arguments
+    ("classes",0,0,"V",ttm_classes), # Obtain character class names
+    ("ctime",1,1,"V",ttm_ctime), # Convert arg1 (typically #<time>) to printable string
+    ("include",1,1,"V",ttm_include), # Include text of a file
+    ("lf",0,ARB,"S",ttm_lf), # Lock functions
+    ("uf",0,ARB,"S",ttm_uf), # Unlock functions
+    ("ge",4,4,"V",ttm_ge), # Compare numeric greater-than
+    ("le",4,4,"V",ttm_le), # Compare numeric less-than
+    ("void",0,ARB,"S",ttm_void), # throw away all arguments and return an empty string
+    ("comment",0,ARB,"S",ttm_void), # alias for ttm_void
+    ("setprop",1,2,"SV",ttm_setprop), # Set property
+    ("resetprop",1,1,"SV",ttm_resetprop), # set property to default
+    ("getprop",1,1,"SV",ttm_getprop), # get property value
+    ("removeprop",1,1,"SV",ttm_removeprop), # remove property value
+    ("properties",0,0,"V",ttm_properties ), # list all property keys in form <key,...>
+    ("printf",1,ARB,"S",ttm_printf), # Emulate printf()
+    ("fprintf",2,ARB,"S",ttm_fprintf), # Emulate fprintf()
+    ("pf",0,1,"S",ttm_pf), # flush stderr and/or stdout
+    ("tru",1,1,"V",ttm_tru), # Translate to uppercase
+    ("tdh",1,1,"V",ttm_tdh), # Convert a decimal value to hexidecimal
+    ("rp",1,1,"V",ttm_rp), # return the value of the residual pointer
+    ("srp",1,2,"S",ttm_srp), # set the value of the residual pointer
+    ("sort",1,2,"S",ttm_sort), # sort the contents of a named string
+    ("tn?",0,0,"V",ttm_istn), # Return 1 if trace is on; 0 if false and "" if undefined
+    ("pn",2,2,"V",ttm_pn), # pass arg[1] chars and return all but first arg[1] characters of arg[2]
+    ("trim",1,2,"V",ttm_trim), # trim leading and trailing whitespace
+    ("switch",2,ARB,"V",ttm_switch), # multiway conditional
+    ("clearpassive",0,0,"S",ttm_clearpassive), # clear current passive results
+    ("breakpoint",0,0,"S",ttm_breakpoint),
+    ("catch",1,1,"SV",ttm_catch), # evaluate a TTM expression and return any error code
+    ("throw",1,1,"S",ttm_throw), # signal a ttm error
+)
 
+## Functions not implemented; they are irrelevant to this implementation
+#builtin_irrelevant = (
+#    {"rcd",2,2,"S",ttm_rcd}, # Set to Read from cards
+#    {"fm",1,ARB,"S",ttm_fm}, # Format a Line or Card
+#    {"tabs",1,8,"S",ttm_tabs}, # Declare Tab Positions
+#    {"scc",2,2,"S",ttm_scc}, # Set Continuation Convention
+#    {"icc",1,1,"S",ttm_icc}, # Insert a Control Character
+#    {"outb",0,3,"S",ttm_outb}, # Output the Buffer
+#    # Library Operations
+#    {"store",2,2,"S",ttm_store}, # Store a Program
+#    {"delete",1,1,"S",ttm_delete}, # Delete a Program
+#    {"copy",1,1,"S",ttm_copy}, # Copy a program
+#    {"show",0,1,"S",ttm_show}, # Show program strings
+#    {"libs",2,2,"S",ttm_libs}, # Declare standard qualifiers#Batch
+#    {"break",0,1,"S",ttm_break}, # Program Break
+#    # Batch Functions
+#    {"insw",2,2,"S",ttm_insw}, # Control output of input monitor#Batch
+#    {"ttmsw",2,2,"S",ttm_ttmsw}, # Control handling of ttm programs#Batch
+#    {"cd",0,0,"V",ttm_cd}, # Input one card#Batch
+#    {"cdsw",2,2,"S",ttm_cdsw}, # Control cd input#Batch
+#    {"for",0,0,"V",ttm_for}, # Input next complete fortran statement#Batch
+#    {"forsw",2,2,"S",ttm_forsw}, # Control for input#Batch
+#    {"pk",0,0,"V",ttm_pk}, # Look ahead one card#Batch
+#    {"pksw",2,2,"S",ttm_pksw}, # Control pk input#Batch
+#    {"ps",1,1,"S",ttm_ps}, # Print a string#Batch#Modified
+#    {"page",1,1,"S",ttm_page}, # Specify page length#Batch
+#    {"sp",1,1,"S",ttm_sp}, # Space before printing#Batch
+#    {"fmsw",2,2,"S",ttm_fmsw}, # Control fm output#Batch
+#    {"des",1,1,"S",ttm_des}, # Define error string#Batch
 
 def definebuiltinfunction1(ttm, bin):
   name = bin[0]
@@ -2233,7 +2366,6 @@ def traceframe(ttm, frame, traceargs):
       dbgprint(ttm.stderr,frame.argv(i))
   ttm.stderr.write(ttm.closec)
   ttm.stderr.flush()
-
 # end traceframe
 
 def trace1(ttm, depth, entering, tracing):
@@ -2320,29 +2452,6 @@ def initglobals():
   eoptions = []
   argoptions = []
 #end initglobals
-
-def usage(msg=None):
-  if (msg != None):
-    sys.stderr.write(msg + "\n")
-    sys.stderr.write(
-      "usage: ttm "
-      + "[-d string]"
-      + "[-e string]"
-      + "[-p programfile]"
-      + "[-f inputfile]"
-      + "[-o file]"
-      + "[-i]"
-      + "[-V]"
-      + "[-q]"
-      + "[-X tag=value]"
-      + "[--]"
-      + "[arg...]"
-      + "\n")
-  sys.stderr.write("\tOptions may be repeated\n")
-  if (msg != None):
-    sys.exit(1)
-  sys.exit(0)
-#end usage
 
 def printablestring(s, escapec, controlEscapes=None):
   ps = EMPTY
@@ -2463,7 +2572,36 @@ def readbalanced(ttm, bb):
 ##################################################
 # Main()
 
-OPTIONS = "d:e:f:io:p:qI:VX:-"
+OPTIONS = "d:f:o:p:qvBP:TV&-"
+
+def usage(msg):
+    if not msg:
+        print("{}\n".format(msg),file=sys.stderr);
+    print("{}\n".format(
+"usage: ttm <options> where the options are as follows:\n"
++ "[-d t|v|0-9]   -- set debug flags:\n"
++ "                     't' -- turn on tracing\n"
++ "                     'v' -- turn on verbose output\n"
++ "                     '[0..9]*' -- set debug level\n"
++ "[-f file]      -- read input from file; defaults to stdin.\n"
++ "[-o file]      -- send output to file; defaults to stdout.\n"
++ "[-p programfile] -- main program to execute.\n"
++ "[-q]           -- operate in quiet mode.\n"
++ "[-B]           -- bare executionl; suppress startup commands.\n"
++ "[-P tag=value]         -- set interpreter properties.\n"
++ "[-T]           -- Tell the ttm processor that it is performing tests.\n"
++ "[-V]           -- print version.\n"
++ "[-&]           -- send error output to -o output ; otherwise it goes to stderr.\n"
++ "                     Note: the & may need escaping if command invoked in shell script (e.g -\\&)..\n"
++ "[--]           -- stop processing command line options.\n"
++ "[arg...]       -- arbitrary string arguments; accessible by argv/argc TTM function"),
+        file=sys.stderr)
+    print("Options may be repeated.\n",file=sys.stderr)
+    if not msg:
+        sys.exit(1)
+    else:
+        sys.exit(0)
+# end usage
 
 def main():
   global argoptions, eoptions
@@ -2646,9 +2784,7 @@ def main():
   for key in ttm.dictionary:
     entry = ttm.dictionary[key]
     entry.ttm = None
-
   sys.exit(exitcode)
-
 # end Main
 
 if __name__ == "__main__":
