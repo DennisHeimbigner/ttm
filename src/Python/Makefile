@@ -4,8 +4,8 @@
 TTMPY = ttm3.py # Python 3 version
 TTM2PY = ttm2.py # Python 2 version; no longer supported.
 
-TTMCMD = python ./${TTMPY}
-PDBCMD   = -m pdb ./${TTMPY}
+TTMCMD = python3 ./${TTMPY}
+PDBCMD = python3 -m pdb ./${TTMPY}
 
 # Non-flag arguments to ttm.py
 TESTARGS = a b c
@@ -24,5 +24,6 @@ clean:: cmake-clean
 	rm -f test_all.log
 	rm -f test_misc.log
 
-debug:: ${TTMPY}
-	python3 ${PDBCMD}
+debug::
+	${PDBCMD} -p ../C/test_all.ttm -f ../C/test.rs -\& -Pshowcall -T -d1 -dt ${TESTARGS}
+

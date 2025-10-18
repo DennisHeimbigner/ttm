@@ -2639,8 +2639,6 @@ def main():
   for opt, optarg in opts:
     if opt == '-d':
       debugargs = debugargs + optarg
-    elif opt == '-e':
-      eoptions += optarg
     elif opt == '-f':
       if (inputfilename == None):
         inputfilename = optarg
@@ -2653,6 +2651,10 @@ def main():
         executefilename = optarg
     elif opt == '-q':
       quiet = True
+    elif opt == '-B':
+      bar = True
+    elif opt == '-':
+      testing = True
     elif opt == '-V':
       print("ttm version: ",VERSION);
       sys.exit(0)
