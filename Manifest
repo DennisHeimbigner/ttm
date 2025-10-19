@@ -30,8 +30,8 @@ src/C/test_all.ttm
 src/C/test_misc.baseline
 src/C/test_misc.ttm
 src/C/test.rs
-src/C/Windows/ttm.sln
-src/C/Windows/ttm.vcxproj
+#src/C/Windows/ttm.sln
+#src/C/Windows/ttm.vcxproj
 src/Java/ttm.iml
 src/Python/Makefile
 src/Python/ttm2.py

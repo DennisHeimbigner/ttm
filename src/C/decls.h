@@ -37,23 +37,36 @@ dfalt_debug(void)
 /**************************************************/
 /* Global variables */
 
-/* Cause <argv;0>, <wd>, <time>, <xtime> to output fixed values
+/* Cause <argv;0>, <wd>, <time>, <xtime>, etc. to output fixed values
    so that we can compare to baseline without massaging
 */
-struct Testing {
+struct Special {
     const char* argv0;
     const char* wd;
+    const char* srcd;
     const char* time;
     const char* xtime;
     const char* sep;
     const char* platform;
-} fixedtestvalues = {
-    "ttm.exe",		/* .argv0 */
-    ":wd:",		/* .wd */
-    ":time:",		/* .time */
-    ":xtime:",		/* .xtime */
-    "/",		/* .fps */
-    "Unix",		/* .platform */
+} specialnames = {
+    ":argv0",     /* .argv0 */
+    ":wd:",       /* .wd */
+    ":srcd:",     /* .srcd */
+    ":time:",     /* .time */
+    ":xtime:",    /* .xtime */
+    ":sep:",      /* .fps */
+    ":platform:", /* .platform */
+};
+
+/* Hold the computed special values */
+struct Special specialvalues = {
+    "ttm.exe", /* .argv0 */
+    NULL,      /* .wd */
+    NULL,      /* .srcd */
+    NULL,      /* .time */
+    NULL,      /* .xtime */
+    "/",       /* .fps */
+    "Unix",    /* .platform */
 };
 
 static VList* argoptions = NULL; /* command line arguments */

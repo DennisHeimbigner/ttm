@@ -1223,6 +1223,7 @@ Unix
 [02] end:   ##<RS> => |:wd:/test.rs|
 :wd:/test.rs
 [01] begin: ##<include;:wd:/test.rs>
+==================================================
 [01] end:   ##<include> => |line1.line2\nline3\n|
 line1.line2
 line3

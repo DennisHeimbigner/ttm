@@ -100,3 +100,6 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 
 /* Name of the default key for #<switch> */
 #define DFALTKEY "__default__"
+
+/* Wrapping tag char for struct Testing values. */
+#define TESTTAG ':'

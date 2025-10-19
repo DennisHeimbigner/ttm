@@ -550,16 +550,9 @@ ctime=##<ctime;100000000000> // Use an arbitrary time argument
 // "include" 1,1,SV_S
 ##<ps;<--- Testing: include>\n>
 ##<ds;WD;##<ttm;system;wd>>
+##<ds;SRCD;##<ttm;system;srcd>>
 ##<ds;SEP;##<ttm;system;sep>>
-// Visual studio runs this in Windows dir and cmake usually runs in build dir
-##<ds;WD;##<trim;
-  #<switch;##<ttm;system;platform>;
-    Unix;<##<WD>>;
-    OS/X;<##<WD>>;
-    Windows;<##<WD>##<SEP>..>;
-    __default__:<##<throw;TTM_EINVAL>>
-    >>>
-##<ds;RS;##<WD>##<SEP>test.rs>
+##<ds;RS;##<SRCD>##<SEP>test.rs>
 #<ps;##<include;##<RS>>>
 
 // "clearpassive" 0,0,SV_S

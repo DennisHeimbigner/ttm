@@ -3061,7 +3061,7 @@ done:
 
 /**
 #<ttm;system;which>
-where which is one of: "wd","sep", or "platform".
+where which is one of: "wd", "srcd", "sep", or "platform".
 Return the system specific value.
 */
 static TTMERR
@@ -3083,6 +3083,16 @@ ttm_ttm_system(TTM* ttm, Frame* frame, VString* result)
 	{
 	    value[0] = '\0';
 	    if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+	}
+	vsappendn(result,value,strlen(value));
+    } else if(strcmp(which,"srcd")==0) {
+	if(ttm->opts.testing) {
+	    strncpy(value,fixedtestvalues.srcd,sizeof(value));
+	} else
+	{
+	    value[0] = '\0';
+	    if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+	    strncat(value,"/..",sizeof(value)); /* ??? need cmake test */
 	}
 	vsappendn(result,value,strlen(value));
     } else if(strcmp(which,"sep")==0) {

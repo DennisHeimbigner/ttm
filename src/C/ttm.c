@@ -1850,7 +1850,7 @@ main(int argc, char** argv)
 	    break;
 	case '?':
 	default:
-	    usage("Illegal option");
+	    fprintf(stderr,"Illegal option: %c\n",c);
 	}
     }
 
