@@ -92,6 +92,7 @@ TE_STRING,
 TE_BUILTIN,
 TE_ALL,
 TE_SYSTEM, /* System info */
+TE_BUILDER,  /* Build system info */
 };
 
 /* Must be powers of two; simulated enum */
@@ -173,9 +174,11 @@ typedef struct Function Function;
 typedef struct Charclass Charclass;
 typedef struct Property Property;
 typedef struct Frame Frame;
+#if 0
 typedef struct VArray VArray;
-typedef VArray VList;
-typedef VArray VString;
+#endif
+typedef struct VList VList;
+typedef struct VString VString;
 
 typedef TTMERR (*TTMFCN)(TTM*, Frame*, VString*);
 
@@ -316,15 +319,20 @@ struct TTM {
     struct Tables {
 	struct HashTable dictionary;
 	struct HashTable charclasses;
-	struct HashTable properties;
     } tables;
     /* TTM Execution Properties; These must be kept consistent with property table entries */
-    struct Properties { /* WARN: reflect changes to PropEnum and its uses */
+    struct ExecProperties { /* WARN: reflect changes to PropEnum and its uses */
 	size_t stacksize;
 	size_t execcount;
 	size_t showfinal; /* 1=>print contents of passive buffer after scan() finishes; 0=>suppress */
 	size_t showcall; /* 1=>print contents of passive buffer after each function call; 0=>suppress */
-    } properties;
+    } execproperties;
+    /* TTM build system info */
+    struct Builder {
+	char* name;
+	char* srcdir;
+	char* builddir;
+    } builder;
 };
 
 /* Convenience */
@@ -381,6 +389,7 @@ struct Charclass {
     int negative;
 };
 
+#if 0
 /**
 Property type
 */
@@ -390,14 +399,15 @@ struct Property {
     char* value;
 };
 
-/* Current enum of predefined properties */
-enum PropEnum {
-PE_UNDEF=0,
-PE_STACKSIZE,
-PE_EXECCOUNT,
+
+/* Current enum of predefined exec properties */
+enum ExecPropEnum {
+EPE_UNDEF=0,
+EPE_STACKSIZE,
+EPE_EXECCOUNT,
 PE_SHOWFINAL,
 PE_SHOWCALL, /* Show passive output from each function result */
 };
-
+#endif /*0*/
 
 enum TableType {TT_DICT, TT_CLASSES, TT_PROPS};

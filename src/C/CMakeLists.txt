@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(TTM)
 
+# Build System
+set(BUILD_SYSTEM "CMAKE_BUILD")
+
 # Figure out platform
 if(CMAKE_SYSTEM_NAME STREQUAL "MSYS"   )
     set(ISMSYS ON  )
@@ -41,7 +44,11 @@ include(GenerateExportHeader)
 #########################
 
 add_executable(ttm ttm.c)
-#target_compile_options(ttm PRIVATE /Zc:preprocessor)
+target_compile_definitions(ttm PRIVATE CMAKE_BUILD=1)
+
+if(ISWIN)
+target_compile_options(ttm PRIVATE /Zc:preprocessor)
+endif()
 
 #########################
 #       Testing         #

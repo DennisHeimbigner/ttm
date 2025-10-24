@@ -9,10 +9,16 @@ struct Builtin;
 #define TTMFCN_BEGIN(ttm,frame,vsresult) UNUSED(unused)
 #define TTMFCN_END(ttm,frame,vsresult)
 
+/**************************************************/
+
+/* Environment variable list */
+extern char **environ;
+
 /* Forward */
 static TTMERR defineBuiltinFunction1(TTM* ttm, struct Builtin* bin);
 static TTMERR defineBuiltinFunctions(TTM* ttm);
 static char* trim(const char* s0, const char* ws);
+static const char* lookupspecial(const char* name);
 
 /* Dictionary Operations */
 static TTMERR
@@ -2035,7 +2041,7 @@ ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
 
     TTMFCN_BEGIN(ttm,frame,result);
     if(ttm->opts.testing) {
-	strncpy(value,fixedtestvalues.time,sizeof(value));
+	strncpy(value,lookupspecial(":ctime:"),sizeof(value));
     } else {
 	if(timeofday(&tv) < 0)
 	    EXIT(ttm,TTM_ETIME);
@@ -2060,7 +2066,7 @@ ttm_xtime(TTM* ttm, Frame* frame, VString* result) /* Obtain Execution Time */
 
     TTMFCN_BEGIN(ttm,frame,result);
     if(ttm->opts.testing) {
-	strncpy(value,fixedtestvalues.xtime,sizeof(value));
+	strncpy(value,lookupspecial(":xtime:"),sizeof(value));
     } else {
 	long long time = getRunTime();
 	snprintf(value,sizeof(value),"%lld",time);
@@ -2159,7 +2165,7 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     if(index < 0) EXIT(ttm,TTM_ERANGE);
     if(((size_t)index) < vllength(argoptions)) {
 	if(ttm->opts.testing && index == 0) {
-	    arg = fixedtestvalues.argv0;
+	    arg = lookupspecial(":argv0:");
 	} else {
 	    arg = vlget(argoptions,(size_t)index);
 	}
@@ -2455,8 +2461,8 @@ ttm_include(TTM* ttm, Frame* frame, VString* result)  /* Include text of a file 
 	}
 	/* Get the current directory */
 	if(getcwd(realpath, sizeof(realpath))==NULL) EXIT(ttm,TTM_EMEMORY);
-    /* Convert '\\' to '/' */
-    for (p = realpath; *p; p++) { if (*p == '\\') *p = '/'; }
+        /* Convert '\\' to '/' */
+        for (p = realpath; *p; p++) { if (*p == '\\') *p = '/'; }
 	/* If last directory is '/Windows' then remove it from path */
 	p = strrchr(realpath,'/');
 	if(p == NULL) p = realpath;
@@ -2562,6 +2568,7 @@ ttm_throw(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments *
     return THROW(ttm,err);
 }
 
+#if 0
 /** Properties functions */
 static TTMERR
 ttm_setprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property */
@@ -2692,6 +2699,76 @@ ttm_properties(TTM* ttm, Frame* frame, VString* result) /* Obtain all property n
 
 done:
     vlfree(props);
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+#endif /*0*/
+
+/**************************************************/
+/* Environment variable support */
+
+static TTMERR
+ttm_getenv(TTM* ttm, Frame* frame, VString* result) /* Get specified env var */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* key = NULL;
+    const char* value = NULL;
+    
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 1) EXIT(ttm,TTM_EFEWPARMS);
+    key = frame->argv[1];
+    value = getenv(key);
+    if(value != NULL)
+        vsappendn(result,value,strlen(value));
+
+done:
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+static TTMERR
+ttm_getenvkeys(TTM* ttm, Frame* frame, VString* result) /* Obtain all property names */
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    VList* keys = NULL;
+    char* key = NULL;
+    const char** pp = NULL;
+    char** contents = NULL;
+    
+    TTMFCN_BEGIN(ttm,frame,result);
+
+    /* Walk and collect all env values of form "<var>=<value>.
+       Note the reason we collect them is because we need to sort them
+    */
+    keys = vlnew();
+    if(key == NULL) EXIT(ttm,TTM_EMEMORY);
+    for(pp=(const char**)environ;*pp;pp++) {
+	const char* p = *pp;
+	const char* q = strchr(p,'=');
+	char* key = NULL;
+	size_t klen;
+	if(q == NULL) q = p + strlen(p); /* whole string is a key */
+	klen = (q - p);
+	if((key = calloc(1,klen+1))==NULL) EXIT(ttm,TTM_EMEMORY);
+	memcpy(key,p,klen); key[klen] = '\0';
+	vlpush(keys,key);
+    }
+    /* Quick sort */
+    contents = (char**)vlcontents(keys);
+    qsort((void*)contents, vllength(keys), sizeof(char*), stringveccmp);
+    /* dump keys comma separated */
+    while(vllength(keys) > 0) {
+	char* key = (const char*)vlremove(keys,0);
+	if(i > 0) vsappend(result,',');
+	vsappendn(result,key,strlen(key));
+	nullfree(key);
+    }
+
+done:
+    vlfree(keys);
     TTMFCN_END(ttm,frame,result);
     return THROW(ttm,err);
 }
@@ -3060,9 +3137,37 @@ done:
 }
 
 /**
-#<ttm;system;which>
-where which is one of: "wd", "srcd", "sep", or "platform".
+#<ttm;testing;which>
+where "which" is as described in the table testspecials in decls.h.
 Return the system specific value.
+*/
+static TTMERR
+ttm_ttm_testing(TTM* ttm, Frame* frame, VString* result)
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* which = NULL;
+    const char value = NULL;
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
+    which = frame->argv[2];
+
+    value = lookuptestspecial(which);
+    vsappendn(result,value,strlen(value));
+
+done:
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+/**
+#<ttm;system;which>
+where which is one of:
+* wd       -- current working directory
+* sep      -- platform specific path separator
+* platform -- platform OS
+Return the corresponding value.
 */
 static TTMERR
 ttm_ttm_system(TTM* ttm, Frame* frame, VString* result)
@@ -3070,54 +3175,100 @@ ttm_ttm_system(TTM* ttm, Frame* frame, VString* result)
     TTMERR err = TTM_NOERR;
     TTMFCN_DECLS(ttm,frame);
     char* which = NULL;
-    char value[4096];
+    const char value = NULL;
+    char tmp[4096];
 
     TTMFCN_BEGIN(ttm,frame,result);
     if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
     which = frame->argv[2];
 
-    if(strcmp(which,"wd")==0) {
-	if(ttm->opts.testing) {
-	    strncpy(value,fixedtestvalues.wd,sizeof(value));
-	} else
-	{
-	    value[0] = '\0';
-	    if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
-	}
-	vsappendn(result,value,strlen(value));
-    } else if(strcmp(which,"srcd")==0) {
-	if(ttm->opts.testing) {
-	    strncpy(value,fixedtestvalues.srcd,sizeof(value));
-	} else
-	{
-	    value[0] = '\0';
-	    if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
-	    strncat(value,"/..",sizeof(value)); /* ??? need cmake test */
-	}
-	vsappendn(result,value,strlen(value));
+    /* If we are testing, then force the system values to fixed values */
+    if(ttm->opts.testing) {
+	value = lookuptestspecial(which);
+    }
+    if(value == NULL) { /* not testing or testing value is NULL; use real value. */
+        if(strcmp(which,"wd")==0) {
+            value[0] = '\0';
+            if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+        } else if(strcmp(which,"srcd")==0) {
+            value[0] = '\0';
+            if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+            strcat(value,"/.."); /* ??? need cmake test */
     } else if(strcmp(which,"sep")==0) {
-	if(ttm->opts.testing)
-	    strncpy(value,fixedtestvalues.sep,sizeof(value));
-	else
 #ifdef MSWINDOWS
-	    strncpy(value,"\\",sizeof(value));
+            strncpy(value,"\\",sizeof(value));
 #else
-	    strncpy(value,"/",sizeof(value));
+            strncpy(value,"/",sizeof(value));
 #endif
-	vsappendn(result,value,strlen(value));
     } else if(strcmp(which,"platform")==0) {
-	if(ttm->opts.testing)
-	    strncpy(value,fixedtestvalues.platform,sizeof(value));
-	else
 #ifdef MSWINDOWS
-	    strncpy(value,"Windows",sizeof(value));
+            strncpy(value,"Windows",sizeof(value));
 #elif defined(__APPLE__)
-	    strncpy(value,"OS/X",sizeof(value));
+            strncpy(value,"OS/X",sizeof(value));
 #else
-	    strncpy(value,"Unix",sizeof(value));
+            strncpy(value,"Unix",sizeof(value));
 #endif
-	vsappendn(result,value,strlen(value));
     } else EXIT(ttm,TTM_EINVAL);
+
+    vsappendn(result,value,strlen(value));
+
+done:
+    TTMFCN_END(ttm,frame,result);
+    return THROW(ttm,err);
+}
+
+/**
+#<ttm;builder;which>
+where which is one of:
+* name     -- build system name: cmake|automake|make
+* srcdir   -- build system source directory path
+* builddir -- build system build directory path
+Return the corresponding value.
+*/
+static TTMERR
+ttm_ttm_builder(TTM* ttm, Frame* frame, VString* result)
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* which = NULL;
+    const char value = NULL;
+    char tmp[4096];
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
+    which = frame->argv[2];
+
+    /* If we are testing, then force the system values to fixed values */
+    if(ttm->opts.testing) {
+	value = lookuptestspecial(which);
+    }
+    if(value == NULL) { /* not testing or testing value is NULL; use real value. */
+        if(strcmp(which,"srcdir")==0) {
+            value[0] = '\0';
+            if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+        } else if(strcmp(which,"srcd")==0) {
+	     /* Convert '\\' to '/' */
+	     for(q = tmp; *q; q++) { if (*q == '\\') *q = '/'; }
+            value[0] = '\0';
+            if(getcwd(value, sizeof(value))==NULL) EXIT(ttm,TTM_EMEMORY);
+            strcat(value,"/.."); /* ??? need cmake test */
+    } else if(strcmp(which,"sep")==0) {
+#ifdef MSWINDOWS
+            strncpy(value,"\\",sizeof(value));
+#else
+            strncpy(value,"/",sizeof(value));
+#endif
+    } else if(strcmp(which,"platform")==0) {
+#ifdef MSWINDOWS
+            strncpy(value,"Windows",sizeof(value));
+#elif defined(__APPLE__)
+            strncpy(value,"OS/X",sizeof(value));
+#else
+            strncpy(value,"Unix",sizeof(value));
+#endif
+    } else EXIT(ttm,TTM_EINVAL);
+
+    vsappendn(result,value,strlen(value));
 
 done:
     TTMFCN_END(ttm,frame,result);
@@ -3130,6 +3281,7 @@ done:
 #<ttm;info;class;{class}*>	# return info about each {class}
 #<ttm;list;{case};{name}*>	# return sorted list of names defined by case
 #<ttm;system;wd|sep|platform>	# return various kinds of system info
+#<ttm;builder;name|srcdir|builddir> # return various kinds of build system info
 */
 static TTMERR
 ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
@@ -3168,6 +3320,9 @@ ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
     case TE_SYSTEM:
 	err = ttm_ttm_system(ttm,frame,result);
 	break;
+    case TE_BUILDER:
+	err = ttm_ttm_builder(ttm,frame,result);
+	break;
     default:
 	EXIT(ttm,TTM_ETTMCMD);
 	break;
@@ -3177,6 +3332,23 @@ done:
     return THROW(ttm,err);
 }
 
+/**************************************************/
+
+/**
+Lookup a special testing value.
+*/
+static const char*
+lookupspecial(const char* name)
+{
+    struct Special* p;
+    for(p=specials;p->name!=NULL;p++) {
+        if(strcasecmp(p->name,name)==0) {
+	    assert(p->value != NULL);
+	    return p->value;
+	}
+    }
+    abort(); /* fail if no match found */
+}
 
 /**************************************************/
 
@@ -3279,11 +3451,8 @@ static struct Builtin builtin_new[] = {
     {"le",4,4,SV_V,ttm_le}, /* Compare numeric less-than */
     {"void",0,ARB,SV_S,ttm_void}, /* throw away all arguments and return an empty string */
     {"comment",0,ARB,SV_S,ttm_void}, /* alias for ttm_void */
-    {"setprop",1,2,SV_SV,ttm_setprop}, /* Set property */
-    {"resetprop",1,1,SV_SV,ttm_resetprop}, /* set property to default */
-    {"getprop",1,1,SV_SV,ttm_getprop}, /* get property value */
-    {"removeprop",1,1,SV_SV,ttm_removeprop}, /* remove property value */
-    {"properties",0,0,SV_V,ttm_properties }, /* list all property keys in form <key,...>*/
+    {"getenv",1,1,SV_SV,ttm_getenv}, /* get environment variable value */
+    {"getenvkeys",0,0,SV_V,ttm_getenvkeys }, /* list all env var keys in form <key,...>*/
     {"printf",1,ARB,SV_S,ttm_printf}, /* Emulate printf() */
     {"fprintf",2,ARB,SV_S,ttm_fprintf}, /* Emulate fprintf() */
     {"pf",0,1,SV_S,ttm_pf}, /* flush stderr and/or stdout */

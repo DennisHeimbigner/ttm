@@ -1021,17 +1021,17 @@ true
 --- Testing: time
 [00] end:   ##<ps> => ||
 [01] begin: ##<time>
-[01] end:   ##<time> => |:time:|
-:time:
-[00] begin: #<void;time=:time:>
+[01] end:   ##<time> => |100000000000|
+100000000000
+[00] begin: #<void;ctime=100000000000>
 [00] end:   #<void> => ||
 [00] begin: ##<ps;--- Testing: xtime\n>
 --- Testing: xtime
 [00] end:   ##<ps> => ||
 [01] begin: ##<xtime>
-[01] end:   ##<xtime> => |:xtime:|
-:xtime:
-[00] begin: #<void;xtime=:xtime:>
+[01] end:   ##<xtime> => |100|
+100
+[00] begin: #<void;xtime=100>
 [00] end:   #<void> => ||
 [00] begin: ##<ps;--- Testing: ctime\n>
 --- Testing: ctime
@@ -1187,8 +1187,8 @@ a,ab,abc,def
 [00] begin: ##<ps;--- Testing: include\n>
 --- Testing: include
 [00] end:   ##<ps> => ||
-[01] begin: ##<ttm;system;wd>
-[01] end:   ##<ttm;system;wd> => |:wd:|
+[01] begin: ##<ttm;system;srcd:>
+[01] end:   ##<ttm;system;:buildd:> => |:wd:|
 :wd:
 [00] begin: ##<ds;WD;:wd:>
 [00] end:   ##<ds> => ||
@@ -1223,7 +1223,6 @@ Unix
 [02] end:   ##<RS> => |:wd:/test.rs|
 :wd:/test.rs
 [01] begin: ##<include;:wd:/test.rs>
-==================================================
 [01] end:   ##<include> => |line1.line2\nline3\n|
 line1.line2
 line3

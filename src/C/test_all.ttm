@@ -453,7 +453,7 @@
 // "time" 0,0,SV_V
 ##<ps;<--- Testing: time>\n>
 // Since time will change with each run; convert to some arbitrary text
-#<void;time=##<time>>
+#<void;ctime=##<time>>
 
 // "xtime" 0,0,SV_V
 ##<ps;<--- Testing: xtime>\n>
@@ -462,7 +462,7 @@
 
 // "ctime" 1,1,SV_V
 ##<ps;<--- Testing: ctime>\n>
-ctime=##<ctime;100000000000> // Use an arbitrary time argument
+ctime=##<ctime;##<ttm;system;:ctime:>>// Use an arbitrary time argument
 
 // "pn" 2,2,SV_V
 ##<ps;<--- Testing: pn>\n>
@@ -549,9 +549,9 @@ ctime=##<ctime;100000000000> // Use an arbitrary time argument
 
 // "include" 1,1,SV_S
 ##<ps;<--- Testing: include>\n>
-##<ds;WD;##<ttm;system;wd>>
-##<ds;SRCD;##<ttm;system;srcd>>
-##<ds;SEP;##<ttm;system;sep>>
+##<ds;BUILDDIR;##<ttm;system;:builddir:>>
+##<ds;SRCD;##<ttm;system;:srcdir:>>
+##<ds;SEP;##<ttm;system;:sep:>>
 ##<ds;RS;##<SRCD>##<SEP>test.rs>
 #<ps;##<include;##<RS>>>
 

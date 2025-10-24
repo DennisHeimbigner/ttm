@@ -1,3 +1,26 @@
+
+
+/**************************************************/
+
+/* Build Flags */
+
+/* Debug has a level attached: 0 is equivalent to undef */
+#define DEBUG 0
+#undef GDB
+
+#if DEBUG > 0
+#ifndef GDB
+#define GDB
+#endif
+#endif
+
+#undef TTMGLOBAL
+
+/**************************************************/
+
+#define VERSION "2.0"
+
+/**************************************************/
 /**
 This code takes over part of the UTF8 space to store segment
 marks and create marks This should work because we never export
@@ -66,6 +89,12 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define WHITESPACE " \t\f\n\r"
 
 #define SHORTTEXTLEN 25
+
+/* Predefined execution property keys */
+#define TTM_STACKSIZE  "TTM_STACKSIZE"
+#define TTM_EXECCOUNT  "TTM_EXECCOUNT"
+#define TTM_SHOWFINAL  "TTM_SHOWFINAL"
+#define TTM_SHOWCALL   "TTM_SHOWCALL"
 
 /* Predefined property defalts */
 #define DFALTSTACKSIZE	64

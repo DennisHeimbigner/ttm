@@ -14,16 +14,17 @@ TTM = ttm
 CC = gcc
 CCWARN = -Wall
 CCDEBUG = -g -O0
+CCDEF = -DMAKE_BUILD=1 # choices: CMAKE_BUILD, AUTOMAKE_BUILD, MAKE_BUILD
 ifdef MEM
 CCMEM = -fsanitize=address -fsanitize=leak
 endif
 
-CFLAGS = ${CCWARN} ${CCDEBUG} ${CCMEM}
+CFLAGS = ${CCWARN} ${CCDEBUG} ${CCMEM} ${CCDEF}
 
 all: clean ${TTM}.exe
 
 # Assemble ttm8.c from pieces
-INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h  va.h
+INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h  vutils.h
 
 ${TTM}.exe: ${TTM}.c ${INCLUDES}
 	${CC} ${CFLAGS} -o $@ $<

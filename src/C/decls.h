@@ -39,34 +39,29 @@ dfalt_debug(void)
 
 /* Cause <argv;0>, <wd>, <time>, <xtime>, etc. to output fixed values
    so that we can compare to baseline without massaging
+   Note: do not declare "const" because we need to modify.
+   These testing values can be accessed using ##<ttm;testing;<which>>;
+   for example ##<ttm;testing;argv0>.
+   Semantics:
+	argv0    -- testing executable name
+	builddir -- testing the build directory
+	time     -- testing fixed time of day in 100'th of a second
+	platform -- testing platform OS name
+	sep      -- testing path separator
+	srcdir   -- testing the source directory
+	xtime    -- testing fixed run time
 */
-struct Special {
-    const char* argv0;
-    const char* wd;
-    const char* srcd;
-    const char* time;
-    const char* xtime;
-    const char* sep;
-    const char* platform;
-} specialnames = {
-    ":argv0",     /* .argv0 */
-    ":wd:",       /* .wd */
-    ":srcd:",     /* .srcd */
-    ":time:",     /* .time */
-    ":xtime:",    /* .xtime */
-    ":sep:",      /* .fps */
-    ":platform:", /* .platform */
-};
-
-/* Hold the computed special values */
-struct Special specialvalues = {
-    "ttm.exe", /* .argv0 */
-    NULL,      /* .wd */
-    NULL,      /* .srcd */
-    NULL,      /* .time */
-    NULL,      /* .xtime */
-    "/",       /* .fps */
-    "Unix",    /* .platform */
+static struct TestSpecial {
+    const char* name;
+    char* value; /* Filled in by initTTM */
+} testspecials[] = {
+    {"argv0",    NULL},
+    {"builddir", NULL},
+    {"platform", NULL},
+    {"srcdir",   NULL},
+    {"time",     NULL},
+    {"xtime",    NULL},
+    {NULL,       NULL}, /* table terminator*/
 };
 
 static VList* argoptions = NULL; /* command line arguments */

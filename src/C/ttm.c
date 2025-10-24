@@ -4,24 +4,6 @@ For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
 */
 
 /**************************************************/
-
-#define VERSION "2.0"
-
-/**************************************************/
-
-/* Debug has a level attached: 0 is equivalent to undef */
-#define DEBUG 0
-#undef GDB
-
-#if DEBUG > 0
-#ifndef GDB
-#define GDB
-#endif
-#endif
-
-#undef TTMGLOBAL
-
-/**************************************************/
 /**
 (Un)Define these if you do (not) have the specified capability.
 This is in lieu of the typical config.h.
@@ -98,7 +80,7 @@ static int getopt(int argc, char** argv, char* optstring);
 #include "macros.h"
 #include "forward.h"
 #include "hash.h"
-#include "va.h"
+#include "vutils.h"
 #include "io.h"
 #include "utf8.h"
 #include "debug.h"
@@ -288,7 +270,7 @@ propertyInsert(TTM* ttm, const char* key, const char* value)
 /**************************************************/
 
 static TTM*
-newTTM(struct Properties* initialprops)
+newTTM(void)
 {
     TTM* ttm = (TTM*)calloc(1,sizeof(TTM));
     if(ttm == NULL) return NULL;
@@ -312,13 +294,15 @@ newTTM(struct Properties* initialprops)
     ttm->frames.top = -1;
     memset((void*)&ttm->tables.dictionary,0,sizeof(ttm->tables.dictionary));
     memset((void*)&ttm->tables.charclasses,0,sizeof(ttm->tables.charclasses));
-    memset((void*)&ttm->tables.properties,0,sizeof(ttm->tables.properties));
 #if DEBUG > 0
     ttm->debug.trace = TR_UNDEF;
 #endif
-    /* Fill in pre-defined properties */
-    defaultproperties(ttm);
-    cmdlineproperties(ttm);
+
+    /* Fill in execution properties */
+    setexecprops(ttm);
+
+    /* Fill in build system properties */
+    setbuilderprops(ttm);    
 
     return ttm;
 }
@@ -334,9 +318,101 @@ freeTTM(TTM* ttm)
     clearDictionary(ttm,&ttm->tables.dictionary);
     clearcharclasses(ttm,&ttm->tables.charclasses);
     clearproperties(ttm,&ttm->tables.properties);
+    nullfree(ttm->builder.name);
+    nullfree(ttm->builder.srcdir);
+    nullfree(ttm->builder.builddir);
     closeio(ttm);
     nullfree(ttm->opts.programfilename);
     free(ttm);
+}
+
+static void
+setexecprops(TTM* ttm)
+{
+    size_t n;
+    const char* env = NULL;
+
+    env = getenv(TTM_STACKSIZE);
+    if(env == NULL)
+        ttm->execproperties.stacksize = DFALTSTACKSIZE;
+    } else {
+	sscanf(env,"%zu",&n);
+	ttm->execproperties.stacksize = n;
+    }
+    env = getenv(TTM_EXECCOUNT);
+    if(env == NULL)
+        ttm->execproperties.stacksize = DFALTEXECCOUNT;
+    } else {
+	sscanf(value,"%zu",&n);
+	ttm->execproperties.execcoubt = n;
+    }
+    env = getenv(TTM_SHOWFINAL);
+    if(env == NULL)
+        ttm->execproperties.showfinal = DFALTSHOWFINAL;
+    } else {
+	sscanf(value,"%zu",&n);
+	ttm->execproperties.showfinal = n;
+    }
+    env = getenv(TTM_SHOWCALL);
+    if(env == NULL)
+        ttm->execproperties.showcall = DFALTSHOWCALL;
+    } else {
+	sscanf(value,"%zu",&n);
+	ttm->execproperties.showcall = n;
+    }
+}
+
+static void
+setbuilderprops(TTM* ttm)
+{
+    char tmp[4096];
+    char* p;
+
+    /* build system name       */
+#if defined CMAKE_BUILD
+#elif defined AUTOMAKE_BUILD
+    ttm->builder.name = "automake";
+#else
+    ttm->builder.name = "make";
+#endif
+#if defined CMAKE_BUILD
+    ttm->builder.name = strdup("cmake");
+
+    /* build system build dir  */
+    /* = the current working directory */
+    if(getcwd(tmp, sizeof(tmp))==NULL) usage("getcwd failed");
+    /* Convert '\\' to '/' */
+    for(p=tmp;*p;p++) { if (*p == '\\') *p = '/'; }
+    ttm->builder.builddir = strdup(tmp);
+
+    /* build system source dir */
+    /* = builddir/.. */
+    p = strrchr(tmp->builder.builddir);
+    if(p == NULL)
+        ttm->builder.srcdir = strdup(ttm->builder.builddir;
+    else {
+	size_t slen;
+	slen = (p - ttm->builder.builddir);
+	ttm->builder.srcdir = calloc(1,slen+1);
+	memcpy(ttm->builddir.srcdir,ttm->builddir.builddir,slen);
+	ttm->builddir.srcdir[slen] = '\0';
+    }
+#else
+#ifdef AUTOMAKE_BUILD
+    ttm->builder.name = strdup("automake");
+#else /*MAKE_BUILD*/
+    ttm->builder.name = strdup("make");
+#endif
+    /* build system build dir */
+    /* = the current working directory */
+    if(getcwd(tmp, sizeof(tmp))==NULL) usage("getcwd failed");
+    /* Convert '\\' to '/' */
+    for (p=tmp;*p;p++) { if (*p == '\\') *p = '/'; }
+    ttm->builder.builddir = strdup(tmp);
+    /* build system src dir  */
+    /* = build dir*/
+    ttm->builder.srcdir = strdup(ttm->builder.builddir);
+#endif
 }
 
 /**************************************************/
@@ -347,7 +423,7 @@ pushFrame(TTM* ttm)
 {
     Frame* frame = NULL;
     ttm->frames.top++;
-    if(ttm->frames.top >= (int)ttm->properties.stacksize) goto done;
+    if(ttm->frames.top >= (int)ttm->execproperties.stacksize) goto done;
     frame = &ttm->frames.stack[ttm->frames.top];
     frame->argc = 0;
     frame->active = 0;
@@ -549,6 +625,7 @@ ttmenumdetect(const char* s)
     if(strcmp("all",s)==0) return TE_ALL;
     if(strcmp("builtin",s)==0) return TE_BUILTIN;
     if(strcmp("system",s)==0) return TE_SYSTEM;
+    if(strcmp("builder",s)==0) return TE_BUILDER;
     return TE_UNDEF;
 }
 
@@ -620,7 +697,7 @@ scan(TTM* ttm)
 	}
     } /*scan for*/
 
-    if(ttm->properties.showfinal && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
+    if(ttm->execproperties.showfinal && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
 	/* Print out final contents */
 	xfprintf(ttm, ttm->io._stderr,"%s\n",vscontents(ttm->vs.passive));
     }
@@ -650,7 +727,7 @@ exec(TTM* ttm)
 
     UNUSED(ncp);
 
-    if(ttm->properties.execcount-- <= 0) EXIT(ttm,TTM_EEXECCOUNT);
+    if(ttm->execproperties.execcount-- <= 0) EXIT(ttm,TTM_EEXECCOUNT);
 
     TTMCP8SET(ttm);      
     /* Skip to the start of the function name */
@@ -718,7 +795,7 @@ exec(TTM* ttm)
 	EXIT(ttm,err);
     }
 
-    if(ttm->properties.showcall && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
+    if(ttm->execproperties.showcall && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
 	char* u8;
 	/* Print out results of a function call */
 	if(vslength(ttm->vs.result) > 0) {
@@ -1445,17 +1522,48 @@ done:
 static void
 initTTM()
 {
+
     argoptions = vlnew();
     propoptions = vlnew();
+
     /* Set the locale to support UTF8 */
-    if(setlocale(LC_ALL, "en_US.UTF-8") == NULL) usage("setlocale failed");
+    if(setlocale(LC_ALL, "en_US.UTF-8") == NULL) usage("setlocale() failed");
+
+    /* Fill in the special testing values */
+    settestspecials(ttm);
+}
+
+static void
+settestspecials(TTM* ttm)
+{
+    struct Special* p;
+    char* q;
+    char tmp[4096];
+    
+    for(p=specials;p->name;p++) {
+	if(strcasecmp(p->name,"argv0")==0) {
+	    p->value = strdup("ttm.exe");
+	} else if(strcasecmp(p->name,"builddir")==0) {
+	    p->value = strdup(":builddir"");
+	} else if(strcasecmp(p->name,"platform")==0) {
+	    p->value = strdup("Unix");
+	} else if(strcasecmp(p->name,"srcdir")==0) {
+	    p->value = strdup(":srcdir:");
+	} else if(strcasecmp(p->name,"time")==0) {
+	    p->value = strdup("100000000000");
+	} else if(strcasecmp(p->name,"xtime")==0) {
+	    p->value = strdup("100");
+	}
+    }
 }
 
 static void
 reclaimglobals()
 {
+    struct TestSpecial* p;
     vlfreeall(argoptions);
     vlfreeall(propoptions);
+    for(p=testspecials;p->name;p++) nullfree(p->value);
 }
 
 static void
@@ -1474,7 +1582,6 @@ usage(const char* msg)
 "[-p programfile] -- main program to execute.\n"
 "[-q]		  -- operate in quiet mode.\n"
 "[-B]		  -- bare executionl; suppress startup commands.\n"
-"[-P tag=value]	  -- set interpreter properties.\n"
 "[-T]		  -- Tell the ttm processor that it is performing tests.\n"
 "[-V]		  -- print version.\n"
 "[-&]		  -- send error output to -o output ; otherwise it goes to stderr.\n"
@@ -1483,6 +1590,13 @@ usage(const char* msg)
 "[arg...]	  -- arbitrary string arguments; accessible by argv/argc TTM function"
 );
     fprintf(stderr,"Options may be repeated\n");
+    fprintf(stderr,"%s\n",
+"The following environment variables are recognized:\n"
+"* TTM_STACKSIZE\n"
+"* TTM_EXECCOUNT\n"
+"* TTM_SHOWFINAL; /* non-null => print contents of passive buffer after scan() finishes; NULL => suppress */\n"
+"* TTM_SHOWCALL;  /* non-null => print contents of passive buffer after each function call; NULL => suppress */\n"
+);
     if(msg != NULL) exit(1); else exit(0);
 }
 
@@ -1573,6 +1687,7 @@ done:
     return err;
 }
 
+#if 0
 static void
 setproperty(TTM* ttm, const char* key, const char* value)
 {
@@ -1655,6 +1770,7 @@ cmdlineproperties(TTM* ttm)
 	setproperty(ttm,key,value);
     }
 }
+#endif
 
 static void
 processdebugargs(TTM* ttm, const char* debugargs)
@@ -1793,16 +1909,16 @@ main(int argc, char** argv)
 
     memset(&opts,0,sizeof(struct OPTS));
 
+    initTTM();
+
     if(argc == 1)
 	usage(NULL);
-
-    initTTM();
 
     /* Stash argv[0] */
     vlpush(argoptions,strdup(argv[0]));
 
     /* Option processing */
-    while ((c = getopt(argc, argv, "d:f:o:p:qvBP:TV&-")) != EOF) {
+    while ((c = getopt(argc, argv, "d:f:o:p:qvBTV&-")) != EOF) {
 	switch(c) {
 	case 'd':
 	    strcat(debugargs,optarg);
@@ -1820,22 +1936,6 @@ main(int argc, char** argv)
 		opts.programfilename = strdup(optarg);
 	    break;
 	case 'q': opts.quiet = 1; break;
-	case 'P': /* Set properties*/
-	    if(optarg == NULL) usage("Illegal -P key");
-	    if(strlen(optarg) == 0) {
-		usage("Illegal -P key");
-	    } else {
-		char* debopt = NULL;
-		char *p;
-		debopt = debash(optarg);
-		p = strchr(debopt,'=');
-		/* get pointer to value or NULL if missing */
-		if(p != NULL) {*p = '\0'; p++;}
-		vlpush(propoptions,strdup(debopt));
-		vlpush(propoptions,nulldup(p));
-		nullfree(debopt);
-	    }
-	    break;
 	case 'v': opts.verbose = 1; break;
 	case 'B': opts.bare = 1; break;
 	case 'T': opts.testing = 1; break;

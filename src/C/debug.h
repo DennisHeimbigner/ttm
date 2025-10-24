@@ -389,6 +389,10 @@ traceframe(TTM* ttm, Frame* frame, int entering)
 		if(frame->argc >= 3)
 		    xprintf(ttm,";%s",frame->argv[2]);
 		break;
+	    case TE_BUILDER:
+		if(frame->argc >= 3)
+		    xprintf(ttm,";%s",frame->argv[2]);
+		break;
 	    default: break;
 	    }
 	}
