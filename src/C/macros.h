@@ -78,3 +78,4 @@
 		: -1)))
 
 
+#define getspecial(sp) (testspecials+((size_t)sp))

@@ -17,10 +17,20 @@ This is in lieu of the typical config.h.
 /* It is not clear what the correct Windows CPP Tag should be.
    Assume _WIN32, but this may not work with cygwin.
    In any case, create our own.
+   Also handle cygwin and mingw/msys2
 */
 
-#if (defined _WIN32 || defined _MSC_VER) && !defined(__CYGWIN__)
-#define MSWINDOWS 1
+#if (defined _WIN32 || defined _MSC_VER)
+#  if defined(__CYGWIN__)
+#    define CYGWIN 1
+#  elif defined(__MINGW32__)
+#    define MINGW 1
+#  elif defined(__MSYS2__)
+#    define MINGW 1
+#    define MSYS2 1
+#  else
+#    define MSWINDOWS 1
+#  endif
 #endif
 
 /* Reduce visual studio verbosity */
@@ -179,6 +189,7 @@ charclassInsert(TTM* ttm, Charclass* cl)
     return 1;
 }
 
+#if 0
 static Property*
 newProperty(TTM* ttm, const char* key)
 {
@@ -266,7 +277,7 @@ propertyInsert(TTM* ttm, const char* key, const char* value)
     prop->value = (char*)nulldup(value);
     return 1;
 }
-
+#endif /*0*/
 /**************************************************/
 
 static TTM*
@@ -294,16 +305,18 @@ newTTM(void)
     ttm->frames.top = -1;
     memset((void*)&ttm->tables.dictionary,0,sizeof(ttm->tables.dictionary));
     memset((void*)&ttm->tables.charclasses,0,sizeof(ttm->tables.charclasses));
+#if 0
+    memset((void*)&ttm->tables.properties,0,sizeof(ttm->tables.properties));
+#endif
 #if DEBUG > 0
     ttm->debug.trace = TR_UNDEF;
 #endif
-
-    /* Fill in execution properties */
-    setexecprops(ttm);
-
-    /* Fill in build system properties */
-    setbuilderprops(ttm);    
-
+    /* Fill in execproperties */
+#if 0
+    defaultproperties(ttm);
+    cmdlineproperties(ttm);
+#endif
+    setexecproperties(ttm);
     return ttm;
 }
 
@@ -317,10 +330,8 @@ freeTTM(TTM* ttm)
     vsfree(ttm->vs.result);
     clearDictionary(ttm,&ttm->tables.dictionary);
     clearcharclasses(ttm,&ttm->tables.charclasses);
+#if 0
     clearproperties(ttm,&ttm->tables.properties);
-    nullfree(ttm->builder.name);
-    nullfree(ttm->builder.srcdir);
-    nullfree(ttm->builder.builddir);
     closeio(ttm);
     nullfree(ttm->opts.programfilename);
     free(ttm);
@@ -585,6 +596,7 @@ charclassmatch(const char* cp, const char* charclass, int negative)
     return p;
 }
 
+#if 0
 /* Predefined Property enum detector */
 static enum PropEnum
 propenumdetect(const char* s)
@@ -595,6 +607,7 @@ propenumdetect(const char* s)
     if(strcmp("showcall",(const char*)s)==0)  return PE_SHOWCALL;
     return PE_UNDEF;
 }
+#endif
 
 /* MetaEnum detector */
 static enum MetaEnum
@@ -627,6 +640,21 @@ ttmenumdetect(const char* s)
     if(strcmp("system",s)==0) return TE_SYSTEM;
     if(strcmp("builder",s)==0) return TE_BUILDER;
     return TE_UNDEF;
+}
+
+/* Special detector */
+static enum SpecialEnum
+specialenumdetect(const char* s)
+{
+    if(strcmp("argv0",s)==0) return SP_ARGV0;
+    if(strcmp("builddir",s)==0) return SP_BUILDDIR;
+    if(strcmp("builder",s)==0) return SP_BUILDER;
+    if(strcmp("platform",s)==0) return SP_PLATFORM;
+    if(strcmp("srcdir",s)==0) return SP_SRCDIR;
+    if(strcmp("time",s)==0) return SP_TIME;
+    if(strcmp("xtime",s)==0) return SP_XTIME;
+    if(strcmp("wd",s)==0) return SP_WD;
+    return SP_UNDEF;
 }
 
 /**************************************************/
@@ -1369,6 +1397,7 @@ done:
     return decmt;
 }
 
+#if 0
 /**
 Bash (and maybe other shells) has the unfortunate quirk
 of adding escape characters to command line arguments when
@@ -1395,6 +1424,7 @@ debash(const char* s)
     *q = '\0';
     return deb;
 }
+#endif
 
 /* Determine SV_S vs SV_V vs SV_SV */
 static const char*
@@ -1494,7 +1524,7 @@ tfcvt(const char* value)
 {
     unsigned tf = 0;
     if(value == NULL || strlen(value)==0) {
-	tf = 1;
+	tf = 0;
 	goto done;
     }
     if(1==sscanf(value,"%u",&tf)) {
@@ -1560,10 +1590,82 @@ settestspecials(TTM* ttm)
 static void
 reclaimglobals()
 {
-    struct TestSpecial* p;
+    struct TestSpecial* ts;
     vlfreeall(argoptions);
-    vlfreeall(propoptions);
-    for(p=testspecials;p->name;p++) nullfree(p->value);
+    for(ts=testspecials;ts->id != SP_UNDEF;ts++) nullfree(ts->actual);
+}
+
+/* Define TestSpecials actual values */
+static void
+setactuals(void)
+{
+    struct TestSpecial* ts = NULL;
+    char path[4096];
+    char* p;
+
+    {
+	ts = getspecial(SP_ARGV0);
+	ts->actual = strdup(vlget(argoptions,0));
+    }
+    {
+	ts = getspecial(SP_BUILDDIR);
+	if(getcwd(path, sizeof(path))==NULL) abort(); /* Assume current working dir is builddir */
+	for (p = path; *p; p++) { if (*p == '\\') *p = '/'; } /* Convert '\\' to '/' */
+	ts->actual = strdup(path);
+    }
+    {
+	ts = getspecial(SP_BUILDER);
+#if defined(CMAKEBUILD)
+	ts->actual = strdup("cmake");
+#elif defined(AUTOBUILD)
+	ts->actual = strdup("autotools");
+#else
+	ts->actual = strdup("make");
+#endif
+    }
+    {
+	ts = getspecial(SP_PLATFORM);
+#if   defined(CYGWIN)
+	ts->actual = strdup("cygwin");
+#elif defined(MSYS2)
+	ts->actual = strdup("msys2");
+#elif defined(MINGW)
+	ts->actual = strdup("mingw");
+#elif defined(MSWINDOWS)
+	ts->actual = strdup("windows");
+#elif defined(__APPLE__)
+	ts->actual = strdup("os/x");
+#else 
+	ts->actual = strdup("unix");
+#endif
+    }
+    {
+	ts = getspecial(SP_SRCDIR);
+#if defined(CMAKEBUILD) 
+	/* assume srcdir is parent of builddir */
+	ts->actual = strdup(getspecial(SP_BUILDDIR)->builddir);	
+	p = strrchr(ts->actual,'/');
+	if(p != NULL) *p = '\0'; /* elide last path segment */
+#else
+	/* assume srcdir is same as builddir */
+	ts->actual = strdup(getspecial(SP_BUILDDIR)->actual);	
+#endif
+    }
+    {
+	ts = getspecial(SP_TIME);
+	/* computed by #<time> */
+    }
+    {
+	ts = getspecial(SP_XTIME);
+	/* computed by #<xtime> */
+    }
+    {
+	ts = getspecial(SP_WD);
+	if(getcwd(path, sizeof(path))==NULL) abort(); /* current working dir  */
+	for (p = path; *p; p++) { if (*p == '\\') *p = '/'; } /* Convert '\\' to '/' */
+	ts->actual = strdup(path);
+    }
+>>>>>>> 739794db195e751e456005acc07ff95e2785058a
 }
 
 static void
@@ -1689,6 +1791,36 @@ done:
 
 #if 0
 static void
+setexecproperties(TTM* ttm)
+{
+    const char* env;
+    size_t value;
+
+    /* Set to default values */
+    ttm->execproperties.stacksize = DFALTSTACKSIZE;
+    ttm->execproperties.execcount = DFALTEXECCOUNT;
+    ttm->execproperties.showfinal = DFALTSHOWFINAL;
+    ttm->execproperties.showcall = DFALTSHOWCALL;
+		
+    /* Overwrite with environment variable values */
+    if((env = getenv(ENV_STACKSIZE))!=NULL) {
+	if(1!=sscanf(env,"%zu",&value)) usage("sscanf failed");
+	ttm->execproperties.stacksize = value;
+    }
+    if((env = getenv(ENV_EXECCOUNT))!=NULL) {
+	if(1!=sscanf(env,"%zu",&value)) usage("sscanf failed");
+	ttm->execproperties.execcount = value;
+    }
+    if((env = getenv(ENV_SHOWFINAL))!=NULL) {
+	ttm->execproperties.showfinal = tfcvt(env);
+    }
+    if((env = getenv(ENV_SHOWCALL))!=NULL) {
+	ttm->execproperties.showcall = tfcvt(env);
+    }
+}
+
+#if 0
+static void
 setproperty(TTM* ttm, const char* key, const char* value)
 {
     /* Set property  */
@@ -1703,17 +1835,17 @@ syncproperty(TTM* ttm, const char* key, const char* value)
     switch (propenumdetect(key)) {
     case PE_STACKSIZE:
 	sscanf(value,"%zu",&n);
-	ttm->properties.stacksize = n;
+	ttm->execproperties.stacksize = n;
 	break;
     case PE_EXECCOUNT:
 	sscanf(value,"%zu",&n);
-	ttm->properties.execcount = n;
+	ttm->execproperties.execcount = n;
 	break;
    case PE_SHOWFINAL:
-	ttm->properties.showfinal = (tfcvt(value)?1:0);
+	ttm->execproperties.showfinal = (tfcvt(value)?1:0);
 	break;
    case PE_SHOWCALL:
-	ttm->properties.showcall = (tfcvt(value)?1:0);
+	ttm->execproperties.showcall = (tfcvt(value)?1:0);
 	break;
     default: break; /* user defined property */
     }
@@ -1770,7 +1902,7 @@ cmdlineproperties(TTM* ttm)
 	setproperty(ttm,key,value);
     }
 }
-#endif
+#endif /*0*/
 
 static void
 processdebugargs(TTM* ttm, const char* debugargs)
@@ -1902,7 +2034,9 @@ main(int argc, char** argv)
     int mergeerrout = 0;
     int c;
     struct OPTS opts;
+#if 0
     struct Properties option_props;
+#endif
 #ifndef TTMGLOBAL
     TTM* ttm = NULL;
 #endif
@@ -1967,7 +2101,7 @@ main(int argc, char** argv)
 
     /* Create the ttm state */
     /* Modify from various options */
-    ttm = newTTM(&option_props);
+    ttm = newTTM();
     processdebugargs(ttm,debugargs);
     defineBuiltinFunctions(ttm);
 

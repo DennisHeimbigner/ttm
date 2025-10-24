@@ -1,3 +1,6 @@
+#ifndef TYPES_H
+#define TYPES_H
+
 /**************************************************/
 /* UTF and char Definitions */
 
@@ -70,6 +73,19 @@ ME_LBR,
 ME_RBR,
 };
 
+/* Test Special id's */
+enum SpecialEnum {
+SP_ARGV0 = 0,
+SP_BUILDDIR = 1,
+SP_BUILDER = 2,
+SP_PLATFORM = 3,
+SP_SRCDIR = 4,
+SP_TIME = 5,
+SP_XTIME = 6,
+SP_WD = 7,
+SP_UNDEF = 8
+};
+
 /* Track state of a potential function call */
 enum FcnCallCases {
 FCN_UNDEF,
@@ -92,7 +108,7 @@ TE_STRING,
 TE_BUILTIN,
 TE_ALL,
 TE_SYSTEM, /* System info */
-TE_BUILDER,  /* Build system info */
+TE_BUILD, /* Build info */
 };
 
 /* Must be powers of two; simulated enum */
@@ -327,12 +343,6 @@ struct TTM {
 	size_t showfinal; /* 1=>print contents of passive buffer after scan() finishes; 0=>suppress */
 	size_t showcall; /* 1=>print contents of passive buffer after each function call; 0=>suppress */
     } execproperties;
-    /* TTM build system info */
-    struct Builder {
-	char* name;
-	char* srcdir;
-	char* builddir;
-    } builder;
 };
 
 /* Convenience */
@@ -399,15 +409,17 @@ struct Property {
     char* value;
 };
 
-
-/* Current enum of predefined exec properties */
-enum ExecPropEnum {
-EPE_UNDEF=0,
-EPE_STACKSIZE,
-EPE_EXECCOUNT,
+#if 0
+/* Current enum of predefined properties */
+enum PropEnum {
+PE_UNDEF=0,
+PE_STACKSIZE,
+PE_EXECCOUNT,
 PE_SHOWFINAL,
 PE_SHOWCALL, /* Show passive output from each function result */
 };
-#endif /*0*/
+#endif
 
 enum TableType {TT_DICT, TT_CLASSES, TT_PROPS};
+
+#endif /*TYPES_H*/

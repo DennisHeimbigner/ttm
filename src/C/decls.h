@@ -1,3 +1,6 @@
+#ifndef DECLS_H
+#define DECLS_H
+
 /**************************************************/
 /**
 Global Declarations
@@ -39,35 +42,59 @@ dfalt_debug(void)
 
 /* Cause <argv;0>, <wd>, <time>, <xtime>, etc. to output fixed values
    so that we can compare to baseline without massaging
-   Note: do not declare "const" because we need to modify.
-   These testing values can be accessed using ##<ttm;testing;<which>>;
-   for example ##<ttm;testing;argv0>.
-   Semantics:
-	argv0    -- testing executable name
-	builddir -- testing the build directory
-	time     -- testing fixed time of day in 100'th of a second
-	platform -- testing platform OS name
-	sep      -- testing path separator
-	srcdir   -- testing the source directory
-	xtime    -- testing fixed run time
+   When the code gets one of these values, and testing is enabled,
+   then if the key is non-NULL, it is returned. Later code will
+   execute it, which will replace it with the value.
+
+Semantics:
+|   Name   |   Pretend Value      |         Semantics             |
+|----------|----------------------|-------------------------------|
+| argv0    | ttm.exe              | The value of argv[0]          |
+|----------|----------------------|-------------------------------|
+| builddir | N.A.                 | The builder build directory   |
+|          |                      | Generally same as srcdir      |
+|          |                      | unless builder is cmake       |
+|----------|----------------------|-------------------------------|
+| builder  | cmake|autotools|make | The builder build directory   |
+|----------|----------------------|-------------------------------|
+| platform | Unix                 | The value of argv[0]          |
+|----------|----------------------|-------------------------------|
+| srcdir   | N.A.                 | The builder source directory  |
+|----------|----------------------|-------------------------------|
+| time     | 100000000000         | The time since start of epoch |
+|----------|----------------------|-------------------------------|
+| xtime    | 100                  | The execution time;
+|----------|----------------------|-------------------------------|
+| wd       | N.A.                 | The current working directory |
+|----------|----------------------|-------------------------------|
+
 */
-static struct TestSpecial {
-    const char* name;
-    char* value; /* Filled in by initTTM */
+struct TestSpecial {
+    enum SpecialEnum id;
+    const char* key;
+    const char* macro;
+    const char* pretend; /* the pretend value for testing */
+    char* actual; /* the real value when not testing; computed at run time */
 } testspecials[] = {
-    {"argv0",    NULL},
-    {"builddir", NULL},
-    {"platform", NULL},
-    {"srcdir",   NULL},
-    {"time",     NULL},
-    {"xtime",    NULL},
-    {NULL,       NULL}, /* table terminator*/
+{SP_ARGV0,    "argv0",    "#<:;argv0>",    "ttm.exe",      NULL}, 
+{SP_BUILDDIR, "builddir", "#<:;builddir>", "/ttm/build",   NULL}, 
+{SP_BUILDER,  "builder",  "#<:;builder>",  "cmake",        NULL}, 
+{SP_PLATFORM, "platform", "#<:;platform>", "Unix",         NULL}, 
+{SP_SRCDIR,   "srcddir",  "#<:;srcddir>",  "/ttm",         NULL}, 
+{SP_TIME,     "time",     "#<:;time>",     "100000000000", NULL}, 
+{SP_XTIME,    "xtime",    "#<:;xtime>",    "100",          NULL}, 
+{SP_WD,       "wd",       "#<:;wd>",       "/ttm",         NULL}, 
+{SP_UNDEF,    NULL,       NULL,            NULL,           NULL}
+>>>>>>> 739794db195e751e456005acc07ff95e2785058a
 };
 
 static VList* argoptions = NULL; /* command line arguments */
+#if 0
 static VList* propoptions = NULL; /* command line properties */
+#endif
 
 #ifdef TTMGLOBAL
 static TTM* ttm = NULL;
 #endif
 
+#endif /*DECLS_H*/
