@@ -14,17 +14,24 @@ static size_t rptocp(TTM* ttm, const char* u8, size_t rp);
 static size_t cptorp(TTM* ttm, const char* u8, size_t cp);
 static int tfcvt(const char*);
 static void initTTM();
+static void reclaimglobals();
+static void setactuals(void);
 static void usage(const char* msg);
 static TTMERR readline(TTM* ttm, TTMFILE* f, char** linep);
 static TTMERR readfile(TTM* ttm, const char* fname, VString* buf);
 static char* unescape(TTM*, const char* s8);
+static void setexecproperties(TTM* ttm);
+#if 0
 static void setproperty(TTM*, const char* key, const char* value);
 static void syncproperty(TTM* ttm, const char* key, const char* value);
 static const char* propdfalt2str(enum PropEnum dfalt, size_t n);
 static size_t propdfalt(enum PropEnum key);
 static void defaultproperties(TTM* ttm);
 static void cmdlineproperties(TTM* ttm);
-
+static const char* propertyLookup(TTM* ttm, const char* name);
+static Property* propertyRemove(TTM* ttm, const char* name);
+static int propertyInsert(TTM* ttm, const char* key, const char* value);
+#endif /*0*/
 static int u8sizec(char c);
 static int u8size(const char* cp);
 static int u8validcp(char* cp);
@@ -52,10 +59,7 @@ static int dictionaryInsert(TTM* ttm, Function* fcn);
 static Charclass* charclassLookup(TTM* ttm, const char* name);
 static Charclass* charclassRemove(TTM* ttm, const char* name);
 static int charclassInsert(TTM* ttm, Charclass* cl);
-static const char* propertyLookup(TTM* ttm, const char* name);
-static Property* propertyRemove(TTM* ttm, const char* name);
-static int propertyInsert(TTM* ttm, const char* key, const char* value);
-static TTM* newTTM(struct Properties*);
+static TTM* newTTM(void);
 static void freeTTM(TTM* ttm);
 static void clearHashEntry(struct HashEntry* entry);
 static Frame* pushFrame(TTM* ttm);
@@ -71,9 +75,12 @@ static Charclass* newCharclass(TTM* ttm, const char* name);
 static void freeCharclass(TTM* ttm, Charclass* cl);
 static void clearcharclasses(TTM* ttm, struct HashTable* charclasses);
 static const char* charclassmatch(const char* cp, const char* charclass, int negative);
+#if 0
 static enum PropEnum propenumdetect(const char* s);
-static enum TTMEnum ttmenumdetect(const char* s);
+#endif
 static enum MetaEnum metaenumdetect(const char* s);
+static enum TTMEnum ttmenumdetect(const char* s);
+static enum SpecialEnum specialenumdetect(const char* s);
 
 /* ttmX.c IO utilities */
 static int ttmgetc8(TTM* ttm, TTMFILE* f, char* cp8);
@@ -108,7 +115,7 @@ static void* hashwalk(struct HashTable* table);
 static void hashwalkstop(void* walkstate);
 static int hashnext(void* walkstate, struct HashEntry** ithentryp);
 
-static TTMERR ttm_ap(TTM* ttm, Frame* frame, VString*);
+/* builtins.h */
 static TTMERR ttm_ap(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_cf(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ds(TTM* ttm, Frame* frame, VString* result);
@@ -184,23 +191,31 @@ static TTMERR ttm_uf(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_istn(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_pn(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_trim(TTM* ttm, Frame* frame, VString* result);
-static TTMERR ttm_catch(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_switch(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_clearpassive(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_include(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_void(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_breakpoint(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_catch(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_throw(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_semicolon(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_getenv(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_env(TTM* ttm, Frame* frame, VString* result);
+#if 0
 static TTMERR ttm_setprop(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_resetprop(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_getprop(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_removeprop(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_properties(TTM* ttm, Frame* frame, VString* result);
+#endif
 static TTMERR ttm_sort(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_meta(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_info_class(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_info_string(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_list(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_ttm_system(TTM* ttm, Frame* frame, VString* result);
+static TTMERR ttm_ttm_build(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm(TTM* ttm, Frame* frame, VString* result);
 
 static TTMFILE* ttmopen(TTM* ttm, const char* fname, const char* mode);
@@ -234,8 +249,6 @@ static void dumpprops(TTM* ttm);
 static const char* printwithpos(VString* vs);
 static const char* printwithpos(VString* vs);
 #endif /*GDB*/
-
-static char* debash(const char* s);
 
 /* Hack to suppress compiler warnings about selected unused static functions */
 static void

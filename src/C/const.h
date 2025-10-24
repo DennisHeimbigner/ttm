@@ -1,3 +1,6 @@
+#ifndef CONST_H
+#define CONST_H
+
 /**
 This code takes over part of the UTF8 space to store segment
 marks and create marks This should work because we never export
@@ -67,15 +70,17 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 
 #define SHORTTEXTLEN 25
 
-/* Predefined property defalts */
+/* Predefined Execution Defaults */
 #define DFALTSTACKSIZE	64
 #define DFALTEXECCOUNT	(1<<20)
 #define DFALTSHOWFINAL	0
 #define DFALTSHOWCALL	0
 
-#define DFALTTRACE 0
-#define DFALTVERBOSE 1
-#define CONTEXTLEN 20
+/* Environment Variable Names */
+#define ENV_STACKSIZE "TTM_STACKSIZE"
+#define ENV_EXECCOUNT "TTM_EXECCOUNT"
+#define ENV_SHOWFINAL "TTM_SHOWFINAL"
+#define ENV_SHOWCALL "TTM_SHOWCALL"
 
 /*Mnemonics*/
 #define TRACING 1
@@ -103,3 +108,5 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 
 /* Wrapping tag char for struct Testing values. */
 #define TESTTAG ':'
+
+#endif /*CONST_H*/

@@ -70,6 +70,19 @@ ME_LBR,
 ME_RBR,
 };
 
+/* Test Special id's */
+enum SpecialEnum {
+SP_ARGV0 = 0,
+SP_BUILDDIR = 1,
+SP_BUILDER = 2,
+SP_PLATFORM = 3,
+SP_SRCDIR = 4,
+SP_TIME = 5,
+SP_XTIME = 6,
+SP_WD = 7,
+SP_UNDEF = 8
+};
+
 /* Track state of a potential function call */
 enum FcnCallCases {
 FCN_UNDEF,
@@ -92,6 +105,7 @@ TE_STRING,
 TE_BUILTIN,
 TE_ALL,
 TE_SYSTEM, /* System info */
+TE_BUILD, /* Build info */
 };
 
 /* Must be powers of two; simulated enum */
@@ -316,15 +330,14 @@ struct TTM {
     struct Tables {
 	struct HashTable dictionary;
 	struct HashTable charclasses;
-	struct HashTable properties;
     } tables;
     /* TTM Execution Properties; These must be kept consistent with property table entries */
-    struct Properties { /* WARN: reflect changes to PropEnum and its uses */
+    struct ExecProperties { /* WARN: reflect changes to PropEnum and its uses */
 	size_t stacksize;
 	size_t execcount;
 	size_t showfinal; /* 1=>print contents of passive buffer after scan() finishes; 0=>suppress */
 	size_t showcall; /* 1=>print contents of passive buffer after each function call; 0=>suppress */
-    } properties;
+    } execproperties;
 };
 
 /* Convenience */
@@ -390,6 +403,7 @@ struct Property {
     char* value;
 };
 
+#if 0
 /* Current enum of predefined properties */
 enum PropEnum {
 PE_UNDEF=0,
@@ -398,6 +412,6 @@ PE_EXECCOUNT,
 PE_SHOWFINAL,
 PE_SHOWCALL, /* Show passive output from each function result */
 };
-
+#endif
 
 enum TableType {TT_DICT, TT_CLASSES, TT_PROPS};

@@ -258,12 +258,6 @@ dumpcharclasses(TTM* ttm)
     dumpdict0(ttm,&ttm->tables.charclasses,1,TT_CLASSES);
 }
 
-static void
-dumpprops(TTM* ttm)
-{
-    dumpdict0(ttm,&ttm->tables.properties,1,TT_PROPS);
-}
-
 static const char*
 printwithpos(VString* vs)
 {
