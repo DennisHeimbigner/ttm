@@ -409,7 +409,6 @@ struct Property {
     char* value;
 };
 
-#if 0
 /* Current enum of predefined properties */
 enum PropEnum {
 PE_UNDEF=0,

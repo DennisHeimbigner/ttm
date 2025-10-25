@@ -12,10 +12,9 @@ static const char* sv(Function* f);
 static const char* peek(VString* vs, size_t n);
 static size_t rptocp(TTM* ttm, const char* u8, size_t rp);
 static size_t cptorp(TTM* ttm, const char* u8, size_t cp);
-static int tfcvt(const char*);
 static void initTTM();
 static void reclaimglobals();
-static void setactuals(void);
+static void setspecialactuals(void);
 static void usage(const char* msg);
 static TTMERR readline(TTM* ttm, TTMFILE* f, char** linep);
 static TTMERR readfile(TTM* ttm, const char* fname, VString* buf);
@@ -32,7 +31,6 @@ static const char* propertyLookup(TTM* ttm, const char* name);
 static Property* propertyRemove(TTM* ttm, const char* name);
 static int propertyInsert(TTM* ttm, const char* key, const char* value);
 #endif /*0*/
->>>>>>> 739794db195e751e456005acc07ff95e2785058a
 static int u8sizec(char c);
 static int u8size(const char* cp);
 static int u8validcp(char* cp);
@@ -62,8 +60,6 @@ static Charclass* charclassRemove(TTM* ttm, const char* name);
 static int charclassInsert(TTM* ttm, Charclass* cl);
 static TTM* newTTM(void);
 static void freeTTM(TTM* ttm);
-static void setexecprops(TTM* ttm);
-static void setbuilderprops(TTM* ttm);
 static void clearHashEntry(struct HashEntry* entry);
 static Frame* pushFrame(TTM* ttm);
 static void popFrame(TTM* ttm);
@@ -201,7 +197,6 @@ static TTMERR ttm_void(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_breakpoint(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_catch(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_throw(TTM* ttm, Frame* frame, VString* result);
-static TTMERR ttm_semicolon(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_getenv(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_env(TTM* ttm, Frame* frame, VString* result);
 #if 0
@@ -220,6 +215,7 @@ static TTMERR ttm_ttm_list(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_system(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm_build(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_ttm(TTM* ttm, Frame* frame, VString* result);
+static char* expandmacros(const char* s, int actual);
 
 static TTMFILE* ttmopen(TTM* ttm, const char* fname, const char* mode);
 static int ttmclose(TTM* ttm, TTMFILE* tfile);

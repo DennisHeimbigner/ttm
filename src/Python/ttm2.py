@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This software is released under the terms of the Apache
-# License version 2.  For details of the license, see
-# http://www.apache.org/licenses/LICENSE-2.0.
-
 # TODO:
 # - replace class Buffer with simple list
 ##################################################

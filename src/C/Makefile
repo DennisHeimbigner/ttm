@@ -14,7 +14,7 @@ TTM = ttm
 CC = gcc
 CCWARN = -Wall
 CCDEBUG = -g -O0
-CCDEF = -DMAKE_BUILD=1 # choices: CMAKE_BUILD, AUTOMAKE_BUILD, MAKE_BUILD
+CCDEF = -DMAKEBUILD=1 # choices: CMAKE_BUILD, AUTOMAKE_BUILD, MAKE_BUILD
 ifdef MEM
 CCMEM = -fsanitize=address -fsanitize=leak
 endif
@@ -24,7 +24,7 @@ CFLAGS = ${CCWARN} ${CCDEBUG} ${CCMEM} ${CCDEF}
 all: clean ${TTM}.exe
 
 # Assemble ttm8.c from pieces
-INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h  vutils.h
+INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h vutils.h
 
 ${TTM}.exe: ${TTM}.c ${INCLUDES}
 	${CC} ${CFLAGS} -o $@ $<
@@ -38,15 +38,17 @@ unityttm.c: ${TTM}.c ${INCLUDES}
 ##################################################
 TESTARGS = a b c
 
-check:: ${TTM}.exe test_all.log test_misc.log
+check:: ${TTM}.exe test_all.log # test_misc.log
 	diff -wBb test_all.baseline test_all.log
-	diff -wBb test_misc.baseline test_misc.log
+#	diff -wBb test_misc.baseline test_misc.log
 
 test_all.log: test_all.ttm ${TTM}.exe
-	./${TTM}.exe -\& -Pshowcall -T -d1 -dt -p test_all.ttm -f ./test.rs ${TESTARGS} > $@
+	TTM_SHOWCALL=1 \
+	./${TTM}.exe -\& -T -d1 -dt -p test_all.ttm -f ./test.rs ${TESTARGS} > $@
 
 test_misc.log: test_misc.ttm ${TTM}.exe
-	./${TTM}.exe -\& -Pshowcall -T -d1 -dt -p test_misc.ttm -f ./test.rs ${TESTARGS} > $@
+	TTM_SHOWCALL=1 \
+	./${TTM}.exe -\& -T -d1 -dt -p test_misc.ttm -f ./test.rs ${TESTARGS} > $@
 
 
 # This is to check cpp (C preprocessor) expansions

@@ -549,10 +549,9 @@ ctime=##<ctime;##<ttm;system;:ctime:>>// Use an arbitrary time argument
 
 // "include" 1,1,SV_S
 ##<ps;<--- Testing: include>\n>
-##<ds;BUILDDIR;##<ttm;system;:builddir:>>
-##<ds;SRCD;##<ttm;system;:srcdir:>>
-##<ds;SEP;##<ttm;system;:sep:>>
-##<ds;RS;##<SRCD>##<SEP>test.rs>
+##<ds;BUILDDIR;##<ttm;build;builddir>>
+##<ds;SRCDIR;##<ttm;build;srcdir>>
+##<ds;RS;##<SRCDIR>/test.rs>
 #<ps;##<include;##<RS>>>
 
 // "clearpassive" 0,0,SV_S

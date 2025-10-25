@@ -1,8 +1,3 @@
-/**
-This software is released under the terms of the Apache License version 2.
-For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
-*/
-
 #ifndef VUTILS_H
 #define VUTILS_H 1
 
@@ -48,6 +43,7 @@ static void vlsetlength(VList* va, size_t newlen);
 static void vlappend(VList* va, void* elem);
 static void vlinsert(VList* va, size_t pos, void* elem);
 static void* vlremove(VList* va, size_t pos);
+static void* vlget(VList* va, size_t pos);
 static void* vlgetp(VList* va, size_t pos);
 static void* vlextract(VList* va);
 static void vlindexset(VList* va, size_t pos);
@@ -64,25 +60,26 @@ static void vsexpand(VString* va);
 static void vssetalloc(VString* va, size_t minalloc);
 static void vssetlength(VString* va, size_t newlen);
 static void vsappendn(VString* va, const char* s, size_t slen);
+static void vsappend(VString* va, char c);
 static void vsinsertn(VString* va, size_t pos, const char* s, size_t slen);
-static void vsremove(VString* va, size_t pos, size_t n);
+static void vsremoven(VString* va, size_t pos, size_t n);
 static char* vsgetp(VString* va, size_t pos);
 static char* vsextract(VString* va);
 static void vsindexset(VString* va, size_t pos);
 static char* vsindexskip(VString* va, size_t skip);
 static size_t vsindex(VString* va);
 static char* vsindexp(VString* va);
-static void vsindexremove(VString* va, size_t n);
 static void vsindexinsertn(VString* va, const char* s, size_t n);
+static void vsindexremoven(VString* va, size_t n);
 static VString* vsclone(VString* va);
 static void vsmemmove(char* dst, char* src, size_t len);
 
 /**************************************************/
 /* "Inlined" */
-#define vlcontents(vl)  ((vl)==NULL?(vl):(vl)->content)
+#define vlcontents(vl)  ((vl)==NULL?(void**)(vl):(vl)->content)
 #define vllength(vl)  ((vl)==NULL?0:(vl)->length)
 #define vlalloc(vl)  ((vl)==NULL?0:(vl)->alloc)
-#define vlcat(vl,s)  vlappendn(vl,s,0)
+#define vlpush(vl,s)  vlappend(vl,s)
 #define vlclear(vl)  vlsetlength(vl,0)
 
 /*************************/
@@ -264,9 +261,18 @@ vlremove(VList* va, size_t pos)
 }
 
 static void*
+vlget(VList* va, size_t pos)
+{
+    assert(va->length >= pos);
+    vlsetalloc(va,1);
+    return va->content[pos*sizeof(void*)];
+}
+
+static void*
 vlgetp(VList* va, size_t pos)
 {
     assert(va->length >= pos);
+    vlsetalloc(va,1);
     return va->content + (pos*sizeof(void*));
 }
 
@@ -432,11 +438,19 @@ vutilsuppresswarnings(void)
     void* ignore;
     ignore = (void*)vutilsuppresswarnings;
     (void)ignore;
-#if 0
-    ignore = (void*)vssetalloc;
-    ignore = (void*)vsindexinsertn;
+    ignore = (void*)vlclone;
+    ignore = (void*)vldeepclone;
+    ignore = (void*)vlindexinsert;
+    ignore = (void*)vlindexremove;
+    ignore = (void*)vlindex;
+    ignore = (void*)vlindexskip; 
+    ignore = (void*)vlextract;
+    ignore = (void*)vlgetp;
+    ignore = (void*)vlappend;
+    ignore = (void*)vlsetlength;
+    ignore = (void*)vlnewdeep;
+
     ignore = (void*)vsextract;
-#endif
 }
 
 #endif /*VUTILS_H*/
@@ -541,6 +555,20 @@ vsappendn(VString* va, const char* s, size_t slen)
 }
 
 /**
+Append 1 char to the end of a string
+@param va the array to expand
+@param c char to append
+@return void
+*/
+static void
+vsappend(VString* va, char c)
+{
+    char s[2] = {0,0};
+    s[0] = c;
+    vsappendn(va,s,1);
+}
+
+/**
 Insert a string at position pos.
 @param va
 @param pos where to insert; if pos > |va->content| then expand va.
@@ -574,7 +602,7 @@ Side effect:
 (2) set index to pos if index >  pos
 */
 static void
-vsremove(VString* va, size_t pos, size_t n)
+vsremoven(VString* va, size_t pos, size_t n)
 {
   assert(va != NULL);
   assert((pos+n) < va->length);
@@ -682,10 +710,10 @@ Index remains unchanged.
 @return void
 */
 static void
-vsindexremove(VString* va, size_t n)
+vsindexremoven(VString* va, size_t n)
 {
     if(va->index > va->length) va->index = va->length;
-    vsremove(va,va->index,n);
+    vsremoven(va,va->index,n);
 }
 
 /**

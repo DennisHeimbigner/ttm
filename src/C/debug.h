@@ -1,3 +1,6 @@
+#ifndef DEBUG_H
+#define DEBUG_H
+
 /**************************************************/
 static void
 ttmbreak(TTMERR err)
@@ -383,7 +386,7 @@ traceframe(TTM* ttm, Frame* frame, int entering)
 		if(frame->argc >= 3)
 		    xprintf(ttm,";%s",frame->argv[2]);
 		break;
-	    case TE_BUILDER:
+	    case TE_BUILD:
 		if(frame->argc >= 3)
 		    xprintf(ttm,";%s",frame->argv[2]);
 		break;
@@ -674,3 +677,5 @@ dbgsuppresswarnings(void)
     (void)dumpstack;
 #endif
 }
+
+#endif /*DEBUG_H*/

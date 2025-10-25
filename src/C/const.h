@@ -113,6 +113,7 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define TRACING 1
 #define TOEOS ((size_t)0xffffffffffffffff)
 #define RECLAIM 1
+#define ACTUAL 1
 
 #if DEBUG > 0
 #define PASSIVEMAX 20

@@ -1,8 +1,3 @@
-/**
-This software is released under the terms of the Apache License version 2.
-For details of the license, see http://www.apache.org/licenses/LICENSE-2.0.
-*/
-
 /**************************************************/
 /**
 (Un)Define these if you do (not) have the specified capability.
@@ -332,98 +327,46 @@ freeTTM(TTM* ttm)
     clearcharclasses(ttm,&ttm->tables.charclasses);
 #if 0
     clearproperties(ttm,&ttm->tables.properties);
+#endif
     closeio(ttm);
     nullfree(ttm->opts.programfilename);
     free(ttm);
 }
 
 static void
-setexecprops(TTM* ttm)
+setexecproperties(TTM* ttm)
 {
-    size_t n;
     const char* env = NULL;
+    size_t n;
 
     env = getenv(TTM_STACKSIZE);
     if(env == NULL)
         ttm->execproperties.stacksize = DFALTSTACKSIZE;
-    } else {
+    else {
 	sscanf(env,"%zu",&n);
 	ttm->execproperties.stacksize = n;
     }
     env = getenv(TTM_EXECCOUNT);
     if(env == NULL)
         ttm->execproperties.stacksize = DFALTEXECCOUNT;
-    } else {
-	sscanf(value,"%zu",&n);
-	ttm->execproperties.execcoubt = n;
+    else {
+	sscanf(env,"%zu",&n);
+	ttm->execproperties.execcount = n;
     }
     env = getenv(TTM_SHOWFINAL);
     if(env == NULL)
         ttm->execproperties.showfinal = DFALTSHOWFINAL;
-    } else {
-	sscanf(value,"%zu",&n);
+    else {
+	sscanf(env,"%zu",&n);
 	ttm->execproperties.showfinal = n;
     }
     env = getenv(TTM_SHOWCALL);
     if(env == NULL)
         ttm->execproperties.showcall = DFALTSHOWCALL;
-    } else {
-	sscanf(value,"%zu",&n);
+    else {
+	sscanf(env,"%zu",&n);
 	ttm->execproperties.showcall = n;
     }
-}
-
-static void
-setbuilderprops(TTM* ttm)
-{
-    char tmp[4096];
-    char* p;
-
-    /* build system name       */
-#if defined CMAKE_BUILD
-#elif defined AUTOMAKE_BUILD
-    ttm->builder.name = "automake";
-#else
-    ttm->builder.name = "make";
-#endif
-#if defined CMAKE_BUILD
-    ttm->builder.name = strdup("cmake");
-
-    /* build system build dir  */
-    /* = the current working directory */
-    if(getcwd(tmp, sizeof(tmp))==NULL) usage("getcwd failed");
-    /* Convert '\\' to '/' */
-    for(p=tmp;*p;p++) { if (*p == '\\') *p = '/'; }
-    ttm->builder.builddir = strdup(tmp);
-
-    /* build system source dir */
-    /* = builddir/.. */
-    p = strrchr(tmp->builder.builddir);
-    if(p == NULL)
-        ttm->builder.srcdir = strdup(ttm->builder.builddir;
-    else {
-	size_t slen;
-	slen = (p - ttm->builder.builddir);
-	ttm->builder.srcdir = calloc(1,slen+1);
-	memcpy(ttm->builddir.srcdir,ttm->builddir.builddir,slen);
-	ttm->builddir.srcdir[slen] = '\0';
-    }
-#else
-#ifdef AUTOMAKE_BUILD
-    ttm->builder.name = strdup("automake");
-#else /*MAKE_BUILD*/
-    ttm->builder.name = strdup("make");
-#endif
-    /* build system build dir */
-    /* = the current working directory */
-    if(getcwd(tmp, sizeof(tmp))==NULL) usage("getcwd failed");
-    /* Convert '\\' to '/' */
-    for (p=tmp;*p;p++) { if (*p == '\\') *p = '/'; }
-    ttm->builder.builddir = strdup(tmp);
-    /* build system src dir  */
-    /* = build dir*/
-    ttm->builder.srcdir = strdup(ttm->builder.builddir);
-#endif
 }
 
 /**************************************************/
@@ -638,7 +581,7 @@ ttmenumdetect(const char* s)
     if(strcmp("all",s)==0) return TE_ALL;
     if(strcmp("builtin",s)==0) return TE_BUILTIN;
     if(strcmp("system",s)==0) return TE_SYSTEM;
-    if(strcmp("builder",s)==0) return TE_BUILDER;
+    if(strcmp("build",s)==0) return TE_BUILD;
     return TE_UNDEF;
 }
 
@@ -679,7 +622,7 @@ scan(TTM* ttm)
 	    TTMCP8NXT(ttm);
 	} else if(isescape(cp8)) {
 	    TTMCP8NXT(ttm);
-	    vsindexappendn(ttm->vs.passive,cp8,ncp); /* pass the escaped char */
+	    vsappendn(ttm->vs.passive,cp8,ncp); /* pass the escaped char */
 	    TTMCP8NXT(ttm); /* skip escaped char */
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {/* Start of call? */
 	    if(u8equal(peek(ttm->vs.active,1),ttm->meta.openc)
@@ -691,7 +634,7 @@ scan(TTM* ttm)
 		if(err) EXIT(ttm,err);
 		if(ttm->flags.exit) goto done;
 	    } else {/* not an call; just pass the # along passively */
-		vsindexappendn(ttm->vs.passive,cp8,ncp);
+		vsappendn(ttm->vs.passive,cp8,ncp);
 		TTMCP8NXT(ttm);
 	    }
 	} else if(u8equal(cp8,ttm->meta.lbrc)) { /* start of <...> escaping */
@@ -700,27 +643,27 @@ scan(TTM* ttm)
 	    while(depth > 0) {
 		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
 		if(isescape(cp8)) {
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
 		    TTMCP8NXT(ttm); /* Skip escape char */
 		    if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
 		    TTMCP8NXT(ttm); /* Skip escaped char */
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
 		    depth++;
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
 		    TTMCP8NXT(ttm); /* Skip lbrc */
 		} else if(u8equal(cp8,ttm->meta.rbrc)) {
 		    if(--depth > 0) { /* pass the rbrc */
-			vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep rbrc */
+			vsappendn(ttm->vs.passive,cp8,ncp); /* Keep rbrc */
 		    }
 		    TTMCP8NXT(ttm); /* Skip rbrc */
 		} else { /*ordinary char */
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
 		    TTMCP8NXT(ttm); /* Skip lbrc */
 		}
 	    } /*<...> while*/
 	} else { /* non-signficant character */
-	    vsindexappendn(ttm->vs.passive,(char*)cp8,ncp);
+	    vsappendn(ttm->vs.passive,(char*)cp8,ncp);
 	    TTMCP8NXT(ttm);
 	}
     } /*scan for*/
@@ -852,7 +795,7 @@ exec(TTM* ttm)
 	if(frame->active) {
 	    (void)vsinsertn(ttm->vs.active, 0, vscontents(ttm->vs.result), vslength(ttm->vs.result));
 	} else { /*frame->passive*/
-	    vsindexappendn(ttm->vs.passive,vscontents(ttm->vs.result),vslength(ttm->vs.result));
+	    vsappendn(ttm->vs.passive,vscontents(ttm->vs.result),vslength(ttm->vs.result));
 	}
 	vsclear(ttm->vs.result);
 	TTMCP8SET(ttm); /* update */
@@ -886,7 +829,7 @@ collectargs(TTM* ttm, int active, Frame** framep)
 	if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* Unexpected end of buffer */
 	if(isescape(cp8)) {
 	    TTMCP8NXT(ttm);
-	    vsindexappendn(ttm->vs.passive,cp8,ncp);
+	    vsappendn(ttm->vs.passive,cp8,ncp);
 	    TTMCP8NXT(ttm);
 	} else if(u8equal(cp8,ttm->meta.semic) || u8equal(cp8,ttm->meta.closec)) {
 	    /* End of an argument */
@@ -924,27 +867,27 @@ collectargs(TTM* ttm, int active, Frame** framep)
 	    for(;;) {
 		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* Unexpected EOF */
 		if(isescape(cp8)) {
-		    vsindexappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
+		    vsappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
 		    TTMCP8NXT(ttm);
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* append escaped char */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* append escaped char */
 		    TTMCP8NXT(ttm);
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
-		    vsindexappendn(ttm->vs.passive,cp8,ncp);
+		    vsappendn(ttm->vs.passive,cp8,ncp);
 		    TTMCP8NXT(ttm);
 		    depth++;
 		} else if(u8equal(cp8,ttm->meta.rbrc)) {
 		    if(--depth > 0)
-			vsindexappendn(ttm->vs.passive,cp8,ncp);
+			vsappendn(ttm->vs.passive,cp8,ncp);
 		    TTMCP8NXT(ttm);
 		    if(depth == 0) break; /* we are done */
 		} else {
-		    vsindexappendn(ttm->vs.passive,cp8,ncp);
+		    vsappendn(ttm->vs.passive,cp8,ncp);
 		    TTMCP8NXT(ttm);
 		}
 	    }/*<...> for*/
 	} else {
 	    /* keep moving */
-	    vsindexappendn(ttm->vs.passive,cp8,ncp);
+	    vsappendn(ttm->vs.passive,cp8,ncp);
 	    TTMCP8NXT(ttm);
 	}
     } /* collect argument for */
@@ -1518,6 +1461,7 @@ cptorp(TTM* ttm, const char* u8, size_t residual)
     return count;
 }
 
+#if 0
 /* Convert a variety of values to 1|0 representing true false */
 static int
 tfcvt(const char* value)
@@ -1545,6 +1489,7 @@ tfcvt(const char* value)
 done:
     return (int)tf;
 }
+#endif /*0*/
 
 /**************************************************/
 /* Main() Support functions */
@@ -1553,119 +1498,76 @@ static void
 initTTM()
 {
 
-    argoptions = vlnew();
+    argvopts = vlnew();
+#if 0
     propoptions = vlnew();
+#endif
 
     /* Set the locale to support UTF8 */
     if(setlocale(LC_ALL, "en_US.UTF-8") == NULL) usage("setlocale() failed");
 
-    /* Fill in the special testing values */
-    settestspecials(ttm);
+    /* Fill in the special actual values */
+    setspecialactuals();
 }
 
 static void
-settestspecials(TTM* ttm)
+setspecialactuals(void)
 {
-    struct Special* p;
+    struct TestSpecial* sp;
     char* q;
     char tmp[4096];
+    const char* wd = NULL;
     
-    for(p=specials;p->name;p++) {
-	if(strcasecmp(p->name,"argv0")==0) {
-	    p->value = strdup("ttm.exe");
-	} else if(strcasecmp(p->name,"builddir")==0) {
-	    p->value = strdup(":builddir"");
-	} else if(strcasecmp(p->name,"platform")==0) {
-	    p->value = strdup("Unix");
-	} else if(strcasecmp(p->name,"srcdir")==0) {
-	    p->value = strdup(":srcdir:");
-	} else if(strcasecmp(p->name,"time")==0) {
-	    p->value = strdup("100000000000");
-	} else if(strcasecmp(p->name,"xtime")==0) {
-	    p->value = strdup("100");
-	}
-    }
+    sp = getspecial(SP_ARGV0);    
+	sp->actual = strdup(vlget(argvopts,0));
+    sp = getspecial(SP_WD);
+	if(getcwd(tmp, sizeof(tmp))==NULL) usage("getcwd failed");
+        canonpath(tmp); /* Convert '\\' to '/' */
+	sp->actual = strdup(tmp);	
+	wd = sp->actual;
+    sp = getspecial(SP_BUILDDIR);
+	/* Assume builddir is current working directory */
+	sp->actual = strdup(wd);
+    sp = getspecial(SP_SRCDIR);
+	/* Assume srcdir is parent of builddir */
+	sp->actual = strdup(wd);
+	/* elide last path segment */
+	q = strrchr(sp->actual,'/');
+	if(q == NULL) q = (sp->actual+strlen(sp->actual)); /* hack if path as only one segment */
+	*q = '\0';
+    sp = getspecial(SP_BUILDER);
+#if defined(CMAKEBUILD)
+	sp->actual = strdup("cmake");
+#elif defined(AUTOBUILD)
+	sp->actual = strdup("autotools");
+#elif defined(MAKEBUILD)
+	sp->actual = strdup("make");
+#else
+	usage("Unknown build system");
+#endif
+    sp = getspecial(SP_PLATFORM);
+#if   defined(CYGWIN)
+	sp->actual = strdup("cygwin");
+#elif defined(MSYS2)
+	sp->actual = strdup("msys2");
+#elif defined(MINGW)
+	sp->actual = strdup("mingw");
+#elif defined(MSWINDOWS)
+	sp->actual = strdup("windows");
+#elif defined(__APPLE__)
+	sp->actual = strdup("os/x");
+#else 
+	sp->actual = strdup("unix");
+#endif
+    /* SP_TIME and SP_XTIME have no actual value */
 }
 
 static void
 reclaimglobals()
 {
     struct TestSpecial* ts;
-    vlfreeall(argoptions);
+    vlfreeall(argvopts);
     for(ts=testspecials;ts->id != SP_UNDEF;ts++) nullfree(ts->actual);
-}
-
-/* Define TestSpecials actual values */
-static void
-setactuals(void)
-{
-    struct TestSpecial* ts = NULL;
-    char path[4096];
-    char* p;
-
-    {
-	ts = getspecial(SP_ARGV0);
-	ts->actual = strdup(vlget(argoptions,0));
-    }
-    {
-	ts = getspecial(SP_BUILDDIR);
-	if(getcwd(path, sizeof(path))==NULL) abort(); /* Assume current working dir is builddir */
-	for (p = path; *p; p++) { if (*p == '\\') *p = '/'; } /* Convert '\\' to '/' */
-	ts->actual = strdup(path);
-    }
-    {
-	ts = getspecial(SP_BUILDER);
-#if defined(CMAKEBUILD)
-	ts->actual = strdup("cmake");
-#elif defined(AUTOBUILD)
-	ts->actual = strdup("autotools");
-#else
-	ts->actual = strdup("make");
-#endif
-    }
-    {
-	ts = getspecial(SP_PLATFORM);
-#if   defined(CYGWIN)
-	ts->actual = strdup("cygwin");
-#elif defined(MSYS2)
-	ts->actual = strdup("msys2");
-#elif defined(MINGW)
-	ts->actual = strdup("mingw");
-#elif defined(MSWINDOWS)
-	ts->actual = strdup("windows");
-#elif defined(__APPLE__)
-	ts->actual = strdup("os/x");
-#else 
-	ts->actual = strdup("unix");
-#endif
-    }
-    {
-	ts = getspecial(SP_SRCDIR);
-#if defined(CMAKEBUILD) 
-	/* assume srcdir is parent of builddir */
-	ts->actual = strdup(getspecial(SP_BUILDDIR)->builddir);	
-	p = strrchr(ts->actual,'/');
-	if(p != NULL) *p = '\0'; /* elide last path segment */
-#else
-	/* assume srcdir is same as builddir */
-	ts->actual = strdup(getspecial(SP_BUILDDIR)->actual);	
-#endif
-    }
-    {
-	ts = getspecial(SP_TIME);
-	/* computed by #<time> */
-    }
-    {
-	ts = getspecial(SP_XTIME);
-	/* computed by #<xtime> */
-    }
-    {
-	ts = getspecial(SP_WD);
-	if(getcwd(path, sizeof(path))==NULL) abort(); /* current working dir  */
-	for (p = path; *p; p++) { if (*p == '\\') *p = '/'; } /* Convert '\\' to '/' */
-	ts->actual = strdup(path);
-    }
->>>>>>> 739794db195e751e456005acc07ff95e2785058a
 }
 
 static void
@@ -1819,7 +1721,6 @@ setexecproperties(TTM* ttm)
     }
 }
 
-#if 0
 static void
 setproperty(TTM* ttm, const char* key, const char* value)
 {
@@ -1842,10 +1743,10 @@ syncproperty(TTM* ttm, const char* key, const char* value)
 	ttm->execproperties.execcount = n;
 	break;
    case PE_SHOWFINAL:
-	ttm->execproperties.showfinal = (tfcvt(value)?1:0);
+	ttm->execproperties.showfinal = tfcvt(value);
 	break;
    case PE_SHOWCALL:
-	ttm->execproperties.showcall = (tfcvt(value)?1:0);
+	ttm->execproperties.showcall = tfcvt(value);
 	break;
     default: break; /* user defined property */
     }
@@ -2049,7 +1950,7 @@ main(int argc, char** argv)
 	usage(NULL);
 
     /* Stash argv[0] */
-    vlpush(argoptions,strdup(argv[0]));
+    vlpush(argvopts,strdup(argv[0]));
 
     /* Option processing */
     while ((c = getopt(argc, argv, "d:f:o:p:qvBTV&-")) != EOF) {
@@ -2091,7 +1992,7 @@ main(int argc, char** argv)
     /* Collect any args for #<arg> */
     if(optind < argc) {
 	for(;optind < argc;optind++)
-	    vlpush(argoptions,strdup(argv[optind]));
+	    vlpush(argvopts,strdup(argv[optind]));
     }
 
     if(stacksize < DFALTSTACKSIZE)

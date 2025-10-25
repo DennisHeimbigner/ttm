@@ -1,3 +1,6 @@
+#ifndef MACROS_H
+#define MACROS_H
+
 /**************************************************/
 /* Misc Utility Macros */
 
@@ -79,3 +82,8 @@
 
 
 #define getspecial(sp) (testspecials+((size_t)sp))
+
+#define canonpath(path) do{char* p;for(p=(path);*p;p++){if(*p=='\\'){*p='/'; }}}while(0)
+#define wincanonpath(path) do{char* p;for(p=(path);*p;p++){if(*p=='/'){*p='\\'; }}}while(0)
+
+#endif /*MACROS_H*/
