@@ -4,16 +4,23 @@
 /**************************************************/
 /* Misc Utility Macros */
 
+#ifndef nullfree
+#define nullfree(x) do{void* p = (void*)(x); if(p) free(p);}while(0)
+#endif
+#ifndef nulldup
 /* Watch out: x is evaluated multiple times */
-#define nullfree(x) do{if(x) free(x);}while(0)
 #define nulldup(x) ((x)?strdup(x):(x))
+#endif
+#ifndef UNUSED
 #define UNUSED(x) (void)x
+#endif
 
 /**************************************************/
 /* The reason for these macros is to get around the fact that changing ttm->vs.active->index invalidates cp8 pointers */
 
 #define TTMCP8SET(ttm) do{cp8=vsindexp((ttm)->vs.active); ncp=u8size(cp8);}while(0)
 #define TTMCP8NXT(ttm) do{cp8=vsindexskip((ttm)->vs.active,u8size(cp8));ncp=u8size(cp8);}while(0)
+#if 0
 #define TTMCP8BACK(ttm) do{\
 			char* p8 = vscontents((ttm)->vs.active); \
 			size_t newindex; \
@@ -23,12 +30,13 @@
 			cp8 = vsindexp((ttm)->vs.active); \
 			ncp = u8size(cp8); \
 			}while(0);
-
+#endif /*0*/
 /**************************************************/
 /* Macro Functions */
 
-#define THROW(ttm,eno) ttmthrow(ttm,eno,__FILE__,__FUNCTION__,__LINE__)
+#define THROW(ttm,eno) ttmthrow(ttm,eno,__FILE__,__FUNCTION__,__LINE__,NULL)
 #define THROWMSG(ttm,eno,fmt,...) ttmthrowmsg(ttm,eno,__FILE__,__FUNCTION__,__LINE__,fmt  __VA_OPT__(,) __VA_ARGS__)
+#define UPTHROW(ttm,err) ((err)!=TTM_NOERR?(ttmbreak(err),err):(err))
 
 #define EXIT(ttm,eno) {err = THROW(ttm,eno); goto done;}
 #define EXITMSG(ttm,eno,fmt,...) {err = THROWMSG(ttm,eno,fmt  __VA_OPT__(,) __VA_ARGS__); goto done;}
@@ -40,6 +48,7 @@
 
 /* When an err occurs in a function not returning TTMERR */
 #define FATAL(ttm,eno,fmt,...) assert(((void)THROWMSG(ttm,eno,fmt  __VA_OPT__(,) __VA_ARGS__),0))
+
 
 /**************************************************/
 /* "inline" functions */

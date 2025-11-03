@@ -340,15 +340,15 @@ not substring
 Sat Nov 10 16:23:10 2012
 [00] begin: ##<catch;<#<es;#<zlc;##<names>>>>>
 [03] begin: ##<names>
-[03] end:   ##<names> => |XX,abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,d,dcl,def,defcr,dncl,ds,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,test,test_sn,testclass,testisc,testscn,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,x,xtime,zlc,zlcp,有為の|
-[02] begin: #<zlc;XX,abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,d,dcl,def,defcr,dncl,ds,dv,dvr,ecl,emojis,eos,eq,eq?,es,exit,flip,fprintf,ge,getprop,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,test,test_sn,testclass,testisc,testscn,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,x,xtime,zlc,zlcp,有為の>
-[02] end:   #<zlc> => |XX;abs;ad;ap;argc;argv;breakpoint;catch;cc;ccl;cf;classes;clearpassive;cm;cn;comment;cp;cr;cs;ctime;d;dcl;def;defcr;dncl;ds;dv;dvr;ecl;emojis;eos;eq;eq?;es;exit;flip;fprintf;ge;getprop;gn;greek;gt;gt?;include;isc;kanji;katakana;le;lf;lt;lt?;mu;names;ndf;norm;pf;pn;printf;properties;ps;psr;removeprop;resetprop;rp;rrp;rs;sc;scl;scn;setprop;sn;sort;srp;ss;su;switch;tcl;tdh;test;test_sn;testclass;testisc;testscn;tf;thd;throw;time;tn;tn?;trim;trl;tru;ttm;uf;void;x;xtime;zlc;zlcp;有為の|
-[01] begin: #<es;XX;abs;ad;ap;argc;argv;breakpoint;catch;cc;ccl;cf;classes;clearpassive;cm;cn;comment;cp;cr;cs;ctime;d;dcl;def;defcr;dncl;ds;dv;dvr;ecl;emojis;eos;eq;eq?;es;exit;flip;fprintf;ge;getprop;gn;greek;gt;gt?;include;isc;kanji;katakana;le;lf;lt;lt?;mu;names;ndf;norm;pf;pn;printf;properties;ps;psr;removeprop;resetprop;rp;rrp;rs;sc;scl;scn;setprop;sn;sort;srp;ss;su;switch;tcl;tdh;test;test_sn;testclass;testisc;testscn;tf;thd;throw;time;tn;tn?;trim;trl;tru;ttm;uf;void;x;xtime;zlc;zlcp;有為の>
+[03] end:   ##<names> => |XX,abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,cm,cn,comment,cp,cr,cs,ctime,d,dcl,def,defcr,dncl,ds,dv,dvr,ecl,emojis,env,eos,eq,eq?,es,exit,flip,fprintf,ge,getenv,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,ps,psr,rp,rrp,rs,sc,scl,scn,sn,sort,srp,ss,su,switch,tcl,tdh,test,test_sn,testclass,testisc,testscn,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,x,xtime,zlc,zlcp,有為の|
+[02] begin: #<zlc;XX,abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,cm,cn,comment,cp,cr,cs,ctime,d,dcl,def,defcr,dncl,ds,dv,dvr,ecl,emojis,env,eos,eq,eq?,es,exit,flip,fprintf,ge,getenv,gn,greek,gt,gt?,include,isc,kanji,katakana,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,ps,psr,rp,rrp,rs,sc,scl,scn,sn,sort,srp,ss,su,switch,tcl,tdh,test,test_sn,testclass,testisc,testscn,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,x,xtime,zlc,zlcp,有為の>
+[02] end:   #<zlc> => |XX;abs;ad;ap;argc;argv;breakpoint;catch;cc;ccl;cf;classes;cm;cn;comment;cp;cr;cs;ctime;d;dcl;def;defcr;dncl;ds;dv;dvr;ecl;emojis;env;eos;eq;eq?;es;exit;flip;fprintf;ge;getenv;gn;greek;gt;gt?;include;isc;kanji;katakana;le;lf;lt;lt?;mu;names;ndf;norm;pf;pn;printf;ps;psr;rp;rrp;rs;sc;scl;scn;sn;sort;srp;ss;su;switch;tcl;tdh;test;test_sn;testclass;testisc;testscn;tf;thd;throw;time;tn;tn?;trim;trl;tru;ttm;uf;void;x;xtime;zlc;zlcp;有為の|
+[01] begin: #<es;XX;abs;ad;ap;argc;argv;breakpoint;catch;cc;ccl;cf;classes;cm;cn;comment;cp;cr;cs;ctime;d;dcl;def;defcr;dncl;ds;dv;dvr;ecl;emojis;env;eos;eq;eq?;es;exit;flip;fprintf;ge;getenv;gn;greek;gt;gt?;include;isc;kanji;katakana;le;lf;lt;lt?;mu;names;ndf;norm;pf;pn;printf;ps;psr;rp;rrp;rs;sc;scl;scn;sn;sort;srp;ss;su;switch;tcl;tdh;test;test_sn;testclass;testisc;testscn;tf;thd;throw;time;tn;tn?;trim;trl;tru;ttm;uf;void;x;xtime;zlc;zlcp;有為の>
 [00] end:   ##<catch> => |<TTM_ELOCKED;-115>|
 <TTM_ELOCKED;-115>
 [00] begin: #<names>
-[00] end:   #<names> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dv,dvr,ecl,eos,eq,eq?,es,exit,flip,fprintf,ge,getprop,gn,gt,gt?,include,isc,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,xtime,zlc,zlcp|
-abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,clearpassive,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dv,dvr,ecl,eos,eq,eq?,es,exit,flip,fprintf,ge,getprop,gn,gt,gt?,include,isc,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,properties,ps,psr,removeprop,resetprop,rp,rrp,rs,sc,scl,scn,setprop,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,xtime,zlc,zlcp
+[00] end:   #<names> => |abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dv,dvr,ecl,env,eos,eq,eq?,es,exit,flip,fprintf,ge,getenv,gn,gt,gt?,include,isc,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,ps,psr,rp,rrp,rs,sc,scl,scn,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,xtime,zlc,zlcp|
+abs,ad,ap,argc,argv,breakpoint,catch,cc,ccl,cf,classes,cm,cn,comment,cp,cr,cs,ctime,dcl,def,defcr,dncl,ds,dv,dvr,ecl,env,eos,eq,eq?,es,exit,flip,fprintf,ge,getenv,gn,gt,gt?,include,isc,le,lf,lt,lt?,mu,names,ndf,norm,pf,pn,printf,ps,psr,rp,rrp,rs,sc,scl,scn,sn,sort,srp,ss,su,switch,tcl,tdh,tf,thd,throw,time,tn,tn?,trim,trl,tru,ttm,uf,void,xtime,zlc,zlcp
 [00] begin: #<ds;testcr;abcxxdefxx>
 [00] end:   #<ds> => ||
 [00] begin: #<cr;testcr;xx>
@@ -522,7 +522,6 @@ line3
 [00] begin: ##<ps;\n>
 
 [00] end:   ##<ps> => ||
-[00] begin: ##<clearpassive>
-[00] end:   ##<clearpassive> => ||
+
 [00] begin: #<exit>
 [00] end:   #<exit> => ||

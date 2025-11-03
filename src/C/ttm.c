@@ -79,13 +79,14 @@ static int getopt(int argc, char** argv, char* optstring);
 
 /**************************************************/
 
+#include "vutils.h"
+#include "vvsprintf.h"
 #include "const.h"
 #include "types.h"
 #include "decls.h"
 #include "macros.h"
 #include "forward.h"
 #include "hash.h"
-#include "vutils.h"
 #include "io.h"
 #include "utf8.h"
 #include "debug.h"
@@ -300,6 +301,7 @@ newTTM(void)
     ttm->frames.top = -1;
     memset((void*)&ttm->tables.dictionary,0,sizeof(ttm->tables.dictionary));
     memset((void*)&ttm->tables.charclasses,0,sizeof(ttm->tables.charclasses));
+    ttm->debug.xbuf = vsnew();	
 #if 0
     memset((void*)&ttm->tables.properties,0,sizeof(ttm->tables.properties));
 #endif
@@ -311,7 +313,6 @@ newTTM(void)
     defaultproperties(ttm);
     cmdlineproperties(ttm);
 #endif
-    setexecproperties(ttm);
     return ttm;
 }
 
@@ -325,14 +326,15 @@ freeTTM(TTM* ttm)
     vsfree(ttm->vs.result);
     clearDictionary(ttm,&ttm->tables.dictionary);
     clearcharclasses(ttm,&ttm->tables.charclasses);
+    vsfree(ttm->debug.xbuf);
 #if 0
     clearproperties(ttm,&ttm->tables.properties);
 #endif
     closeio(ttm);
-    nullfree(ttm->opts.programfilename);
     free(ttm);
 }
 
+#if 0
 static void
 setexecproperties(TTM* ttm)
 {
@@ -368,6 +370,7 @@ setexecproperties(TTM* ttm)
 	ttm->execproperties.showcall = n;
     }
 }
+#endif /*0*/
 
 /**************************************************/
 
@@ -377,7 +380,7 @@ pushFrame(TTM* ttm)
 {
     Frame* frame = NULL;
     ttm->frames.top++;
-    if(ttm->frames.top >= (int)ttm->execproperties.stacksize) goto done;
+    if(ttm->frames.top >= (int)ttmglobal.execprops.stacksize) goto done;
     frame = &ttm->frames.stack[ttm->frames.top];
     frame->argc = 0;
     frame->active = 0;
@@ -539,18 +542,16 @@ charclassmatch(const char* cp, const char* charclass, int negative)
     return p;
 }
 
-#if 0
-/* Predefined Property enum detector */
-static enum PropEnum
-propenumdetect(const char* s)
+/* Predefined Execution state enum detector */
+static enum ExecEnum
+execenumdetect(const char* s)
 {
-    if(strcmp("stacksize",(const char*)s)==0) return PE_STACKSIZE;
-    if(strcmp("execcount",(const char*)s)==0) return PE_EXECCOUNT;
-    if(strcmp("showfinal",(const char*)s)==0) return PE_SHOWFINAL;
-    if(strcmp("showcall",(const char*)s)==0)  return PE_SHOWCALL;
-    return PE_UNDEF;
+    if(strcmp("stacksize",(const char*)s)==0) return EE_STACKSIZE;
+    if(strcmp("execcount",(const char*)s)==0) return EE_EXECCOUNT;
+    if(strcmp("showfinal",(const char*)s)==0) return EE_SHOWFINAL;
+    if(strcmp("showcall",(const char*)s)==0)  return EE_SHOWCALL;
+    return EE_UNDEF;
 }
-#endif
 
 /* MetaEnum detector */
 static enum MetaEnum
@@ -622,19 +623,23 @@ scan(TTM* ttm)
 	    TTMCP8NXT(ttm);
 	} else if(isescape(cp8)) {
 	    TTMCP8NXT(ttm);
-	    vsappendn(ttm->vs.passive,cp8,ncp); /* pass the escaped char */
+	    vsindexappendn(ttm->vs.passive,cp8,ncp); /* pass the escaped char */
 	    TTMCP8NXT(ttm); /* skip escaped char */
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {/* Start of call? */
-	    if(u8equal(peek(ttm->vs.active,1),ttm->meta.openc)
-		|| (u8equal(peek(ttm->vs.active,1),ttm->meta.sharpc)
-		    && (u8equal(peek(ttm->vs.active,2),ttm->meta.openc)))) {
+	    const char* pk1 = peek(ttm->vs.active,1);
+	    const char* pk2 = peek(ttm->vs.active,2);
+	    if(u8equal(pk1,ttm->meta.openc)
+		|| (u8equal(pk1,ttm->meta.sharpc)
+		    && (u8equal(pk2,ttm->meta.openc)))) {
 		/* It is a real call */
 		TTMCP8SET(ttm);
+		/* Make sure that the index for ttm->vs.passive is at the end */
+		vsindexset(ttm->vs.passive,vslength(ttm->vs.passive));
 		err = exec(ttm);
 		if(err) EXIT(ttm,err);
 		if(ttm->flags.exit) goto done;
 	    } else {/* not an call; just pass the # along passively */
-		vsappendn(ttm->vs.passive,cp8,ncp);
+		vsindexappendn(ttm->vs.passive,cp8,ncp);
 		TTMCP8NXT(ttm);
 	    }
 	} else if(u8equal(cp8,ttm->meta.lbrc)) { /* start of <...> escaping */
@@ -643,18 +648,18 @@ scan(TTM* ttm)
 	    while(depth > 0) {
 		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
 		if(isescape(cp8)) {
-		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
+		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
 		    TTMCP8NXT(ttm); /* Skip escape char */
 		    if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
-		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
+		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
 		    TTMCP8NXT(ttm); /* Skip escaped char */
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
 		    depth++;
-		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
+		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
 		    TTMCP8NXT(ttm); /* Skip lbrc */
 		} else if(u8equal(cp8,ttm->meta.rbrc)) {
 		    if(--depth > 0) { /* pass the rbrc */
-			vsappendn(ttm->vs.passive,cp8,ncp); /* Keep rbrc */
+			vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep rbrc */
 		    }
 		    TTMCP8NXT(ttm); /* Skip rbrc */
 		} else { /*ordinary char */
@@ -668,13 +673,13 @@ scan(TTM* ttm)
 	}
     } /*scan for*/
 
-    if(ttm->execproperties.showfinal && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
+    if(ttmglobal.execprops.showfinal && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
 	/* Print out final contents */
 	xfprintf(ttm, ttm->io._stderr,"%s\n",vscontents(ttm->vs.passive));
     }
 
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -690,6 +695,7 @@ exec(TTM* ttm)
     TTMERR err = TTM_NOERR;
     Function* fcn = NULL;
     size_t savepassive;
+    size_t saveindex;
     TRACE tracebefore = TR_UNDEF;
     char* cp8 = NULL;
     int ncp;
@@ -698,9 +704,14 @@ exec(TTM* ttm)
 
     UNUSED(ncp);
 
-    if(ttm->execproperties.execcount-- <= 0) EXIT(ttm,TTM_EEXECCOUNT);
+    if(ttmglobal.execprops.execcount-- <= 0)
+        EXIT(ttm,TTM_EEXECCOUNT);
 
     TTMCP8SET(ttm);      
+
+    saveindex = vsindex(ttm->vs.active);
+    savepassive = vsindex(ttm->vs.passive);
+
     /* Skip to the start of the function name */
     if(u8equal(peek(ttm->vs.active,1),ttm->meta.openc)) {
 	TTMCP8NXT(ttm); /* skip '#' */
@@ -714,13 +725,13 @@ exec(TTM* ttm)
     }
 
     /* Parse and store relevant pointers into frame. */
-    savepassive = vslength(ttm->vs.passive);
     err = collectargs(ttm,active,&frame);
     if(err)
         EXIT(ttm,err);
     if(frame == NULL)
 	EXIT(ttm,TTM_ETTM);
-    vssetlength(ttm->vs.passive,savepassive);
+
+    vsindexset(ttm->vs.passive,savepassive);
     if(ttm->flags.exit) goto done;
 
     if(ttm->debug.debug > 1) {
@@ -734,7 +745,7 @@ exec(TTM* ttm)
     /* Locate the function to execute */
     fcn = dictionaryLookup(ttm,frame->argv[0]);
     if(fcn == NULL)
-	{xsprintf(ttm,"Undefined name: %s",frame->argv[0]);EXIT(ttm,TTM_ENONAME);}
+	{EXITMSG(ttm,TTM_ENONAME,"Undefined dictionary or class name: %s",frame->argv[0]);}
     if(fcn->fcn.minargs > (frame->argc - 1)) /* -1 to account for function name*/
 	EXIT(ttm,TTM_EFEWPARMS);
     /* Reset the result buffer */
@@ -766,7 +777,7 @@ exec(TTM* ttm)
 	EXIT(ttm,err);
     }
 
-    if(ttm->execproperties.showcall && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
+    if(ttmglobal.execprops.showcall && !ttm->flags.starting && ttm->flags.catchdepth == 0) {
 	char* u8;
 	/* Print out results of a function call */
 	if(vslength(ttm->vs.result) > 0) {
@@ -779,30 +790,31 @@ exec(TTM* ttm)
 
     if(ttm->flags.exit) goto done;
 
-    /* Remove the scanned characters in ttm->vs.active (index => 0) */
+    /* Elide the function call characters in ttm->vs.active */
     {
-	size_t elide = (size_t)(vsindexp(ttm->vs.active) - vscontents(ttm->vs.active));
-	vsremoven(ttm->vs.active,0,elide);
-	assert(vsindex(ttm->vs.active)==0);
+	size_t elide = (size_t)(vsindex(ttm->vs.active) - saveindex);
+	vsremoven(ttm->vs.active,saveindex,elide);
+	vsindexset(ttm->vs.active,saveindex);
     }
-    
+
     /* Now, put the result into the buffer */
     if(!fcn->fcn.novalue && vslength(ttm->vs.result) > 0) {
 	/* We insert the result as follows:
-	   frame->passive => insert in ttm->vs.passive
-	   frame->active => insert at ttm->vs.active index
+	   frame->passive => insert in ttm->vs.passive and move index past the insertion
+	   frame->active => insert at ttm->vs.active index unchanged
 	*/
 	if(frame->active) {
-	    (void)vsinsertn(ttm->vs.active, 0, vscontents(ttm->vs.result), vslength(ttm->vs.result));
+             (void)vsindexinsertn(ttm->vs.active, vscontents(ttm->vs.result), vslength(ttm->vs.result)); /* index unchanged */
 	} else { /*frame->passive*/
 	    vsappendn(ttm->vs.passive,vscontents(ttm->vs.result),vslength(ttm->vs.result));
+	    vsindexset(ttm->vs.passive,vslength(ttm->vs.passive));
 	}
 	vsclear(ttm->vs.result);
 	TTMCP8SET(ttm); /* update */
     }
 done:
     if(err == TTM_NOERR || ttm->flags.catchdepth > 0)  {popFrame(ttm); frame = NULL;}
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -817,12 +829,12 @@ collectargs(TTM* ttm, int active, Frame** framep)
     TTMERR err = TTM_NOERR;
     int done,depth;
     char* argp = NULL;
-    size_t argoff = 0;
+    size_t argindex = 0;
     char* cp8 = NULL;
     int ncp;
     Frame* frame = NULL;
 
-    argoff = vsindex(ttm->vs.passive);
+    argindex = vsindex(ttm->vs.passive);
     done = 0; depth = 0;
     while(!done) { /* Loop until all args are collected */
 	TTMCP8SET(ttm);
@@ -840,13 +852,13 @@ collectargs(TTM* ttm, int active, Frame** framep)
 	    }
 	    if(u8equal(cp8,ttm->meta.closec)) done=1;
 	    if(frame->argc >= MAXARGS) EXIT(ttm,TTM_EMANYPARMS)
-	    vsindexset(ttm->vs.passive,argoff);
+	    vsindexset(ttm->vs.passive,argindex);
 	    argp = vsindexp(ttm->vs.passive);
 	    frame->argv[frame->argc++] = strdup(argp);
-	    vssetlength(ttm->vs.passive,argoff);
+	    vssetlength(ttm->vs.passive,argindex);
 	    TTMCP8NXT(ttm); /* skip the semi or close */
 	    if(!done)
-		argoff = vsindex(ttm->vs.passive);
+		argindex = vsindex(ttm->vs.passive);
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {
 	    /* check for call within call */
 	    const char* peek1 = peek(ttm->vs.active,1);
@@ -867,33 +879,33 @@ collectargs(TTM* ttm, int active, Frame** framep)
 	    for(;;) {
 		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* Unexpected EOF */
 		if(isescape(cp8)) {
-		    vsappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
+		    vsindexappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
 		    TTMCP8NXT(ttm);
-		    vsappendn(ttm->vs.passive,cp8,ncp); /* append escaped char */
+		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* append escaped char */
 		    TTMCP8NXT(ttm);
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
-		    vsappendn(ttm->vs.passive,cp8,ncp);
+		    vsindexappendn(ttm->vs.passive,cp8,ncp);
 		    TTMCP8NXT(ttm);
 		    depth++;
 		} else if(u8equal(cp8,ttm->meta.rbrc)) {
 		    if(--depth > 0)
-			vsappendn(ttm->vs.passive,cp8,ncp);
+			vsindexappendn(ttm->vs.passive,cp8,ncp);
 		    TTMCP8NXT(ttm);
 		    if(depth == 0) break; /* we are done */
 		} else {
-		    vsappendn(ttm->vs.passive,cp8,ncp);
+		    vsindexappendn(ttm->vs.passive,cp8,ncp);
 		    TTMCP8NXT(ttm);
 		}
 	    }/*<...> for*/
 	} else {
 	    /* keep moving */
-	    vsappendn(ttm->vs.passive,cp8,ncp);
+	    vsindexappendn(ttm->vs.passive,cp8,ncp);
 	    TTMCP8NXT(ttm);
 	}
     } /* collect argument for */
     if(framep) {*framep = frame; frame = NULL;}
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**************************************************/
@@ -928,7 +940,7 @@ call(TTM* ttm, Frame* frame, char* body, VString* result)
 	} else
 	    vsappendn(result,b8,u8size(b8));
     }
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**************************************************/
@@ -974,7 +986,7 @@ printstring(TTM* ttm, const char* s8arg, TTMFILE* output)
     fflush(output->file);
 done:
     nullfree(s8);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 #ifdef GDB
@@ -1295,49 +1307,44 @@ done:
 }
 
 /* Remove unescaped occurrences of "//" comment.
-The converted result is returned. Note that this is independent
-of the TTM '@' escape mechanism because it is only used by readline.
-@param src utf8 string
-@return copy of line with comments elided || NULL if non codepoint encountered
+The src buffer is modified.  Note that this is independent of the TTM
+'@' escape mechanism because it is only used by readlinettm.
+@param line utf8 string in buffer
+@return void copy of line with comments elided || NULL if non codepoint encountered
 */
-static char*
-uncomment(TTM* ttm, const char* line)
+static void
+uncomment(TTM* ttm, VString* line)
 {
-    TTMERR err = TTM_NOERR;
-    char* decmt = NULL;
-    const char* p = NULL;
-    char* q = NULL;
-    size_t len = 0;
+    char* p = NULL;
+    char lastchar = '\0';
     int ncp;
 
-    if(line == NULL) goto done;
-    len = strlen(line);
-    decmt = (char*)malloc(sizeof(char)*((4*len)+1)); /* max possible */
-    for(p=line,q=decmt;*p;) {
-	ncp = u8size(p);
-	if(ncp <= 0) FATAL(ttm,TTM_EUTF8,NULL); /* illegal utf8 char */
-	if(ncp == 1 && *p == SLASH && p[1] == SLASH) {/* look for comment */
-	    size_t rem = strlen(p); /* length of the comment */
-	    const char* pe = (p) + rem; /* point to trailing nul char */
-	    pe = u8backup(pe,line);
-	    ncp = u8size(pe);
-	    if(ncp != 1 || *pe != '\n') pe += ncp; /* no trailing newline */
-	    /* wipe not pass the comment */
-	    p = pe;
+    if(line == NULL || vslength(line)<2) goto done; /* must have 2 chars for // to occur */
+    lastchar = vsget(line,vslength(line)-1);    
+    for(p=vsgetp(line,0);*p;) {
+	if(p[0] == '\\') {
+	    p++;
+	    ncp = u8size(p);
+	    if(ncp <= 0) FATAL(ttm,TTM_EUTF8,NULL); /* illegal utf8 char */
+	    p += ncp; /* Escaped char might be multi-byte */
+	    continue;
 	}
-	if(!isnul(p)) {
-	    /* pass codepoint */
-	    memcpycp(q,p); /* pass as is */
-	    p += ncp; q += ncp;
+	if(p[0] == SLASH && p[1] == SLASH) {/* look for comment (works for MB utf8) */
+	    /* Kill rest of line from p to end 	*/
+	    size_t pos = (p - vsgetp(line,0));
+	    vssetlength(line,pos);
+	    /* Add '\n' if it was the last char */
+	    if(lastchar == '\n') vsappend(line,'\n');
+	} else if(!isnul(p)) { /* pass codepoint */
+	    ncp = u8size(p);
+	    if(ncp <= 0) FATAL(ttm,TTM_EUTF8,NULL); /* illegal utf8 char */
+	    p += ncp; /* pass unchanged */
 	}
     }
-    *q = '\0';
+    vsnulterm(line); /* just to make sure */
+
 done:
-    if(err) {
-	nullfree(decmt);
-	decmt = NULL;
-    }
-    return decmt;
+    return;
 }
 
 #if 0
@@ -1394,15 +1401,11 @@ static const char*
 peek(VString* vs, size_t n)
 {
     size_t saveindex = vsindex(vs);
-    size_t i;
     char* p = NULL;
 
-    p = vsindexp(vs);
-    for(i=0;i<n;i++) {
-	if(isnul(p)) break;
-	vsindexskip(vs,(size_t)u8size(p));
-	p = vsindexp(vs);
-    }
+    if((vsindex(vs)+n) >= vslength(vs)) goto done;
+    p = vsgetp(vs,vsindex(vs)+n);
+done:
     vsindexset(vs,saveindex);
     return p;
 }
@@ -1461,7 +1464,6 @@ cptorp(TTM* ttm, const char* u8, size_t residual)
     return count;
 }
 
-#if 0
 /* Convert a variety of values to 1|0 representing true false */
 static int
 tfcvt(const char* value)
@@ -1489,22 +1491,35 @@ tfcvt(const char* value)
 done:
     return (int)tf;
 }
-#endif /*0*/
 
 /**************************************************/
 /* Main() Support functions */
 
+/* Initialize global state that is the same across all TTM instances.
+Non-option arguments start at argv[firstarg].
+*/
 static void
-initTTM()
+initglobals(struct OPTS* opts, int argc, char** argv, int firstarg)
 {
+    /* Reset ttmglobal */
+    memset(&ttmglobal,0,sizeof(TTMglobal));
 
-    argvopts = vlnew();
 #if 0
     propoptions = vlnew();
 #endif
 
-    /* Set the locale to support UTF8 */
-    if(setlocale(LC_ALL, "en_US.UTF-8") == NULL) usage("setlocale() failed");
+    ttmglobal.argvopts = vlnew();
+    /* argv[0] first */
+    vlpush(ttmglobal.argvopts,strdup(argv[0]));
+
+    /* Collect any args for #<arg> */
+    for(;firstarg<argc;firstarg++)
+	vlpush(ttmglobal.argvopts,strdup(argv[firstarg]));
+
+    /* Save the options */
+    ttmglobal.execprops = opts->execprops;
+    ttmglobal.miscprops = opts->miscprops;
+    memset(opts,0,sizeof(struct OPTS));
 
     /* Fill in the special actual values */
     setspecialactuals();
@@ -1514,12 +1529,11 @@ static void
 setspecialactuals(void)
 {
     struct TestSpecial* sp;
-    char* q;
     char tmp[4096];
     const char* wd = NULL;
     
     sp = getspecial(SP_ARGV0);    
-	sp->actual = strdup(vlget(argvopts,0));
+	sp->actual = strdup(vlget(ttmglobal.argvopts,0));
     sp = getspecial(SP_WD);
 	if(getcwd(tmp, sizeof(tmp))==NULL) usage("getcwd failed");
         canonpath(tmp); /* Convert '\\' to '/' */
@@ -1531,10 +1545,13 @@ setspecialactuals(void)
     sp = getspecial(SP_SRCDIR);
 	/* Assume srcdir is parent of builddir */
 	sp->actual = strdup(wd);
-	/* elide last path segment */
-	q = strrchr(sp->actual,'/');
-	if(q == NULL) q = (sp->actual+strlen(sp->actual)); /* hack if path as only one segment */
-	*q = '\0';
+#ifdef CYGWINBUILD
+	{ /* elide last path segment */
+	    char* q = strrchr(sp->actual,'/');
+	    if(q == NULL) q = (sp->actual+strlen(sp->actual)); /* hack if path as only one segment */
+	    *q = '\0';
+	}
+#endif
     sp = getspecial(SP_BUILDER);
 #if defined(CMAKEBUILD)
 	sp->actual = strdup("cmake");
@@ -1566,48 +1583,103 @@ static void
 reclaimglobals()
 {
     struct TestSpecial* ts;
-    vlfreeall(argvopts);
+    vlfreeall(ttmglobal.argvopts);
+	    nullfree(ttmglobal.miscprops.programfilename);
     for(ts=testspecials;ts->id != SP_UNDEF;ts++) nullfree(ts->actual);
 }
 
 static void
 usage(const char* msg)
 {
-    if(msg != NULL)
-	fprintf(stderr,"%s\n",msg);
-    fprintf(stderr,"%s\n",
-"usage: ttm <options> where the options are as follows:\n"
-"[-d t|v|0-9]	  -- set debug flags:\n"
-"			't' -- turn on tracing\n"
-"			'v' -- turn on verbose output\n"
-"			'[0..9]*' -- set debug level\n"
-"[-f file]	  -- read input from file; defaults to stdin.\n"
-"[-o file]	  -- send output to file; defaults to stdout.\n"
+    if(msg != NULL) fprintf(stderr,"%s\n",msg);
+    fprintf(stderr,"%s",
+"usage: ttm [-&] [-q] [-B] [-T] [-V] [-d t|v|0-9] [-f file] [-o file] [-p programfile] [-E <which<=<value>] [--] [arg...]\n"
+    );
+    if(msg == NULL) {
+    fprintf(stderr,"%s",
+"where the options have the following semantics:\n"
+"[-&]             -- send error output to -o output ; otherwise it goes to stderr.\n"
+"                    Note: the & may need escaping if command invoked in shell script (e.g -\\&)..\n"
+"[-q]             -- operate in quiet mode.\n"
+"[-B]             -- bare executionl; suppress startup commands.\n"
+"[-T]             -- Tell the ttm processor that it is performing tests.\n"
+"[-V]             -- print version.\n"
+"[-d t|v|0-9]     -- set debug flags:\n"
+"                       't' -- turn on tracing\n"
+"                       'v' -- turn on verbose output\n"
+"                       '[0..9]*' -- set debug level\n"
+"[-f file]        -- read input from file; defaults to stdin.\n"
+"[-o file]        -- send output to file; defaults to stdout.\n"
 "[-p programfile] -- main program to execute.\n"
-"[-q]		  -- operate in quiet mode.\n"
-"[-B]		  -- bare executionl; suppress startup commands.\n"
-"[-T]		  -- Tell the ttm processor that it is performing tests.\n"
-"[-V]		  -- print version.\n"
-"[-&]		  -- send error output to -o output ; otherwise it goes to stderr.\n"
-"			Note: the & may need escaping if command invoked in shell script (e.g -\\&)..\n"
-"[--]		  -- stop processing command line options.\n"
-"[arg...]	  -- arbitrary string arguments; accessible by argv/argc TTM function"
+"[-E <which>=<value>] -- set execution parameters,\n"
+"                        where <value> is a non-negative integer (0|1 for showfinal and showcall).\n"
+"                        and <which> is one of:\n"
+"                          'stacksize' -- the maximum stack space to use.\n"
+"                          'execcount' -- the maximum execution depth.\n"
+"                          'showfinal' -- non-zero => print contents of passive buffer after scan() finishes; 0 => suppress.\n"
+"                          'showcall'  -- non-zero => print contents of passive buffer after each function call; 0 => suppress.\n"
+"[--]             -- stop processing command line options.\n"
+"[arg...]         -- arbitrary string arguments; accessible by argv/argc TTM function"
 );
-    fprintf(stderr,"Options may be repeated\n");
-    fprintf(stderr,"%s\n",
-"The following environment variables are recognized:\n"
-"* TTM_STACKSIZE\n"
-"* TTM_EXECCOUNT\n"
-"* TTM_SHOWFINAL; /* non-null => print contents of passive buffer after scan() finishes; NULL => suppress */\n"
-"* TTM_SHOWCALL;  /* non-null => print contents of passive buffer after each function call; NULL => suppress */\n"
-);
+    fprintf(stderr,"Note: options may be repeated.\n");
+};
     if(msg != NULL) exit(1); else exit(0);
 }
 
 /**
+Read one full line of ttm code from specified file.
+* For each line read if it ends in an escapechar+newline
+  then another line is read and appended to current line.
+  This repeats until a line is read that does not end in escapechar+newline.
+* Comments are allowed using "//" style comments although
+  this may leave cruft. Escaping of '/' is allowed to pass '/' characters 
+* Escape characters are recognized.
+*/
+static TTMERR
+readlinettm(TTM* ttm, TTMFILE* f, char** linep)
+{
+    TTMERR err = TTM_NOERR;
+    VString* line = vsnew();
+    char* rawline = NULL;
+    const char* p8;
+    size_t len;
+    char* result = NULL;
+
+    /* Read one or more lines */
+    vsclear(line);
+    /* concatenate lines ending in "\\\n" */
+    for(;;) {
+        if((err = readline(ttm,f,&rawline))) goto done;
+	len = strlen(rawline);
+	vscat(line,rawline); nullfree(rawline); rawline = NULL;
+	vsindexset(line,len); /* move to end */
+	p8 =vsgetp(line,vsindex(line)); /* past the EOL */
+	/* backup over last char */
+	p8 = u8backup(p8,vscontents(line)); /* find ptr to last utf8 char */
+        if(*p8 != '\n') break; /* stop concatenation */
+	p8 = u8backup(p8,vscontents(line)); /* find ptr to 2nd to last utf8 char */
+        if(*p8 != '\\') break; /* stop concatenation */
+	vsindexset(line,vslength(line) - 2); /*backup*/
+	if(*vsindexp(line) != '\n') break; /*done*/
+    }
+    /* Remove comment text */
+    uncomment(ttm,line);
+    /* Convert any escapes to produce final result */
+    result = unescape(ttm,vscontents(line));
+    if(linep) {*linep = result; result = NULL;}
+done:
+    nullfree(rawline);
+    nullfree(result);
+    vsfree(line);
+    return UPTHROW(ttm,err);
+}
+
+/**
 Read one full line of iput from specified file.
-Note for each line read if it ends in an escapechar+newline
-then another line is read and appended to current line.
+If isttm is set then do 
+* For each line read if it ends in an escapechar+newline
+  then another line is read and appended to current line.
+* If line h
 This repeats until a line is read that does not end in escapechar+newline.
 Note that encountering a bare EOF/EOS also terminates the line.
 Note that comments are allowed using "//" style comments although
@@ -1623,39 +1695,20 @@ readline(TTM* ttm, TTMFILE* f, char** linep)
     TTMERR err = TTM_NOERR;
     int np8;
     utf8cpa p8;
-    char* result = NULL;
-    char* decom = NULL;
     VString* line = vsnew();
     
-    vsclear(line);
     for(;;) { /* Read thru next \n or \0 (EOF) */
 	if((np8=ttmnonl(ttm,f,p8)) <= 0) {err = THROW(ttm,TTM_EUTF8); goto done;}
 	if(isnul(p8)) {err = TTM_EEOF; goto done;}
-	if(*p8 == '\\') { /* Don't use ttm->meta.escapec */
-	    /* peek to see if this escape at end of line: '\''\n' */
-	    if((np8=ttmnonl(ttm,f,p8)) <= 0) {err = THROW(ttm,TTM_EUTF8); goto done;}
-	    if(u8equal(p8,"\n")) {
-		/* escape of \n => elide escape and \n and continue reading */
-	    } else { /* pass the escape and the escaped char */
-		vsappendn(line,"\\",1);
-		vsappendn(line,p8,np8);
-	    }
-	    break;
-	} else if(u8equal(p8,"\n")) {
+	if(u8equal(p8,"\n")) {
 	    vsappendn(line,p8,np8);
 	    break;
 	} else { /* char other than nul or escape */
 	    vsappendn(line,p8,np8);
 	}
     }
-    /* Check for comments */
-    decom = uncomment(ttm,vscontents(line));
-    /* Convert any escapes to produce final result */
-    result = unescape(ttm,decom);
-    if(linep) {*linep = result; result = NULL;}
+    if(linep) {*linep = vsextract(line);}
 done:
-    nullfree(decom);
-    nullfree(result);
     vsfree(line);
     return err;
 }
@@ -1666,10 +1719,11 @@ Read a file to EOF
 @param ttn
 @param file to read
 @param buf hold text of file
+@param lineread function to read complete lines
 @return TTM_NOERR or TTM_EXXX if error
 */
 static TTMERR
-readfile(TTM* ttm, const char* fname, VString* buf)
+readfile(TTM* ttm, const char* fname, VString* buf, TTMERR (*lineread)(TTM*,TTMFILE*,char**))
 {
     TTMERR err = TTM_NOERR;
     TTMFILE* f = NULL;
@@ -1678,8 +1732,11 @@ readfile(TTM* ttm, const char* fname, VString* buf)
     f = ttmopen(ttm,fname,"rb");
     if(f == NULL) {err = errno; goto done;}
     while(!quit) {
-	switch (err=readline(ttm,f,&oneline)) {
-	case TTM_NOERR: vsappendn(buf,oneline,0); break;
+	err=lineread(ttm,f,&oneline);
+	assert(err || oneline != NULL);
+	switch (err) {
+	case TTM_NOERR:
+	vscat(buf,oneline); break;
 	case TTM_EEOF: quit = 1; break; /* no more input */
 	default: goto done;
 	}
@@ -1691,36 +1748,38 @@ done:
     return err;
 }
 
-#if 0
+/**
+Parse a -E option
+*/
 static void
-setexecproperties(TTM* ttm)
+setexecproperty(const char* eopt, struct ExecProps* eprops)
 {
-    const char* env;
-    size_t value;
+    char key[1024];
+    char* svalue;
+    size_t ivalue;
+    enum ExecEnum ee = EE_UNDEF;    
 
-    /* Set to default values */
-    ttm->execproperties.stacksize = DFALTSTACKSIZE;
-    ttm->execproperties.execcount = DFALTEXECCOUNT;
-    ttm->execproperties.showfinal = DFALTSHOWFINAL;
-    ttm->execproperties.showcall = DFALTSHOWCALL;
-		
-    /* Overwrite with environment variable values */
-    if((env = getenv(ENV_STACKSIZE))!=NULL) {
-	if(1!=sscanf(env,"%zu",&value)) usage("sscanf failed");
-	ttm->execproperties.stacksize = value;
-    }
-    if((env = getenv(ENV_EXECCOUNT))!=NULL) {
-	if(1!=sscanf(env,"%zu",&value)) usage("sscanf failed");
-	ttm->execproperties.execcount = value;
-    }
-    if((env = getenv(ENV_SHOWFINAL))!=NULL) {
-	ttm->execproperties.showfinal = tfcvt(env);
-    }
-    if((env = getenv(ENV_SHOWCALL))!=NULL) {
-	ttm->execproperties.showcall = tfcvt(env);
+    if(eopt == NULL || strlen(eopt)==0) return;
+
+    strncpy(key,eopt,sizeof(key));
+    svalue = strchr(key,'=');
+    if(svalue == NULL) {svalue = svalue+strlen(svalue);}
+    *svalue++ = '\0';
+
+    if(1!=sscanf(svalue,"%zu",&ivalue)) usage("Illegal -E option");
+    if((ee = execenumdetect(key))==EE_UNDEF) usage("Illegal -E option");
+
+    switch (ee) {
+    case EE_STACKSIZE: eprops->stacksize = ivalue; break;
+    case EE_EXECCOUNT: eprops->execcount = ivalue; break;
+    case EE_SHOWFINAL: eprops->showfinal = tfcvt(svalue); break;
+    case EE_SHOWCALL:  eprops->showcall  = tfcvt(svalue); break;
+    default: usage("Illegal -E option");
     }
 }
 
+
+#if 0
 static void
 setproperty(TTM* ttm, const char* key, const char* value)
 {
@@ -1736,17 +1795,17 @@ syncproperty(TTM* ttm, const char* key, const char* value)
     switch (propenumdetect(key)) {
     case PE_STACKSIZE:
 	sscanf(value,"%zu",&n);
-	ttm->execproperties.stacksize = n;
+	ttmglobal.stacksize = n;
 	break;
     case PE_EXECCOUNT:
 	sscanf(value,"%zu",&n);
-	ttm->execproperties.execcount = n;
+	ttmglobal.execcount = n;
 	break;
    case PE_SHOWFINAL:
-	ttm->execproperties.showfinal = tfcvt(value);
+	ttmglobal.showfinal = tfcvt(value);
 	break;
    case PE_SHOWCALL:
-	ttm->execproperties.showcall = tfcvt(value);
+	ttmglobal.showcall = tfcvt(value);
 	break;
     default: break; /* user defined property */
     }
@@ -1809,9 +1868,8 @@ static void
 processdebugargs(TTM* ttm, const char* debugargs)
 {
     const char* p;
-	int level;
+    int level;
 
-    ttm->debug = dfalt_debug();
     for(p=debugargs;*p;p++) {
 	switch (*p) {
 	case 't':
@@ -1834,6 +1892,31 @@ processdebugargs(TTM* ttm, const char* debugargs)
 /**************************************************/
 /* Helper functions for main */
 
+/**
+Do any initialization before command line options
+are processed.
+*/
+static void
+initgetopts(struct OPTS* opts)
+{
+    memset(opts,0,sizeof(struct OPTS));
+
+    /* Set Execution properties to default values */
+    opts->execprops.stacksize = DFALTSTACKSIZE;
+    opts->execprops.execcount = DFALTEXECCOUNT;
+    opts->execprops.showfinal = DFALTSHOWFINAL;
+    opts->execprops.showcall = DFALTSHOWCALL;
+
+    /* Set Misc. properties to default values */
+    opts->miscprops.testing = 0;
+    opts->miscprops.quiet = 0;
+    opts->miscprops.bare = 0;
+    opts->miscprops.verbose = 0;
+    opts->miscprops.programfilename = NULL;
+
+    /* Set the locale to support UTF8 */
+    if(setlocale(LC_ALL, "en_US.UTF-8") == NULL) usage("setlocale() failed");
+}
 
 /**
 Execute a string for side effects and throw away any result.
@@ -1852,7 +1935,8 @@ execcmd(TTM* ttm, const char* cmd)
     ttmreset(ttm);
     ttm->debug.trace = savetrace;
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
+    
 }
 
 static TTMERR
@@ -1861,7 +1945,7 @@ startup(TTM* ttm)
     TTMERR err = TTM_NOERR;
     char* cmd = NULL;
 
-    if(!ttm->opts.bare) {
+    if(!ttmglobal.miscprops.bare) {
 	char** cmdp;
         TRACE trprev = ttm->debug.trace;
 #ifdef GDB
@@ -1884,7 +1968,7 @@ done:
     ttmflush(ttm,ttm->io._stderr);
     ttm->flags.starting = 0;
     nullfree(cmd);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1894,8 +1978,8 @@ eval(TTM* ttm)
     char* cmd = NULL;
 
     /* Now execute the programfile, if any, and print collected passive output */
-    if(ttm->opts.programfilename != NULL) {
-	readfile(ttm,ttm->opts.programfilename,ttm->vs.tmp); /* read whole execute file */
+    if(ttmglobal.miscprops.programfilename != NULL) {
+	readfile(ttm,ttmglobal.miscprops.programfilename,ttm->vs.tmp,readlinettm); /* read whole execute file */
 	/* Remove '\\' escaped */
 #ifdef DEE
 	cmd = (char*)deescape(vscontents(ttm->vs.tmp),NULL);
@@ -1916,7 +2000,7 @@ eval(TTM* ttm)
     }
 done:
     nullfree(cmd);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**************************************************/
@@ -1927,8 +2011,6 @@ main(int argc, char** argv)
 {
     TTMERR err = TTM_NOERR;
     int exitcode;
-    long stacksize = 0;
-    long execcount = 0;
     char debugargs[16] = {'\0'};
     char* outputfilename = NULL;
     char* inputfilename = NULL; /* This is data for #<rs> */
@@ -1942,18 +2024,13 @@ main(int argc, char** argv)
     TTM* ttm = NULL;
 #endif
 
-    memset(&opts,0,sizeof(struct OPTS));
-
-    initTTM();
-
     if(argc == 1)
 	usage(NULL);
 
-    /* Stash argv[0] */
-    vlpush(argvopts,strdup(argv[0]));
+    initgetopts(&opts);
 
     /* Option processing */
-    while ((c = getopt(argc, argv, "d:f:o:p:qvBTV&-")) != EOF) {
+    while ((c = getopt(argc, argv, "d:f:o:p:qvBE:TV&-")) != EOF) {
 	switch(c) {
 	case 'd':
 	    strcat(debugargs,optarg);
@@ -1967,13 +2044,14 @@ main(int argc, char** argv)
 		outputfilename = strdup(optarg);
 	    break;
 	case 'p':
-	    if(opts.programfilename == NULL)
-		opts.programfilename = strdup(optarg);
+	    if(opts.miscprops.programfilename == NULL)
+		opts.miscprops.programfilename = strdup(optarg);
 	    break;
-	case 'q': opts.quiet = 1; break;
-	case 'v': opts.verbose = 1; break;
-	case 'B': opts.bare = 1; break;
-	case 'T': opts.testing = 1; break;
+	case 'q': opts.miscprops.quiet = 1; break;
+	case 'v': opts.miscprops.verbose = 1; break;
+	case 'B': opts.miscprops.bare = 1; break;
+	case 'E': setexecproperty(optarg,&opts.execprops); break;
+	case 'T': opts.miscprops.testing = 1; break;
 	case 'V':
 	    printf("ttm version: %s\n",VERSION);
 	    exit(0);
@@ -1984,21 +2062,15 @@ main(int argc, char** argv)
 	case '-':
 	    break;
 	case '?':
-	default:
-	    fprintf(stderr,"Illegal option: %c\n",c);
+	default: {
+	    char s[1024];
+	    snprintf(s,sizeof(s),"Illegal option: %c",c);
+	    usage(s);
+	    }
 	}
     }
 
-    /* Collect any args for #<arg> */
-    if(optind < argc) {
-	for(;optind < argc;optind++)
-	    vlpush(argvopts,strdup(argv[optind]));
-    }
-
-    if(stacksize < DFALTSTACKSIZE)
-	stacksize = DFALTSTACKSIZE;
-    if(execcount < DFALTEXECCOUNT)
-	execcount = DFALTEXECCOUNT;
+    initglobals(&opts,argc,argv,optind);
 
     /* Create the ttm state */
     /* Modify from various options */
@@ -2014,8 +2086,6 @@ main(int argc, char** argv)
 	exit(1);
     }
 
-    ttm->opts = opts; memset(&opts,0,sizeof(struct OPTS));
-
     if((err = startup(ttm))) goto done;
     if((err = eval(ttm))) goto done;
 
@@ -2024,7 +2094,7 @@ done:
 
     /* Report any error */
     if(err) {
-	xfail(ttm,"Fatal Error: %s",ttm->debug.ei.xpr.xbuf);
+	xfail(ttm,"Fatal Error: %s",ttm->debug.xbuf);
 	exitcode = 0;
     }
 
@@ -2106,7 +2176,7 @@ ttmpushbackc(TTM* ttm, TTMFILE* f, char* p8)
     if(f->npushed >= (MAXPUSHBACK)) EXIT(ttm,TTM_EIO); /* too many pushes */
     memcpycp(f->stack[f->npushed++],p8); /* push to stack */
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**

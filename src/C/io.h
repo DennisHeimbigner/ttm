@@ -71,7 +71,7 @@ buildfile(TTM* ttm, const char* fname, FILE* std, int mode, TTMFILE** iop)
     if(iop) {*iop = io; io = NULL;}
 done:
     closeio1(ttm,io);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static void
@@ -102,6 +102,7 @@ ttmopen(TTM* ttm, const char* fname, const char* mode)
     TTMFILE* tfile = NULL;
     tfile = (TTMFILE*)calloc(1,sizeof(TTMFILE));
     if(tfile == NULL) EXIT(ttm,TTM_EMEMORY);
+    tfile->name = strdup(fname);
     tfile->file = fopen(fname,mode);
     if(tfile->file == NULL) {err = errno; goto done;}
     tfile->npushed = 0;

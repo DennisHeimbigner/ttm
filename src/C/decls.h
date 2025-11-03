@@ -27,17 +27,6 @@ struct VList;
 struct Debug;
 
 /**************************************************/
-/* Defaulters */
-
-static struct Debug
-dfalt_debug(void)
-{
-    struct Debug dfalt;
-    memset(&dfalt,0,sizeof(struct Debug));
-    return dfalt;
-};
-
-/**************************************************/
 /* Global variables */
 
 /* Cause <argv;0>, <wd>, <time>, <xtime>, etc. to output fixed values
@@ -96,13 +85,10 @@ struct TestSpecial {
 {SP_UNDEF,    NULL,       NULL,           NULL,           NULL}
 };
 
-static VList* argvopts = NULL; /* command line arguments (after getop has consumed its options) */
-#if 0
-static VList* propoptions = NULL; /* command line properties */
-#endif
+/**************************************************/
+/* Collect all global state */
 
-#ifdef TTMGLOBAL
-static TTM* ttm = NULL;
-#endif
+
+static TTMglobal ttmglobal;
 
 #endif /*DECLS_H*/

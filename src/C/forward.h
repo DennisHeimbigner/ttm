@@ -12,14 +12,16 @@ static const char* sv(Function* f);
 static const char* peek(VString* vs, size_t n);
 static size_t rptocp(TTM* ttm, const char* u8, size_t rp);
 static size_t cptorp(TTM* ttm, const char* u8, size_t cp);
-static void initTTM();
+static int tfcvt(const char* value);
+static void initglobals(struct OPTS* opts, int argc, char** argv, int firstarg);
 static void reclaimglobals();
 static void setspecialactuals(void);
 static void usage(const char* msg);
+static TTMERR readlinettm(TTM* ttm, TTMFILE* f, char** linep);
 static TTMERR readline(TTM* ttm, TTMFILE* f, char** linep);
-static TTMERR readfile(TTM* ttm, const char* fname, VString* buf);
+static TTMERR readfile(TTM* ttm, const char* fname, VString* buf, TTMERR (*lineread)(TTM*,TTMFILE*,char**));
 static char* unescape(TTM*, const char* s8);
-static void setexecproperties(TTM* ttm);
+static void setexecproperty(const char* eopt, struct ExecProps*);
 #if 0
 static void setproperty(TTM*, const char* key, const char* value);
 static void syncproperty(TTM* ttm, const char* key, const char* value);
@@ -31,6 +33,8 @@ static const char* propertyLookup(TTM* ttm, const char* name);
 static Property* propertyRemove(TTM* ttm, const char* name);
 static int propertyInsert(TTM* ttm, const char* key, const char* value);
 #endif /*0*/
+
+/* utf8.h */
 static int u8sizec(char c);
 static int u8size(const char* cp);
 static int u8validcp(char* cp);
@@ -44,6 +48,7 @@ static TTMERR u8peek(char* s, size_t n, char* cpa);
 static TTMERR strsubcp(TTM*,const char* sstart, size_t send, size_t* pncp);
 static const char* strchr8(const char* s, const char* cp);
 static const char* strstr8(const char* s, const char* pattern);
+
 /* ttmX.c Utility functions */
 static unsigned computehash(const char* name);
 static int hashLocate(struct HashTable* table, const char* name, struct HashEntry** prevp);
@@ -74,22 +79,16 @@ static Charclass* newCharclass(TTM* ttm, const char* name);
 static void freeCharclass(TTM* ttm, Charclass* cl);
 static void clearcharclasses(TTM* ttm, struct HashTable* charclasses);
 static const char* charclassmatch(const char* cp, const char* charclass, int negative);
-#if 0
-static enum PropEnum propenumdetect(const char* s);
-#endif
 static enum MetaEnum metaenumdetect(const char* s);
 static enum TTMEnum ttmenumdetect(const char* s);
 static enum SpecialEnum specialenumdetect(const char* s);
+static enum ExecEnum execenumdetect(const char* s);
 
 /* ttmX.c IO utilities */
 static int ttmgetc8(TTM* ttm, TTMFILE* f, char* cp8);
 static int ttmnonl(TTM* ttm, TTMFILE* f, char* cp8);
 static TTMERR ttmpushbackc(TTM* ttm, TTMFILE* f, char* cp8);
 static int ttmputc8(TTM* ttm, const char* c8, TTMFILE* f);
-static void xfprintf(TTM*,TTMFILE*,const char* fmt,...);
-static void xsprintf(TTM*,const char* fmt,...);
-static void vxfprintf(TTM*, TTMFILE*, const char* fmt, va_list ap);
-static void vxsprintf(TTM* ttm, char* xbuf, const char* fmt, va_list ap);
 static TTMERR setupio(TTM* ttm, const char* infile, const char* outfile, int merge_err_out);
 static TTMERR buildfile(TTM* ttm, const char* fname, FILE* std, int mode, TTMFILE** iop);
 static void closeio1(TTM* ttm, TTMFILE* f);
@@ -191,7 +190,6 @@ static TTMERR ttm_istn(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_pn(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_trim(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_switch(TTM* ttm, Frame* frame, VString* result);
-static TTMERR ttm_clearpassive(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_include(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_void(TTM* ttm, Frame* frame, VString* result);
 static TTMERR ttm_breakpoint(TTM* ttm, Frame* frame, VString* result);
@@ -226,25 +224,37 @@ static size_t ttmgetemptyfileno(TTM* ttm);
 static void ttmrmfile(TTM* ttm, const char* filename);
 
 /* Debug.h */
-static void ttmbreak(TTMERR err);
-static TTMERR ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line);
-static void seterrinfo(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line);
-static void seterrmsg(TTM* ttm, const char* fmt, va_list ap);
+static TTMERR ttmbreak(TTMERR err);
+static TTMERR ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line, const char* msg);
+static void seterrinfo(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line, const char* msg);
+static char* builderrmsg(TTM* ttm, const char* fmt, va_list ap);
 static void dumpframe(TTM* ttm, Frame* frame);
 static void dumpstack(TTM* ttm);
 static void traceframe(TTM* ttm, Frame* frame, int traceargs);
 static void trace1(TTM* ttm, TTMERR err, int depth, int entering, int tracing);
 static void trace(TTM* ttm, TTMERR err, int entering, int tracing);
 static TTMERR xfail(TTM* ttm,const char* fmt,...);
-static TTMERR failxcxt(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line);
+static TTMERR failxcxt(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line, const char* errmsg);
 static const char* ttmerrmsg(TTMERR err);
 static const char* ttmerrname(TTMERR err);
 static TTMERR ttmerrfor(const char* ename);
+static void xfprintf(TTM*,TTMFILE*,const char* fmt,...);
+#if 0
+static void vxfprintf(TTM*, TTMFILE*, const char* fmt, va_list ap);
+#endif
+static int xvsprintf(VString* buffer, const char* format, ...);
+#if 0
+static int xsprintf(TTM* ttm, char* fmt,  ...);
+#endif
+static void xprintf(TTM* ttm, const char* fmt,...);
+static int vvsprintf(VString* vs, const char* fmt, va_list ap);
 
 #ifdef GDB
 static void dumpnames(TTM* ttm);
 static void dumpcharclasses(TTM* ttm);
+#if 0
 static void dumpprops(TTM* ttm);
+#endif
 static const char* printwithpos(VString* vs);
 static const char* printwithpos(VString* vs);
 #endif /*GDB*/

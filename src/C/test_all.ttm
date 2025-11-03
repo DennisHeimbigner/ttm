@@ -1,8 +1,6 @@
 // Setup
 #<tf>
-#<setprop;showcall;true>
-#<clearpassive>
-#<ttm;info;name;def>
+##<ttm;info;name;def>
 #<tn>
 
 // "ds" 2,2,SV_S
@@ -215,8 +213,11 @@
 #<rp;cltest>
 ##<rrp;cltest>
 #<ccl;allcl;cltest>
+##<rp;cltest>
 ##<rrp;cltest>
+##<rp;cltest>
 #<ccl;emptycl;cltest>
+##<rp;cltest>
 
 // "scl" 2,2,SV_S
 ##<ps;<--- Testing: scl>\n>
@@ -453,7 +454,7 @@
 // "time" 0,0,SV_V
 ##<ps;<--- Testing: time>\n>
 // Since time will change with each run; convert to some arbitrary text
-#<void;ctime=##<time>>
+#<void;time=##<time>>
 
 // "xtime" 0,0,SV_V
 ##<ps;<--- Testing: xtime>\n>
@@ -462,7 +463,7 @@
 
 // "ctime" 1,1,SV_V
 ##<ps;<--- Testing: ctime>\n>
-ctime=##<ctime;##<ttm;system;:ctime:>>// Use an arbitrary time argument
+##<ctime;##<time>>// Use an arbitrary time argument
 
 // "pn" 2,2,SV_V
 ##<ps;<--- Testing: pn>\n>
@@ -518,28 +519,24 @@ ctime=##<ctime;##<ttm;system;:ctime:>>// Use an arbitrary time argument
 ##<void;##<classes>>
 
 // "properties" 0,0,SV_V
-##<ps;<--- Testing: properties>\n>
-##<properties>
-
+//##<ps;<--- Testing: properties>\n>
+//##<properties>
 // "setprop" 1,2,SV_SV
-##<ps;<--- Testing: setprop>\n>
-##<setprop;execcount;1999>
-
+//##<ps;<--- Testing: setprop>\n>
+//##<setprop;execcount;1999>
 // "getprop" 1,1,SV_V
-##<ps;<--- Testing: getprop>\n>
-##<getprop;execcount>
-
+//##<ps;<--- Testing: getprop>\n>
+//##<getprop;execcount>
 // "resetprop" 1,2,SV_SV
-##<ps;<--- Testing: resetprop>\n>
-##<resetprop;execcount>
-##<getprop;execcount>
-
+//##<ps;<--- Testing: resetprop>\n>
+//##<resetprop;execcount>
+//##<getprop;execcount>
 // "removeprop" 1,1,SV_SV
-##<ps;<--- Testing: removeprop>\n>
-##<setprop;key;value>
-##<getprop;key>
-##<removeprop;key>
-##<getprop;key>
+//##<ps;<--- Testing: removeprop>\n>
+//##<setprop;key;value>
+//##<getprop;key>
+//##<removeprop;key>
+//##<getprop;key>
 
 // "sort" 1,2,SV_V
 ##<ps;<--- Testing: sort>\n>
@@ -549,14 +546,10 @@ ctime=##<ctime;##<ttm;system;:ctime:>>// Use an arbitrary time argument
 
 // "include" 1,1,SV_S
 ##<ps;<--- Testing: include>\n>
-##<ds;BUILDDIR;##<ttm;build;builddir>>
-##<ds;SRCDIR;##<ttm;build;srcdir>>
+##<ds;BUILDDIR;~~builddir~~>>
+##<ds;SRCDIR;~~srcdir~~>
 ##<ds;RS;##<SRCDIR>/test.rs>
 #<ps;##<include;##<RS>>>
-
-// "clearpassive" 0,0,SV_S
-##<ps;<--- Testing: clearpassive>\n>
-#<clearpassive>
 
 // "exit" 0,0,SV_S
 ##<ps;<--- Testing: exit>\n>

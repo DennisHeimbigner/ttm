@@ -2,29 +2,32 @@
 #define DEBUG_H
 
 /**************************************************/
-static void
+static TTMERR
 ttmbreak(TTMERR err)
 {
-    return;
+    return err;
 }
 
 static TTMERR
 ttmthrowmsg(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line, const char* fmt, ...)
 {
+    TTMERR err = TTM_NOERR;
+    char* errbuf = NULL;
     va_list ap;
     va_start(ap,fmt);
-    if(eno != TTM_NOERR) {
-	seterrmsg(ttm,fmt,ap);
-    }
+    if(eno != TTM_NOERR)
+	errbuf = builderrmsg(ttm,fmt,ap);
     va_end(ap);
-    return ttmthrow(ttm,eno,file,fcn,line);
+    err = ttmthrow(ttm,eno,file,fcn,line,errbuf);
+    nullfree(errbuf);
+    return err;
 }
 
 static TTMERR
-ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line)
+ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line, const char* msg)
 {
     if(err != TTM_NOERR) {
-	seterrinfo(ttm,err,file,fcn,line);
+	seterrinfo(ttm,err,file,fcn,line,msg);
         if(ttm != NULL && ttm->debug.debug > 1) {
 	    fprintf(stderr,"THROW: (%d) %s; %s.%d\n",err,ttmerrmsg(err),fcn,line);
 	    if(vslength(ttm->vs.active) > 0) {
@@ -44,120 +47,28 @@ ttmthrow(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line)
 }
 
 static void
-seterrinfo(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line)
+seterrinfo(TTM* ttm, TTMERR err, const char* file, const char* fcn, int line, const char* msg)
 {
     ttm->debug.ei.eno = err;
     ttm->debug.ei.file = file;
     ttm->debug.ei.fcn = fcn;
     ttm->debug.ei.line = line;
+    if(msg == NULL)
+        msg = "";
+    else
+        strncpy(ttm->debug.ei.errmsg,msg,sizeof(ttm->debug.ei.errmsg));
 }
 
-static void
-seterrmsg(TTM* ttm, const char* fmt, va_list ap)
+static char*
+builderrmsg(TTM* ttm, const char* fmt, va_list ap)
 {
-    vxsprintf(ttm,ttm->debug.ei.xpr.xbuf,fmt,ap);
-}
-
-
-/**
-Append formatted data to end of buf
-@param ttm
-@param xbuf
-@param fmt
-@param ap
-@return void
-*/
-static void
-vxsprintf(TTM* ttm, char* xbuf, const char* fmt, va_list ap)
-{
-    size_t xlen = 0;
-    char* p = NULL;
-    
-    if(fmt == NULL) return;
-    xlen = strlen(xbuf);
-    p = &xbuf[xlen];
-    /* print at end of xpr.xbuf */
-    (void)vsprintf(p, fmt, ap);
-}
-
-/**
-Similar to vfprintf, but:
-1. calls cleanstring on the outgoing text.
-2. leaves the trailing '\n'
-3. remembers that output did/did-not end with a newline.
-@param ttm
-@param file -- TTMFILE on which to print
-@param fmt
-@param ap
-@return void
-*/
-static void
-vxfprintf(TTM* ttm, TTMFILE* file, const char* fmt, va_list ap)
-{
-    size_t xsize = 0;
-    int hasnl = 0;
-    size_t xfinal = 0;
-    FILE* xfile = NULL;
-    char* xbuf;
-    
-    xfile = file->file;
-    xbuf = ttm->debug.ei.xpr.xbuf;
-
-    /* Print at end of xpr.xbuf */
-    vxsprintf(ttm,xbuf,fmt,ap);
-
-    /* Prepare for printing to a file */
-    xfinal = strlen(xbuf);
-    if(xfinal > 0) {
-	char* tmp = NULL;
-	hasnl = (xbuf[xfinal - 1] == '\n'); /* remember this */
-	if(hasnl) xbuf[xfinal - 1] = '\0'; /* temporarily elide the final '\n' */
-	tmp = cleanstring(xbuf,NULL,NULL);
-	strncpy(xbuf,tmp,xsize);
-	nullfree(tmp);
-	xfinal = strlen(xbuf);
-	if(hasnl) {
-	    /* Restore missing \n */
-	    xbuf[xfinal++] = '\n'; /* restore trailing newline */
-	}
-	xbuf[xfinal] = '\0'; /* ensure nul term */
-	fprintf(xfile,"%s",xbuf);
-        xbuf[0] = '\0'; /* reset */
-    }
-    fflush(xfile);
-    ttm->debug.ei.xpr.outnl = hasnl;
-}
-
-/* Wrap vxfprintf (ala fprintf and vprintf) */
-static void
-xfprintf(TTM* ttm, TTMFILE* file, const char* fmt,...)
-{
-    va_list ap;
-    va_start(ap,fmt);
-    vxfprintf(ttm,file,fmt,ap);
-    va_end(ap);
-}
-
-/* Wrap vxfprintf (ala fprintf and vprintf) but using ttm->io._stderr */
-static void
-xprintf(TTM* ttm, const char* fmt,...)
-{
-    va_list ap;
-    va_start(ap,fmt);
-    vxfprintf(ttm,ttm->io._stderr,fmt,ap);
-    va_end(ap);
-}
-
-/* Wrap vxsprintf same way sprintf wraps vsprintf */
-static void
-xsprintf(TTM* ttm, const char* fmt,...)
-{
-    va_list ap;
-
-    ttm->debug.ei.xpr.xbuf[0] = '\0';
-    va_start(ap,fmt);
-    vxsprintf(ttm,ttm->debug.ei.xpr.xbuf,fmt,ap);
-    va_end(ap);
+    char* msg = NULL;
+    VString* vs = vsnew();
+    vvsprintf(vs,fmt,ap);
+    xvsprintf(vs,"%s","\n");
+    msg = vsextract(vs);
+    vsfree(vs);
+    return msg;
 }
 
 #if DEBUG > 0
@@ -209,12 +120,6 @@ dumpentry(TTM* ttm, enum TableType tt, struct HashEntry* entry, int printvalues)
 	xprintf(ttm,"	|%s|",cl->entry.name);
 	if(printvalues)
 	    xprintf(ttm," = [%s%s]",(cl->negative?"^":""),cl->characters);
-	} break;
-    case TT_PROPS: {
-	Property* p = (Property*)entry;
-	xprintf(ttm,"	|%s%",p->entry.name);
-	if(printvalues)
-	    xprintf(ttm," = |%s|",p->value);
 	} break;
     }
 }
@@ -403,8 +308,6 @@ trace1(TTM* ttm, TTMERR err, int depth, int entering, int tracing)
 {
     Frame* frame;
 
-    if(!ttm->debug.ei.xpr.outnl) xprintf(ttm,"\n");
-
     if(tracing && ttm->frames.top < 0) {
 	xprintf(ttm,"trace: no frame to trace\n");
 	fflush(stderr);
@@ -477,13 +380,13 @@ xfail(TTM* ttm,const char* fmt,...)
     TTMERR err = TTM_NOERR;
     va_list ap;
 
-    err = ttm->debug.ei.eno;
-    failxcxt(ttm,err,ttm->debug.ei.file,ttm->debug.ei.fcn,ttm->debug.ei.line);
     if(fmt != NULL) {
 	va_start(ap, fmt);
-	vxsprintf(ttm,ttm->debug.ei.xpr.xbuf,fmt,ap);
+	vvsprintf(ttm->debug.xbuf,fmt,ap);
 	va_end(ap);
     }
+    err = ttm->debug.ei.eno;
+    failxcxt(ttm,err,ttm->debug.ei.file,ttm->debug.ei.fcn,ttm->debug.ei.line,ttm->debug.ei.errmsg);
     return err;
 }
 
@@ -506,10 +409,15 @@ shorten(const char* text,size_t len)
 
 /* Print context */
 static TTMERR
-failxcxt(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line)
+failxcxt(TTM* ttm, TTMERR eno, const char* file, const char* fcn, int line, const char* errmsg)
 {
     fprintf(stderr,"Fatal error: %s(%d) %s\n",ttmerrname(eno),(int)eno,ttmerrmsg(eno));
-    fprintf(stderr,"\twhere: %s.%d\n",fcn,line);
+    if(strlen(errmsg) > 0) {
+        fprintf(stderr,"\tExplanation: %s",errmsg);
+	if(errmsg[strlen(errmsg)-1] != '\n') fprintf(stderr,"\n"); /* just in case */
+    }
+    if(ttm->debug.debug > 0)
+	fprintf(stderr,"\tTTM source code location: file: %s fcn: %s line: %d\n",file,fcn,line);
 #if 0
 Fix
     fprintf(stderr,"\tinput line=%d\n",ttm->flags.lineno);
@@ -526,7 +434,7 @@ Fix
 	    xprintf(ttm,"failx.context:\n");
 	    passivetext = cleanstring(vscontents(ttm->vs.passive),"",NULL);
 	    activetext = cleanstring(vscontents(ttm->vs.active)+vsindex(ttm->vs.active),"",NULL);
-	    if(!ttm->opts.verbose) { /* Shorten active and passive printout */
+	    if(!ttmglobal.miscprops.verbose) { /* Shorten active and passive printout */
 		char* shorted = NULL;
 		shorted = shorten(passivetext,SHORTTEXTLEN);
 		nullfree(passivetext);
@@ -557,7 +465,7 @@ static struct TTMERRINFO {
 } ttmerrinfo[] = {
 {TTM_NOERR, "TTM_NOERR", "No error"},
 {TTM_ERROR, "TTM_ERROR", "Unknown Error"},
-{TTM_ENONAME, "TTM_ENONAME", "Dictionary Name Not Found"},
+{TTM_ENONAME, "TTM_ENONAME", "Dictionary or Class Name Not Found"},
 {TTM_EDUPNAME, "TTM_EDUPNAME", "Attempt to create duplicate name"},
 {TTM_ENOPRIM, "TTM_ENOPRIM", "Primitives Not Allowed"},
 {TTM_EFEWPARMS, "TTM_EFEWPARMS", "Too Few Parameters Given"},
@@ -653,7 +561,96 @@ ttmerrfor(const char* ename)
     return err;
 }
 
-/**************************************************/
+/**************************************************/	
+/* vvsprintf wrappers */
+
+/**
+TTM adapter for vvsprint, adding:
+1. accumulate until '\n' or '\001' (to force output)
+2. call cleanstring on the outgoing text.
+3. send output to a file
+4. leave the trailing '\n' (if present)
+@param ttm
+@param file -- TTMFILE on which to print
+@param fmt
+@param ap
+@return void
+*/
+static void
+vxfprintf(TTM* ttm, TTMFILE* file, const char* fmt, va_list ap)
+{
+    size_t xfinal = 0;
+    FILE* xfile = NULL;
+    VString* xbuf = NULL;
+    char lastchar = '\0';
+    
+    xfile = file->file;
+    xbuf = ttm->debug.xbuf;
+
+    /* Print at end of xbuf */
+    vvsprintf(xbuf,fmt,ap);
+
+    /* Prepare for printing to a file */
+    xfinal = vslength(xbuf);
+    if(xfinal > 0) {
+	lastchar = vsget(xbuf,xfinal-1); /* ok if its a multi-byte utf8 */
+	if(lastchar == VXFORCE)
+	    {xfinal--; vssetlength(xbuf,xfinal-1);} /* elide any force char */
+    }
+    if((lastchar == VXFORCE && xfinal > 0) || lastchar == '\n') {
+	fprintf(xfile,"%s",vscontents(xbuf));
+	fflush(xfile);
+	vsclear(xbuf);
+    }
+}
+
+/* Wrap vxfprintf (ala fprintf and vprintf) */
+static void
+xfprintf(TTM* ttm, TTMFILE* file, const char* fmt,...)
+{
+    va_list ap;
+    va_start(ap,fmt);
+    vxfprintf(ttm,file,fmt,ap);
+    va_end(ap);
+}
+
+/* Wrap vxfprintf (ala fprintf and vprintf) but using ttm->io._stderr */
+static void
+xprintf(TTM* ttm, const char* fmt,...)
+{
+    va_list ap;
+    va_start(ap,fmt);
+    vxfprintf(ttm,ttm->io._stderr,fmt,ap);
+    va_end(ap);
+}
+
+// Simple wrapper around vvsprintf
+static int
+xvsprintf(VString* buffer, const char* format, ...)
+{
+    int result;
+    va_list ap;
+    va_start(ap,format);
+    result = vvsprintf(buffer,format,ap);
+    va_end(ap);
+    return result;
+}
+
+#if 0
+// Wrapper around vvsprintf, but assuming buffer
+static int
+xsprintf(TTM* ttm, char* fmt,  ...)
+{
+    int result;
+    va_list ap;
+    va_start(ap,fmt);
+    result = vvsprintf(ttm->debug.xbuf,fmt,ap);
+    va_end(ap);
+    return result;
+}
+#endif
+
+/**********************************************/
 
 /* Hack to suppress compiler warnings about selected unused static functions */
 static void
@@ -672,10 +669,12 @@ dbgsuppresswarnings(void)
     (void)dumpnames;
     (void)dumpnamesplus;
     (void)dumpcharclasses;
+#if 0
     (void)dumpprops;
+#endif
     (void)dumpframe;
     (void)dumpstack;
 #endif
-}
+	}
 
 #endif /*DEBUG_H*/

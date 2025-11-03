@@ -27,7 +27,7 @@ typedef struct VString {
 #define VSMINALLOC 16
 
 #ifndef nullfree
-#define nullfree(x) do{if((x)!=NULL) free(x);}while(0)
+#define nullfree(x) do{void* p = (void*)(x); if(p) free(p);}while(0)
 #endif
 
 /**************************************************/
@@ -44,16 +44,19 @@ static void vlappend(VList* va, void* elem);
 static void vlinsert(VList* va, size_t pos, void* elem);
 static void* vlremove(VList* va, size_t pos);
 static void* vlget(VList* va, size_t pos);
-static void* vlgetp(VList* va, size_t pos);
-static void* vlextract(VList* va);
+static void** vlgetp(VList* va, size_t pos);
+static void** vlextract(VList* va);
+#if 0
 static void vlindexset(VList* va, size_t pos);
 static void vlindexskip(VList* va, size_t skip);
 static size_t vlindex(VList* va);
 static void vlindexremove(VList* va);
 static void vlindexinsert(VList* va, void* elem);
+#endif
 static VList* vldeepclone(VList* va);
 static VList* vlclone(VList* va);
 static void vutilsuppresswarnings(void);
+
 static VString* vsnew(void);
 static void vsfree(VString* va);
 static void vsexpand(VString* va);
@@ -62,8 +65,10 @@ static void vssetlength(VString* va, size_t newlen);
 static void vsappendn(VString* va, const char* s, size_t slen);
 static void vsappend(VString* va, char c);
 static void vsinsertn(VString* va, size_t pos, const char* s, size_t slen);
+static void vssetn(VString* va, size_t pos, const char* s, size_t slen);
 static void vsremoven(VString* va, size_t pos, size_t n);
 static char* vsgetp(VString* va, size_t pos);
+static char vsget(VString* va, size_t pos);
 static char* vsextract(VString* va);
 static void vsindexset(VString* va, size_t pos);
 static char* vsindexskip(VString* va, size_t skip);
@@ -72,6 +77,7 @@ static char* vsindexp(VString* va);
 static void vsindexinsertn(VString* va, const char* s, size_t n);
 static void vsindexremoven(VString* va, size_t n);
 static VString* vsclone(VString* va);
+static void vsnulterm(VString* va);
 static void vsmemmove(char* dst, char* src, size_t len);
 
 /**************************************************/
@@ -123,8 +129,12 @@ vlfreeall(VList* va)
 {
     if(va->deepfree)
 	va->deepfree(va->length,va->content);
-    else
-        nullfree(va->content);
+    else {
+	size_t i;
+	for(i=0;i<va->length;i++)
+	    nullfree(va->content[i]);
+	nullfree(va->content);
+    }
     va->content = NULL;
     va->length = 0;
     nullfree(va);
@@ -141,6 +151,20 @@ vlfree(VList* va)
     if(va == NULL) return;
     nullfree(va->content);
     free(va);
+}
+
+/**
+Helper function to ensure va->content != NULL.
+*/
+static void
+vlmanifest(VList* va)
+{
+    if(va == NULL) return;
+    assert(va->alloc == 0 || (va->alloc > 0 && va->content != NULL));
+    if(va->content != NULL) return;
+    va->content = (void**)calloc(1,sizeof(void*));
+    va->alloc = 1;
+    va->length = 0;
 }
 
 /**
@@ -180,7 +204,8 @@ Set the allocated capacity of the VList's capacity.
 static void
 vlsetalloc(VList* va, size_t minalloc)
 {
-    while(va->alloc < minalloc) vlexpand(va);
+    vlmanifest(va); /* ensure va->content */
+    while(va->alloc <= minalloc) vlexpand(va); /* ensure room for NULL term */
 }
 
 /**
@@ -192,11 +217,9 @@ Set the length of the current no. of elements in the array.
 static void
 vlsetlength(VList* va, size_t newlen)
 {
-    size_t oldlen;
     assert(va != NULL);
-    oldlen = va->length;
-    if(newlen > oldlen)
-        vlsetalloc(va,newlen);
+    vlmanifest(va); /* ensure va->content */
+    vlsetalloc(va,newlen);
     if(va->index > newlen) va->index = newlen;
     va->length = newlen;
 }
@@ -227,7 +250,7 @@ vlinsert(VList* va, size_t pos, void* elem)
 {
   size_t i;
   assert(va != NULL);
-  vlsetalloc(va,1);
+  vlsetalloc(va,va->length+1);
   if(va->length > 0) {
     for(i=va->length;i>pos;i--) va->content[i] = va->content[i-1];
   }
@@ -263,17 +286,16 @@ vlremove(VList* va, size_t pos)
 static void*
 vlget(VList* va, size_t pos)
 {
-    assert(va->length >= pos);
-    vlsetalloc(va,1);
-    return va->content[pos*sizeof(void*)];
+    return *vlgetp(va,pos);
 }
 
-static void*
+static void**
 vlgetp(VList* va, size_t pos)
 {
     assert(va->length >= pos);
-    vlsetalloc(va,1);
-    return va->content + (pos*sizeof(void*));
+    vlsetalloc(va,pos+1);
+    assert(pos < va->length);
+    return va->content + pos;
 }
 
 /**
@@ -282,10 +304,10 @@ Extract the content and leave content null.
 @return ptr to extracted content
 Side effect: leave va->length == 0
 */
-static void*
+static void**
 vlextract(VList* va)
 {
-    void* x = NULL;
+    void** x = NULL;
     if(va == NULL) return NULL;
     /* guarantee content existence and nul terminated */
     vlsetalloc(va,1);
@@ -296,6 +318,7 @@ vlextract(VList* va)
     return x;
 }
 
+#if 0
 /** Index Management Functions */
 
 /**
@@ -368,6 +391,7 @@ vlindexinsert(VList* va, void* elem)
     vlinsert(va,va->index,elem);
     va->index++;
 }
+#endif /*0*/
 
 /**
 Deep clone a VList object.
@@ -421,9 +445,10 @@ vlclone(VList* va)
 #define vscontents(vs)  ((vs)==NULL?(char*)(NULL):(char*)((VList*)(vs))->content)
 #define vslength(vs)  ((vs)==NULL?0:((VList*)(vs))->length)
 #define vsalloc(vs)  ((vs)==NULL?0:((VList*)(vs))->alloc)
-#define vscat(vs,s)  vsappendn(vs,s,0)
+#define vscat(vs,s)  vsappendn(vs,s,strlen(s))
 #define vsclear(vs)  vssetlength(vs,0)
-#define vspush(vs,elem) vsappend(vs,elem)
+/* Appendn n chars at end of VString and move index past it */
+#define vsindexappendn(vs,s,slen) do{vsappendn(vs,s,slen);vsindexskip(vs,slen);}while(0)
 
 /**************************************************/
 
@@ -440,16 +465,18 @@ vutilsuppresswarnings(void)
     (void)ignore;
     ignore = (void*)vlclone;
     ignore = (void*)vldeepclone;
+#if 0
     ignore = (void*)vlindexinsert;
     ignore = (void*)vlindexremove;
     ignore = (void*)vlindex;
     ignore = (void*)vlindexskip; 
+#endif
     ignore = (void*)vlextract;
     ignore = (void*)vlgetp;
     ignore = (void*)vlappend;
     ignore = (void*)vlsetlength;
     ignore = (void*)vlnewdeep;
-
+    ignore = (void*)vssetn;
     ignore = (void*)vsextract;
 }
 
@@ -482,6 +509,20 @@ vsfree(VString* va)
 }
 
 /**
+Helper function to ensure va->content != NULL.
+*/
+static void
+vsmanifest(VString* va)
+{
+    if(va == NULL) return;
+    assert(va->alloc == 0 || (va->alloc > 0 && va->content != NULL));
+    if(va->content != NULL) return;
+    va->content = (char*)calloc(1,sizeof(char));
+    va->alloc = 1;
+    va->length = 0;
+}
+
+/**
 Expand the VString's capacity by a fixed amount in units of elemsize.
 @param va the array to expand
 @return void
@@ -505,10 +546,11 @@ vsexpand(VString* va)
             memcpy(newcontent,va->content,(va->length*sizeof(char)));
 	    newcontent[va->length*sizeof(char)] = '\0';
     }
-    if(va->content != NULL) free(va->content);
-    va->content = newcontent;
+    if(va->content != NULL) {free(va->content); va->content = NULL;}
+    va->content = newcontent; newcontent = NULL;
     va->alloc = newalloc;
     /* length stays the same */  
+    nullfree(newcontent);
 }
 
 /**
@@ -520,7 +562,8 @@ Set the allocated capacity of the VString's capacity.
 static void
 vssetalloc(VString* va, size_t minalloc)
 {
-    while(va->alloc < minalloc) vsexpand(va);
+    vsmanifest(va);
+    while(va->alloc <= minalloc) vsexpand(va);
 }
 
 /**
@@ -532,13 +575,12 @@ Set the length of the current no. of elements in the array.
 static void
 vssetlength(VString* va, size_t newlen)
 {
-    size_t oldlen;
     assert(va != NULL);
-    oldlen = va->length;
-    if(newlen > oldlen)
-        vssetalloc(va,newlen);
+    vsmanifest(va);
+    vssetalloc(va,newlen); /* ensure va->content exists */
     if(va->index > newlen) va->index = newlen;
     va->length = newlen;
+    va->content[va->length] = '\0';
 }
 
 /**
@@ -575,20 +617,46 @@ Insert a string at position pos.
 @param s string to append
 @param slen no. of chars to append
 @return void
-Side effect: increase index by |s| if index >  pos
+Side effect: leave index as is.
 */
 static void
 vsinsertn(VString* va, size_t pos, const char* s, size_t slen)
 {
   assert(va != NULL && (slen == 0 || s != NULL));
+  assert(pos <= va->length);
   if(slen == 0) return;
-  vssetalloc(va,pos+slen);
-  if(pos < va->length)
-      vsmemmove(&va->content[pos+slen],&va->content[pos],slen);
+  vssetalloc(va,va->length+slen);
+  if(pos < va->length) {
+    size_t nmove = va->length - pos;
+    vsmemmove(&va->content[pos+slen],&va->content[pos],nmove);
+  }
   memcpy(&va->content[pos],s,slen);
   va->length += slen;
   va->content[va->length] = '\0';
-  if(va->index <= pos) va->index += slen;
+}
+
+/*
+Overwrite a string at position pos.
+@param va
+@param pos where to write; if pos > |va->content| then expand va.
+@param s src string
+@param slen |s|	
+@return void
+*/
+static void
+vssetn(VString* va, size_t pos, const char* s, size_t slen)
+{
+  size_t finallen;
+  assert(va != NULL && (slen == 0 || s != NULL));
+  assert(pos <= va->length);
+  if(slen == 0) return;
+  /* compute final string length (since pos+slen might be > va->length) */
+  finallen = pos+slen;
+  if(finallen < va->length) finallen = va->length;
+  vssetalloc(va,finallen);
+  memcpy(&va->content[pos],s,slen);
+  vssetlength(va,finallen);
+  vsnulterm(va);
 }
 
 /**
@@ -604,12 +672,14 @@ Side effect:
 static void
 vsremoven(VString* va, size_t pos, size_t n)
 {
+  size_t nmove;
   assert(va != NULL);
-  assert((pos+n) < va->length);
-  if(n > 0) {
-    vsmemmove(&va->content[pos],&va->content[pos+n],n);
-    va->length -= n;
-  }
+  assert((pos+n) <= va->length);
+  if(n == 0) return;
+  nmove = va->length - (pos+n);
+  if(nmove > 0)
+    vsmemmove(&va->content[pos],&va->content[pos+n],nmove);
+  va->length -= n;
   va->content[va->length] = '\0';
   if(va->index > (pos+n)) {va->index -= n;} else {if(va->index > pos) {va->index = pos;}}
 }
@@ -619,6 +689,13 @@ vsgetp(VString* va, size_t pos)
 {
     assert(va->length >= pos);
     return va->content + (pos*sizeof(char));
+}
+
+static char
+vsget(VString* va, size_t pos)
+{
+    assert(va->length >= pos);
+    return va->content[(pos*sizeof(char))];
 }
 
 /**
@@ -657,8 +734,10 @@ vsindexset(VString* va, size_t pos)
     assert(va != NULL);
     assert(va->index >= 0);
     vssetalloc(va,1); /* force existence */
-    if(pos > va->length) pos = va->length; /* do not advance */
-    va->index = pos;
+    if(pos > va->length)
+        pos = va->length; /* do not advance */
+    else
+        va->index = pos;
 }
 
 /**
@@ -722,16 +801,13 @@ Insert n chars of s at the index.
 @param s src string
 @param n chars of s to insert
 @return void
-Side Effect: move index past insertion
+Note: index is left as is
 */
 static void
 vsindexinsertn(VString* va, const char* s, size_t n)
 {
-    size_t newindex;
     if(va->index > va->length) va->index = va->length;
-    newindex = va->index+n;
     vsinsertn(va,va->index,s,n);
-    va->index = newindex;
 }
 
 /**
@@ -756,6 +832,15 @@ vsclone(VString* va)
     return clone;
 }
 
+static void
+vsnulterm(VString* va)
+{
+    if(va->length == va->alloc)
+        vssetalloc(va,va->alloc+1);
+    va->content[va->length] = '\0';
+}
+
+/**************************************************/
 /* Utility functions */
 
 /**

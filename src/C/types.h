@@ -1,4 +1,4 @@
-#ifndef TYPES_H
+#ifndef TYPES_H	
 #define TYPES_H
 
 /**************************************************/
@@ -45,10 +45,6 @@ typedef char utf8cpa[MAXCP8SIZE];
 /**************************************************/
 /* Misc Utility Macros */
 
-/* Watch out: x is evaluated multiple times */
-#define nullfree(x) do{if(x) free(x);}while(0)
-#define nulldup(x) ((x)?strdup(x):(x))
-#define UNUSED(x) (void)x
 
 /**************************************************/
 /* Enumeration types; mostly to simplify switch statements. */
@@ -109,6 +105,7 @@ TE_BUILTIN,
 TE_ALL,
 TE_SYSTEM, /* System info */
 TE_BUILD, /* Build info */
+TE_EXEC, /* Execution state info */
 };
 
 /* Must be powers of two; simulated enum */
@@ -125,6 +122,17 @@ TR_OFF=0,
 TR_ON=1,
 } TRACE;
 
+/* Current enum of predefined properties */
+enum ExecEnum {
+EE_UNDEF=0,
+EE_STACKSIZE,
+EE_EXECCOUNT,
+EE_SHOWFINAL,
+EE_SHOWCALL, /* Show passive output from each function result */
+};
+
+enum TableType {TT_DICT, TT_CLASSES};
+
 /**************************************************/
 /* Error Numbers */
 /* Renamed TTM_EXXX because of multiple Windows conflicts */
@@ -132,7 +140,7 @@ TR_ON=1,
 typedef enum TTMERR {
 TTM_NOERR		= (  0),  /* No error; for completeness */
 TTM_ERROR		= ( -1),  /* Generic unknown error */
-TTM_ENONAME		= ( -2),  /* Dictionary Name Name Not Found */
+TTM_ENONAME		= ( -2),  /* Dictionary or Class Name Not Found */
 TTM_EDUPNAME		= ( -3),  /* Attempt to create duplicate name */
 TTM_ENOPRIM		= ( -4),  /* Primitives Not Allowed */
 TTM_EFEWPARMS		= ( -5),  /* Too Few Parameters Given */
@@ -270,10 +278,7 @@ struct ErrInfo {
     const char* file;
     const char* fcn;
     int line;
-    struct Xprint {
-	char xbuf[1 << 14];
-	int outnl; /* current xprint line ended with newline */
-    } xpr;
+    char errmsg[4096];
 };
 
 /* Keep outside of struct TTM to keep Visual Studio happy.
@@ -285,6 +290,7 @@ struct Debug {
 	TRACE trace;   /* Forcibly trace all function executions */
 	int debug; /* output debug info */
 	struct ErrInfo ei;
+	VString* xbuf;
 };
 
 struct TTM {
@@ -297,13 +303,6 @@ struct TTM {
 	int starting; /* Are we doing startup?*/
 	int catchdepth;
     } flags;
-    struct OPTS { /* non-debug options */
-	int testing; /* Cause <wd>, <time>, <xtime> to output fixed values */
-        int quiet;
-	int bare;
-	int verbose;
-	char* programfilename;
-    } opts;
     struct MetaChars {
 	utf8cpa sharpc;  /* sharp char */
 	utf8cpa semic;   /* semicolon char */
@@ -324,6 +323,11 @@ struct TTM {
 	int top; /* |stack| == (top) */
 	Frame stack[MAXFRAMEDEPTH];
     } frames;
+    /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
+    struct Tables {
+	struct HashTable dictionary;
+	struct HashTable charclasses;
+    } tables;
     struct IO {
 	/* stdin, stdout, and stderr are the unix equivalent */
 	TTMFILE* _stdin;
@@ -331,22 +335,40 @@ struct TTM {
 	TTMFILE* _stderr;
 	TTMFILE* allfiles[MAXOPENFILES]; /* vector of all open files */
     } io;
-    /* Following 2 fields are hashtables indexed by low order 7 bits of some character */
-    struct Tables {
-	struct HashTable dictionary;
-	struct HashTable charclasses;
-    } tables;
-    /* TTM Execution Properties; These must be kept consistent with property table entries */
-    struct ExecProperties { /* WARN: reflect changes to PropEnum and its uses */
+};
+
+typedef struct TTMglobal {
+    VList* argvopts; /* command line arguments (after getopt has consumed its options) */
+    /* TTM Execution Properties; WARN: reflect changes to PropEnum and its uses */
+    struct ExecProps {
 	size_t stacksize;
 	size_t execcount;
 	size_t showfinal; /* 1=>print contents of passive buffer after scan() finishes; 0=>suppress */
 	size_t showcall; /* 1=>print contents of passive buffer after each function call; 0=>suppress */
-    } execproperties;
-};
+    } execprops;
+    struct MiscProps { /* non-debug options */
+	int testing; /* Cause <wd>, <time>, <xtime> to output fixed values */
+        int quiet;
+	int bare;
+	int verbose;
+	char* programfilename;
+    } miscprops;
+#ifdef TTMGLOBAL
+    TTM* ttm;
+#endif
+#if 0
+    VList* propoptions; /* command line properties (obsolete) */
+#endif
+} TTMglobal;
 
 /* Convenience */
 typedef struct TTMFILE TTMFILE;
+
+/* (Almost) All command line options */
+struct OPTS {
+    struct ExecProps execprops;
+    struct MiscProps miscprops;
+};
 
 /**************************************************/
 
@@ -408,17 +430,6 @@ struct Property {
     struct HashEntry entry; /* key is entry->name */
     char* value;
 };
-
-/* Current enum of predefined properties */
-enum PropEnum {
-PE_UNDEF=0,
-PE_STACKSIZE,
-PE_EXECCOUNT,
-PE_SHOWFINAL,
-PE_SHOWCALL, /* Show passive output from each function result */
-};
 #endif
-
-enum TableType {TT_DICT, TT_CLASSES, TT_PROPS};
 
 #endif /*TYPES_H*/

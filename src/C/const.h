@@ -7,7 +7,7 @@
 
 /* Debug has a level attached: 0 is equivalent to undef */
 #define DEBUG 0
-#undef GDB
+#define GDB
 
 #if DEBUG > 0
 #ifndef GDB
@@ -103,12 +103,6 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 #define DFALTSHOWFINAL	0
 #define DFALTSHOWCALL	0
 
-/* Environment Variable Names */
-#define ENV_STACKSIZE "TTM_STACKSIZE"
-#define ENV_EXECCOUNT "TTM_EXECCOUNT"
-#define ENV_SHOWFINAL "TTM_SHOWFINAL"
-#define ENV_SHOWCALL "TTM_SHOWCALL"
-
 /*Mnemonics*/
 #define TRACING 1
 #define TOEOS ((size_t)0xffffffffffffffff)
@@ -136,5 +130,8 @@ the set of legal mark indices is limited to 1 - 1024 (1024 segment marks).
 
 /* Wrapping tag char for struct Testing values. */
 #define TESTTAG ':'
+
+/* Signal vxfprintf to forcibly output xbuf contents in absence of a newline */
+#define VXFORCE '\001'
 
 #endif /*CONST_H*/

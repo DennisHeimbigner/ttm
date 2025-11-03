@@ -1,3 +1,6 @@
+#ifndef UTF8_H
+#define UTF8_H
+
 /**
 Copy a single codepoint from src to dst
 @param dst target for the codepoint
@@ -116,7 +119,8 @@ that the raw SEGMARK is at the beginning of the mark.
 static const char*
 u8backup(const char* p, const char* base)
 {
-    while(p-- > base) {
+    while(p > base) {
+	p--;
         if((UTF8(*p) & 0xB0) != 0xB0) break; /* backup over all continuation bytes */
     }
     /* we should be at the start of the codepoint or segmark */
@@ -205,3 +209,6 @@ strstr8(const char* s, const char* pattern)
     p = strstr(s,pattern);
     return p;
 }
+
+/**************************************************/
+#endif /*UTF8_H*/

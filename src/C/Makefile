@@ -1,7 +1,10 @@
 SHELL := /bin/bash
 
+srcdir = ${shell pwd}
+builddir = ${shell pwd}/build
+
 # Enable if you want to check for memory leaks
-#MEM = 1
+MEM = 1
 
 .PHONEY: check
 .PHONEY: clean
@@ -24,7 +27,7 @@ CFLAGS = ${CCWARN} ${CCDEBUG} ${CCMEM} ${CCDEF}
 all: clean ${TTM}.exe
 
 # Assemble ttm8.c from pieces
-INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h vutils.h
+INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h vutils.h vvsprintf.h 
 
 ${TTM}.exe: ${TTM}.c ${INCLUDES}
 	${CC} ${CFLAGS} -o $@ $<
@@ -36,20 +39,24 @@ unityttm.c: ${TTM}.c ${INCLUDES}
 	for I in ${INCLUDES} ; do sed -i.bak -e "/^\#include[ ][ ]*\"${I}\".*/r ${I}" -e "s|^\#include[ ][ ]*\"${I}\".*|/*\0*/|" $@; done
 
 ##################################################
+TESTOPTS = -\& -T -dt -Eshowcall=1
+TESTOPTS += -d1
+TESTALL = ${srcdir}/test_all.ttm
+TESTMISC = ${srcdir}/test_misc.ttm
+TESTRS = ${srcdir}/test.rs
 TESTARGS = a b c
 
-check:: ${TTM}.exe test_all.log # test_misc.log
+check:: ${TTM}.exe test_all.log test_misc.log
 	diff -wBb test_all.baseline test_all.log
-#	diff -wBb test_misc.baseline test_misc.log
+	diff -wBb test_misc.baseline test_misc.log
 
 test_all.log: test_all.ttm ${TTM}.exe
-	TTM_SHOWCALL=1 \
-	./${TTM}.exe -\& -T -d1 -dt -p test_all.ttm -f ./test.rs ${TESTARGS} > $@
+	rm -fr $@
+	./${TTM}.exe ${TESTOPTS} -p ${TESTALL} -f ${TESTRS} ${TESTARGS} > $@
 
 test_misc.log: test_misc.ttm ${TTM}.exe
-	TTM_SHOWCALL=1 \
-	./${TTM}.exe -\& -T -d1 -dt -p test_misc.ttm -f ./test.rs ${TESTARGS} > $@
-
+	rm -fr $@
+	./${TTM}.exe ${TESTOPTS} -p ${TESTMISC} -f ${TESTRS} ${TESTARGS} > $@
 
 # This is to check cpp (C preprocessor) expansions
 ${TTM}.txt::

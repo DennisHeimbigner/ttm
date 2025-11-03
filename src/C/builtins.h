@@ -52,7 +52,7 @@ ttm_ap(TTM* ttm, Frame* frame, VString* result) /* Append to a string */
     vsindexset(body,vslength(body));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -87,7 +87,7 @@ ttm_cf(TTM* ttm, Frame* frame, VString* result) /* Copy a function */
 	newfcn->fcn.body = vsclone(newfcn->fcn.body);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -112,11 +112,11 @@ ttm_ds(TTM* ttm, Frame* frame, VString* result)
     str->fcn.sv = SV_SV;
     str->fcn.novalue = 0;
     str->fcn.body = vsnew();
-    vsappendn(str->fcn.body,(const char*)frame->argv[2],0);
+    vscat(str->fcn.body,(const char*)frame->argv[2]);
     vsindexset(str->fcn.body,0);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -140,7 +140,7 @@ ttm_es(TTM* ttm, Frame* frame, VString* result) /* Erase string */
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -190,7 +190,7 @@ ttm_subst(TTM* ttm, VString* text, const char* pattern, size_t segindex, size_t*
 done:
     vsindexset(text,rp); /* restore */
     if(segcountp) *segcountp = segcount;
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 
@@ -206,7 +206,8 @@ ttm_sc(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     char count[64];
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL)
+        EXITMSG(ttm,TTM_ENONAME,"Undefined name: %s",frame->argv[1]);
     if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
     if(str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     text = str->fcn.body;
@@ -222,7 +223,7 @@ ttm_sc(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     vsappendn(result,(const char*)count,strlen(count));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -235,7 +236,8 @@ ttm_ss(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     VString* text = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL)
+        EXITMSG(ttm,TTM_ENONAME,"Undefined name: %s",frame->argv[1]);
     if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
     if(str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     text = str->fcn.body;
@@ -245,7 +247,7 @@ ttm_ss(TTM* ttm, Frame* frame, VString* result) /* Segment and count */
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -257,14 +259,15 @@ ttm_cr(TTM* ttm, Frame* frame, VString* result) /* Mark for creation */
     VString* text = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL)
+        EXITMSG(ttm,TTM_ENONAME,"Undefined name: %s",frame->argv[1]);
     if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
     if(str->fcn.locked) EXIT(ttm,TTM_ELOCKED);
     text = str->fcn.body;
     err = ttm_subst(ttm,text,frame->argv[2],CREATEINDEXONLY,NULL);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* String Selection */
@@ -277,7 +280,8 @@ ttm_cc(TTM* ttm, Frame* frame, VString* result) /* Call one character */
     Function* str = NULL;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL) EXIT(ttm,TTM_ENONAME);
+    if((str = dictionaryLookup(ttm,frame->argv[1]))==NULL)
+        EXITMSG(ttm,TTM_ENONAME,"Undefined name: %s",frame->argv[1]);
     if(str->fcn.builtin) EXIT(ttm,TTM_ENOPRIM);
     if(vsindex(str->fcn.body) < vslength(str->fcn.body)) {
 	int ncp;
@@ -288,7 +292,7 @@ ttm_cc(TTM* ttm, Frame* frame, VString* result) /* Call one character */
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -325,7 +329,7 @@ ttm_cn(TTM* ttm, Frame* frame, VString* result) /* Call n characters (codepoints
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -351,7 +355,7 @@ ttm_sn(TTM* ttm, Frame* frame, VString* result) /* Skip n characters */
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -386,7 +390,7 @@ ttm_isc(TTM* ttm, Frame* frame, VString* vsresult) /* Initial character scan; mo
     vsclear(vsresult);
     vsappendn(vsresult,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,vsresult);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -422,7 +426,7 @@ ttm_scn(TTM* ttm, Frame* frame, VString* result) /* Character scan */
 	vsindexskip(str->fcn.body,(len + arglen));
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -462,7 +466,7 @@ ttm_cp(TTM* ttm, Frame* frame, VString* result) /* Call parameter */
     vsindexskip(fcn->fcn.body,delta);
     if(*rp != NUL8) vsindexskip(fcn->fcn.body,1);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -478,7 +482,7 @@ ttm_cs(TTM* ttm, Frame* frame, VString* result) /* Call segment */
     TTMFCN_BEGIN(ttm,frame,result);
 
     fcn = getdictstr(ttm,frame,1);
-    if(fcn == NULL) EXIT(ttm,TTM_ENONAME);
+    if(fcn == NULL) EXITMSG(ttm,TTM_ENONAME,"Undefined name: %s",frame->argv[1]);
     /* Locate the next segment mark */
     /* Unclear if create marks also qualify; assume yes */
     p0 = vsindexp(fcn->fcn.body);
@@ -501,7 +505,7 @@ ttm_cs(TTM* ttm, Frame* frame, VString* result) /* Call segment */
     if(*p != NUL8) vsindexskip(fcn->fcn.body,SEGMARKSIZE);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -513,7 +517,7 @@ ttm_rrp(TTM* ttm, Frame* frame, VString* result) /* Reset residual pointer */
     TTMFCN_BEGIN(ttm,frame,result);
     vsindexset(str->fcn.body,0);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -536,7 +540,7 @@ ttm_eos(TTM* ttm, Frame* frame, VString* vsresult) /* Test for end of string */
     vsclear(vsresult);
     vsappendn(vsresult,(const char*)result,strlen((const char*)result));
     TTMFCN_END(ttm,frame,vsresult);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* String Scanning Operations */
@@ -566,7 +570,7 @@ ttm_gn(TTM* ttm, Frame* frame, VString* result) /* Give n characters from argume
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -605,7 +609,7 @@ ttm_zlc(TTM* ttm, Frame* frame, VString* result) /* Zero-level commas */
     }
     *p = NUL8; /* make sure it is terminated */
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -656,7 +660,7 @@ ttm_zlcp(TTM* ttm, Frame* frame, VString* result) /* Zero-level commas and paren
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -677,7 +681,7 @@ ttm_flip(TTM* ttm, Frame* frame, VString* result) /* Flip a string */
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -724,7 +728,7 @@ ttm_trl(TTM* ttm, Frame* frame, VString* result) /* translate to lower case */
 done:
     vsclear(ttm->vs.tmp);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -747,10 +751,10 @@ ttm_thd(TTM* ttm, Frame* frame, VString* result) /* convert hex to decimal */
     *q = '\0';
     if(1 != sscanf(hex,"%llx",&un)) EXIT(ttm,TTM_EINVAL);
     snprintf(dec,sizeof(dec),"%lld",(long long)un);
-    vsappendn(result,dec,0);
+    vscat(result,dec);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* Shared helper for dcl and dncl */
@@ -770,7 +774,7 @@ ttm_dcl0(TTM* ttm, Frame* frame, int negative, VString* result)
     cl->characters = strdup((const char*)frame->argv[2]);
     cl->negative = negative;
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -781,7 +785,7 @@ ttm_dcl(TTM* ttm, Frame* frame, VString* result) /* Define a negative class */
     TTMFCN_BEGIN(ttm,frame,result);
     err = ttm_dcl0(ttm,frame,0,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -792,7 +796,7 @@ ttm_dncl(TTM* ttm, Frame* frame, VString* result) /* Define a negative class */
     TTMFCN_BEGIN(ttm,frame,result);
     err = ttm_dcl0(ttm,frame,1,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -813,7 +817,7 @@ ttm_ecl(TTM* ttm, Frame* frame, VString* result) /* Erase a class */
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -833,19 +837,20 @@ ttm_ccl(TTM* ttm, Frame* frame, VString* result) /* call class */
     if((cl = charclassLookup(ttm,frame->argv[1]))==NULL) FAILNOCLASS(1);
 
     clseq = cl->characters;
-    cp8 = vsindexp(str->fcn.body);
 
     /* Starting at vsindex(str->fcn.body), locate first char not in class (or negative) */
     vsclear(result);
     rr0 = vsindex(str->fcn.body);
+    cp8 = vsindexp(str->fcn.body);
     match = charclassmatch(cp8,clseq,cl->negative);
     delta = (size_t)(match - cp8);
     vsindexset(str->fcn.body,rr0); /* temporary */
-    vsappendn(result,vsindexp(str->fcn.body),delta);
+    if(delta > 0)
+	vsappendn(result,vsindexp(str->fcn.body),delta);
     vsindexset(str->fcn.body,rr0+delta); /* final residual index */
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -874,7 +879,7 @@ ttm_scl(TTM* ttm, Frame* frame, VString* result) /* skip class */
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -914,7 +919,7 @@ ttm_tcl(TTM* ttm, Frame* frame, VString* result) /* Test class */
     vsappendn(result,(const char*)retval,strlen((const char*)retval));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* Arithmetic Operators */
@@ -937,7 +942,7 @@ ttm_abs(TTM* ttm, Frame* frame, VString* result) /* Obtain absolute value */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -962,7 +967,7 @@ ttm_ad(TTM* ttm, Frame* frame, VString* result) /* Add */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -986,7 +991,7 @@ ttm_dv(TTM* ttm, Frame* frame, VString* result) /* Divide and give quotient */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1010,7 +1015,7 @@ ttm_dvr(TTM* ttm, Frame* frame, VString* result) /* Divide and give remainder */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1035,7 +1040,7 @@ ttm_mu(TTM* ttm, Frame* frame, VString* result) /* Multiply */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1059,7 +1064,7 @@ ttm_su(TTM* ttm, Frame* frame, VString* result) /* Substract */
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1087,7 +1092,7 @@ ttm_eq(TTM* ttm, Frame* frame, VString* result) /* Compare numeric equal */
     vsappendn(result,(char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1115,7 +1120,7 @@ ttm_gt(TTM* ttm, Frame* frame, VString* result) /* Compare numeric greater-than 
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1143,7 +1148,7 @@ ttm_lt(TTM* ttm, Frame* frame, VString* result) /* Compare numeric less-than */
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1171,7 +1176,7 @@ ttm_ge(TTM* ttm, Frame* frame, VString* result) /* Compare numeric greater-than 
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1199,7 +1204,7 @@ ttm_le(TTM* ttm, Frame* frame, VString* result) /* Compare numeric less-than or 
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1223,7 +1228,7 @@ ttm_eql(TTM* ttm, Frame* frame, VString* result) /* ? Compare logical equal */
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1247,7 +1252,7 @@ ttm_gtl(TTM* ttm, Frame* frame, VString* result) /* ? Compare logical greater-th
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1271,7 +1276,7 @@ ttm_ltl(TTM* ttm, Frame* frame, VString* result) /* ? Compare logical less-than 
     vsclear(result);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* Peripheral Input/Output Operations */
@@ -1297,7 +1302,7 @@ selectfile(TTM* ttm, const char* fname, IOMODE required_modes, TTMFILE** targetp
 	EXIT(ttm,TTM_EACCESS);
     if(targetp) *targetp = target;
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -1319,7 +1324,7 @@ ttm_ps0(TTM* ttm, TTMFILE* target, int argc, char** argv, VString* result) /* Pr
 	nullfree(cleaned);
     }
     ttmflush(ttm,target);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -1340,7 +1345,7 @@ ttm_ps(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String */
     if((err = ttm_ps0(ttm,target,1,frame->argv+1,result))) goto done;
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1357,7 +1362,7 @@ ttm_rs0(TTM* ttm, TTMFILE* target, VString* result) /* Read a String from option
 	if(u8equal(cp8,ttm->meta.metac)) break;
 	vsappendn(result,(const char*)cp8,ncp);
     }
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -1380,7 +1385,7 @@ ttm_rs(TTM* ttm, Frame* frame, VString* result) /* Read a Function/String */
     if((err=ttm_rs0(ttm,target,result))) goto done;
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* This only makes sense when using /dev/tty; but use stdin+stdout if necessary */
@@ -1399,7 +1404,7 @@ ttm_psr(TTM* ttm, Frame* frame, VString* result) /* Print a string and then read
     ttmflush(ttm,ttm->io._stdout);
     ttm_rs0(ttm,reader,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1419,7 +1424,7 @@ ttm_cm(TTM* ttm, Frame* frame, VString* result) /* Change meta character and ret
     vsappendn(result,prev,u8size(prev));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* printf helper functions */
@@ -1451,7 +1456,7 @@ havevalue:
     if(typp) *typp = typ;
     if(speclenp) *speclenp = (size_t)(p - fmt);
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static void
@@ -1547,13 +1552,13 @@ ttm_vprintf(TTM* ttm, TTMFILE* target, const char* fmt8, size_t argc, char** arg
 	    if(argi >= argc) EXIT(ttm,TTM_EFEWPARMS);
 	    /* check the type */
 	    if(typ == 's') {/* Handle string separately */
-		vsappendn(result,(char*)argv[argi++],0);
+		vscat(result,(char*)argv[argi]); argi++;
 	    } else { /* Integer type */
 		long long lld = 0;
 		char svalue[256]; /* big enough to hold single integer value string */
 		if((err = intconvert((char*)argv[argi],&lld))) goto done;
 		strcvt(lcount,typ,lld,svalue,sizeof(svalue));
-		vsappendn(result,svalue,0);
+		vscat(result,svalue);
 	    }
 	    p += speclen; /* skip fmt in input string */
 	} else {/* pass the char */
@@ -1567,7 +1572,7 @@ ttm_vprintf(TTM* ttm, TTMFILE* target, const char* fmt8, size_t argc, char** arg
     ttmflush(ttm,target);
 #endif
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -1602,7 +1607,7 @@ ttm_fprintf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String 
     err = ttm_vprintf(ttm,target,fmt,frame->argc-3,frame->argv+3,result);
 
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -1632,7 +1637,7 @@ ttm_printf(TTM* ttm, Frame* frame, VString* result) /* Print a Function/String *
     err = ttm_vprintf(ttm,target,fmt,frame->argc-2,frame->argv+2,result);
 
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1655,7 +1660,7 @@ ttm_pf(TTM* ttm, Frame* frame, VString* result) /* Flush stdout and/or stderr */
     ttmflush(ttm,file);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1702,7 +1707,7 @@ ttm_tru(TTM* ttm, Frame* frame, VString* result) /* translate to upper case */
 done:
     vsclear(ttm->vs.tmp);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1728,10 +1733,10 @@ ttm_tdh(TTM* ttm, Frame* frame, VString* result) /* convert hex to decimal */
     *q = '\0';
     if(1 != sscanf(dec,"%lld",&ln)) EXIT(ttm,TTM_EINVAL);
     snprintf(hex,sizeof(hex),"%llx",(unsigned long long)ln);
-    vsappendn(result,hex,0);
+    vscat(result,hex);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1752,11 +1757,11 @@ ttm_rp(TTM* ttm, Frame* frame, VString* result) /* return residual pointer*/
     default: goto done;
     }
     snprintf(srp,sizeof(srp),"%lld",(long long)rp);
-    vsappendn(result,srp,0);
+    vscat(result,srp);
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1784,7 +1789,7 @@ ttm_srp(TTM* ttm, Frame* frame, VString* result) /* set residual pointer*/
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static int
@@ -1876,7 +1881,7 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
 	Function* f =  (Function*)vlget(nameset,i);
 	const char* nm = f->entry.name;
 	if(i > 0) vsappend(result,',');
-	vsappendn(result,(const char*)nm,0);
+	vscat(result,(const char*)nm);
 	if(!f->fcn.builtin && (klass & TTM_NAMES_BODY)==TTM_NAMES_BODY) {
 	    vsappendn(result,"=|",2);
 	    vsappendn(result,vscontents(f->fcn.body),vslength(f->fcn.body));
@@ -1886,7 +1891,7 @@ ttm_names(TTM* ttm, Frame* frame, VString* result) /* Obtain all dictionary inst
 done:
     vlfree(nameset);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1906,7 +1911,7 @@ ttm_exit(TTM* ttm, Frame* frame, VString* result) /* Return from TTM */
     vsclear(ttm->vs.active);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /* Utility Operations */
@@ -1928,7 +1933,7 @@ ttm_ndf(TTM* ttm, Frame* frame, VString* result) /* Determine if a name is defin
     value = (str == NULL ? f : t);
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -1950,7 +1955,7 @@ ttm_norm(TTM* ttm, Frame* frame, VString* result) /* Obtain the Norm of a string
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 #ifdef MSWINDOWS
@@ -2048,7 +2053,7 @@ ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
     long long time;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(ttm->opts.testing) {
+    if(ttmglobal.miscprops.testing) {
 	struct TestSpecial* ts = getspecial(SP_TIME);
 	vscat(result,ts->pretend);
     } else {
@@ -2062,7 +2067,7 @@ ttm_time(TTM* ttm, Frame* frame, VString* result) /* Obtain time of day */
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2073,7 +2078,7 @@ ttm_xtime(TTM* ttm, Frame* frame, VString* result) /* Obtain Execution Time */
     char value[MAXINTCHARS+1];
 
     TTMFCN_BEGIN(ttm,frame,result);
-    if(ttm->opts.testing) {
+    if(ttmglobal.miscprops.testing) {
 	struct TestSpecial* ts = getspecial(SP_XTIME);
 	vscat(result,ts->pretend);
     } else {
@@ -2082,7 +2087,7 @@ ttm_xtime(TTM* ttm, Frame* frame, VString* result) /* Obtain Execution Time */
 	vsappendn(result,value,strlen(value));
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2111,7 +2116,7 @@ ttm_ctime(TTM* ttm, Frame* frame, VString* result) /* Convert ##<time> to printa
     vsappendn(result,value,strlen(value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2132,7 +2137,7 @@ ttm_tf(TTM* ttm, Frame* frame, VString* result) /* Turn Trace Off */
 	ttm->debug.trace = TR_OFF;
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2153,7 +2158,7 @@ ttm_tn(TTM* ttm, Frame* frame, VString* result) /* Turn Trace On */
 	ttm->debug.trace = TR_ON;
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**************************************************/
@@ -2172,12 +2177,12 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     TTMFCN_BEGIN(ttm,frame,result);
     if((1 != sscanf((const char*)frame->argv[1],"%lld",&index))) EXIT(ttm,TTM_EDECIMAL);
     if(index < 0) EXIT(ttm,TTM_ERANGE);
-    if(((size_t)index) < vllength(argvopts)) {
-	if(ttm->opts.testing && index == 0) {
+    if(((size_t)index) < vllength(ttmglobal.argvopts)) {
+	if(ttmglobal.miscprops.testing && index == 0) {
 	    struct TestSpecial* ts = getspecial(SP_ARGV0);
 	    arg = ts->pretend;
 	} else {
-	    arg = vlget(argvopts,(size_t)index);
+	    arg = vlget(ttmglobal.argvopts,(size_t)index);
 	}
         arglen = (int)strlen(arg);
         vsappendn(result,arg,arglen);
@@ -2185,10 +2190,10 @@ ttm_argv(TTM* ttm, Frame* frame, VString* result)
     
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
-/* Get the length of argvopts */
+/* Get the length of ttmglobal.argvopts */
 static TTMERR
 ttm_argc(TTM* ttm, Frame* frame, VString* result)
 {
@@ -2198,11 +2203,11 @@ ttm_argc(TTM* ttm, Frame* frame, VString* result)
     int argc;
 
     TTMFCN_BEGIN(ttm,frame,result);
-    argc = (int)vllength(argvopts);
+    argc = (int)vllength(ttmglobal.argvopts);
     snprintf(value,sizeof(value),"%d",argc);
     vsappendn(result,value,strlen(value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2242,7 +2247,7 @@ ttm_classes(TTM* ttm, Frame* frame, VString* result) /* Obtain all character cla
 done:
     vlfree(classes);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2270,7 +2275,7 @@ ttm_lf(TTM* ttm, Frame* frame, VString* result) /* Lock a list of function from 
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2298,7 +2303,7 @@ ttm_uf(TTM* ttm, Frame* frame, VString* result) /* Un-Lock a function from being
 	}
     }
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2316,7 +2321,7 @@ ttm_istn(TTM* ttm, Frame* frame, VString* result) /* return current global trace
     }
     vsappendn(result,(const char*)value,strlen((const char*)value));
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2337,7 +2342,7 @@ ttm_pn(TTM* ttm, Frame* frame, VString* result)  /* pass n chars of a string */
     vsappendn(result,str+n,len - n);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static char*
@@ -2382,7 +2387,7 @@ ttm_trim(TTM* ttm, Frame* frame, VString* result) /* right and left trim argv[1]
 done:
     nullfree(trimmed);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -2428,19 +2433,7 @@ ttm_switch(TTM* ttm, Frame* frame, VString* result) /* return current global tra
     vsappendn(result,(const char*)value,strlen((const char*)value));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
-}
-
-static TTMERR
-ttm_clearpassive(TTM* ttm, Frame* frame, VString* result) /* clear ttm->vs.passive */
-{
-    TTMERR err = TTM_NOERR;
-    TTMFCN_DECLS(ttm,frame);
-
-    TTMFCN_BEGIN(ttm,frame,result);
-    vsclear(ttm->vs.passive);
-    TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2450,36 +2443,39 @@ ttm_include(TTM* ttm, Frame* frame, VString* result)  /* Include text of a file 
     TTMFCN_DECLS(ttm,frame);
     char* path = NULL;
     char* baseseg = NULL;
-    char* p;
 
     TTMFCN_BEGIN(ttm,frame,result);
     if(strlen(frame->argv[1])==0) EXIT(ttm,TTM_EINCLUDE);
 
-    if(ttm->opts.testing) {
-	/* expand path macros with pretend values */
-	path = expandmacros(frame->argv[1],!ACTUAL);
+    if(ttmglobal.miscprops.testing) {
+	/* expand path macros with actual values */
+	path = expandmacros(frame->argv[1],ACTUAL);
     } else
 	path = strdup(frame->argv[1]);
     canonpath(path); /* Convert '\\' to '/' */
 
-    /* Get the basefile of path */
-    p = strrchr(path,'/');
-    if(p == NULL) { /* point to base segment */
-	baseseg = strdup(path);
-    } else {
-	baseseg = strdup(p); /* include leading '/' */
+#if 0
+    {
+	char* p;
+	/* Get the basefile of path */
+	p = strrchr(path,'/');
+	if(p == NULL) { /* point to base segment */
+	    baseseg = strdup(path);
+	} else {
+	    baseseg = strdup(p); /* include leading '/' */
+	}
+	*p = '\0';  /* remove base file from path */
     }
-    *p = '\0';  /* remove base file from path */
-
+#endif
     if(strlen(path) == 0) EXIT(ttm,TTM_EINCLUDE);
-    readfile(ttm,path,ttm->vs.tmp);
+    readfile(ttm,path,ttm->vs.tmp,readlinettm);
     vsappendn(result,vscontents(ttm->vs.tmp),vslength(ttm->vs.tmp));
     vsclear(ttm->vs.tmp);
 done:
     nullfree(baseseg);
     nullfree(path);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2490,14 +2486,14 @@ ttm_void(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
 
     TTMFCN_BEGIN(ttm,frame,result);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
 ttm_breakpoint(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments */
 {
     TTMERR err = TTM_NOERR;
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -2541,7 +2537,7 @@ ttm_catch(TTM* ttm, Frame* frame, VString* result) /* evaluate ttm expression an
     vsfree(ttm->vs.passive);
     ttm->vs.passive = passive;
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -2561,7 +2557,7 @@ ttm_throw(TTM* ttm, Frame* frame, VString* result) /* Throw away all arguments *
     else
 	err = ttmerrfor(frame->argv[1]);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 #if 0
@@ -2589,7 +2585,7 @@ ttm_setprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property /
     setproperty(ttm,key,value);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2620,7 +2616,7 @@ ttm_resetprop(TTM* ttm, Frame* frame, VString* result) /* Set specified property
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2640,7 +2636,7 @@ ttm_getprop(TTM* ttm, Frame* frame, VString* result) /* Get specified property  
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2656,7 +2652,7 @@ ttm_removeprop(TTM* ttm, Frame* frame, VString* result) /* remove specified prop
     (void)propertyRemove(ttm,key);
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -2696,7 +2692,7 @@ ttm_properties(TTM* ttm, Frame* frame, VString* result) /* Obtain all property n
 done:
     vlfree(props);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 #endif /*0*/
 
@@ -2720,7 +2716,7 @@ ttm_getenv(TTM* ttm, Frame* frame, VString* result) /* Get specified env var */
 
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -2769,7 +2765,7 @@ ttm_env(TTM* ttm, Frame* frame, VString* result) /* Obtain all property names */
 done:
     vlfree(keys);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**************************************************/
@@ -2803,7 +2799,7 @@ ttm_sort(TTM* ttm, Frame* frame, VString* result)
     seplen = u8size(sep8);
     assert(seplen > 0);
     name = dictionaryLookup(ttm,frame->argv[1]);
-    if(name == NULL) EXIT(ttm,TTM_ENONAME);
+    if(name == NULL) EXITMSG(ttm,TTM_ENONAME,"Undefined name: %s",frame->argv[1]);
     p8 = vscontents(name->fcn.body);
     if(p8 == NULL || strlen((char*)p8)==0) goto done;
     /* parse the input string */
@@ -2842,7 +2838,7 @@ ttm_sort(TTM* ttm, Frame* frame, VString* result)
 done:
     vlfreeall(elems);
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -2912,7 +2908,7 @@ ttm_ttm_meta(TTM* ttm, Frame* frame, VString* result)
     vsappendn(result,prev,u8size(prev));
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -2964,7 +2960,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
 	snprintf(info,sizeof(info),"%d",nargs);
     vsappendn(result,info,strlen(info));
     vsappendn(result,ttm->meta.semic,u8size(ttm->meta.semic));
-    vsappendn(result,sv(str),0);
+    vscat(result,sv(str));
     vsappendn(result,ttm->meta.semic,u8size(ttm->meta.semic));
     snprintf(info,sizeof(info),"locked=%d",str->fcn.locked);
     vsappendn(result,info,strlen(info));
@@ -2987,7 +2983,7 @@ ttm_ttm_info_name(TTM* ttm, Frame* frame, VString* result)
     vsappendn(result,ttm->meta.rbrc,u8size(ttm->meta.rbrc));
 done:
     nullfree(cleaned);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -3028,7 +3024,7 @@ ttm_ttm_info_class(TTM* ttm, Frame* frame, VString* result) /* Misc. combined ac
     xprintf(ttm,"info.class: |%s|\n",vscontents(result));
 #endif
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -3056,7 +3052,7 @@ ttm_ttm_info_string(TTM* ttm, Frame* frame, VString* result) /* Misc. combined a
     }
 done:
     vsappendn(result,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -3132,7 +3128,7 @@ ttm_ttm_list(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions 
     vsappendn(result,(const char*)ttm->meta.rbrc,u8size(ttm->meta.rbrc));
 done:
     vlfreeall(vl);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -3158,7 +3154,7 @@ ttm_ttm_system(TTM* ttm, Frame* frame, VString* result)
     ts = getspecial(sp);
     switch (sp) {
     case SP_WD: case SP_PLATFORM:
-        if(ttm->opts.testing)
+        if(ttmglobal.miscprops.testing)
 	    vscat(result,ts->pretend);
 	else
 	    vscat(result,ts->actual);
@@ -3167,7 +3163,7 @@ ttm_ttm_system(TTM* ttm, Frame* frame, VString* result)
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -3194,7 +3190,7 @@ ttm_ttm_build(TTM* ttm, Frame* frame, VString* result)
     ts = getspecial(sp);
     switch (sp) {
     case SP_BUILDER: case SP_SRCDIR: case SP_BUILDDIR:
-        if(ttm->opts.testing)
+        if(ttmglobal.miscprops.testing)
 	    vscat(result,ts->pretend);
 	else
 	    vscat(result,ts->actual);
@@ -3203,7 +3199,73 @@ ttm_ttm_build(TTM* ttm, Frame* frame, VString* result)
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
+}
+
+/**
+#<ttm;exec;which[;value]>
+where which is one of:
+* stacksize
+* execcount
+* showfinal
+* showcall
+If argc > 3 then set the specified state.
+Otherwise return the current value of the specified state
+*/
+static TTMERR
+ttm_ttm_exec(TTM* ttm, Frame* frame, VString* result)
+{
+    TTMERR err = TTM_NOERR;
+    TTMFCN_DECLS(ttm,frame);
+    char* which = NULL;
+    enum ExecEnum ee = EE_UNDEF;
+    char* svalue = NULL;
+    size_t value;
+    char tmp[1024];
+
+    TTMFCN_BEGIN(ttm,frame,result);
+    if(frame->argc < 3) EXIT(ttm,TTM_EFEWPARMS);
+    which = frame->argv[2];
+    if(frame->argc > 3)
+        svalue = frame->argv[3];
+
+    if((ee = execenumdetect(which))==EE_UNDEF) EXIT(ttm,TTM_EINVAL);
+    switch (ee) {
+    case EE_STACKSIZE:
+        if(svalue == NULL) {
+	    snprintf(tmp,sizeof(tmp),"%zu",ttmglobal.execprops.stacksize);
+	    vscat(ttm->vs.result,tmp);
+	} else {
+	    if(1!=sscanf(svalue,"%zu",&value)) EXIT(ttm,TTM_EINVAL);;
+	    ttmglobal.execprops.stacksize = value;
+	} break;
+    case EE_EXECCOUNT:
+        if(svalue == NULL) {
+	    snprintf(tmp,sizeof(tmp),"%zu",ttmglobal.execprops.execcount);
+	    vscat(ttm->vs.result,tmp);
+	} else {
+	    if(1!=sscanf(svalue,"%zu",&value)) EXIT(ttm,TTM_EINVAL);;
+	    ttmglobal.execprops.execcount = value;
+	} break;
+    case EE_SHOWFINAL:
+        if(svalue == NULL) {
+	    snprintf(tmp,sizeof(tmp),"%zu",ttmglobal.execprops.showfinal);
+	    vscat(ttm->vs.result,tmp);
+	} else {
+	    ttmglobal.execprops.showfinal = tfcvt(svalue);
+	} break;
+    case EE_SHOWCALL:
+        if(svalue == NULL) {
+	    snprintf(tmp,sizeof(tmp),"%zu",ttmglobal.execprops.showcall);
+	    vscat(ttm->vs.result,tmp);
+	} else {
+	    ttmglobal.execprops.showcall = tfcvt(svalue);
+	} break;
+    default: EXIT(ttm,TTM_EINVAL);
+    }
+done:
+    TTMFCN_END(ttm,frame,result);
+    return UPTHROW(ttm,err);
 }
 
 /**
@@ -3213,6 +3275,7 @@ done:
 #<ttm;list;{case};{name}*>	# return sorted list of names defined by case
 #<ttm;system;wd|platform>	# return various kinds of system info
 #<ttm;build;builder|srcdir|builddir> # return various kinds of build system info
+#<ttm;exec;stacksize|execcount|showfinal|showcall[;value]> # return or set execution state properties
 */
 static TTMERR
 ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
@@ -3254,13 +3317,16 @@ ttm_ttm(TTM* ttm, Frame* frame, VString* result) /* Misc. combined actions */
     case TE_BUILD:
 	err = ttm_ttm_build(ttm,frame,result);
 	break;
+    case TE_EXEC:
+	err = ttm_ttm_exec(ttm,frame,result);
+	break;
     default:
 	EXIT(ttm,TTM_ETTMCMD);
 	break;
     }
 done:
     TTMFCN_END(ttm,frame,result);
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 /**************************************************/
@@ -3295,12 +3361,13 @@ expandmacros(const char* s, int actual)
 {
     VString* expansion;
     const char* p;
+    char* contents = NULL;
 
     if(s == NULL) return NULL;
     expansion = vsnew();
     if(*s == '\0') goto done;
 
-    for(p=s;*p;p++) {
+    for(p=s;*p;) {
 	/* WARNING: must match macros column in decls.h/testspecials */
 	if(p[0] == '~' && p[1] == '~') { /* probably a pretends macro */
 	    const char* macend = strstr(p+2,"~~");
@@ -3309,14 +3376,20 @@ expandmacros(const char* s, int actual)
 	    } else { /* try to expand the macro */
 		enum SpecialEnum spe;
 		char key[32];
-		size_t maclen = (macend - (p+2));
+		size_t maclen;
+		p+=2; /* skip leading ~~ */
+		maclen = (macend - p);
 		assert(maclen < 32);
-		memcpy(key,p+2,maclen);
+		memcpy(key,p,maclen);
 		key[maclen] = '\0';
+		p += maclen+2; /* skip <key>~~ */
 		/* See if legal key */
-		if((spe = specialenumdetect(key))==SP_UNDEF)
-		    vsappend(expansion,*p); /* Unknown, so ignore */
-		else { /* Expand the macro */
+		if((spe = specialenumdetect(key))==SP_UNDEF) {
+		    /* unknown key => pass whole ~~<key>~~ */
+		    vscat(expansion,"~~");
+		    vscat(expansion,key);
+       		    vscat(expansion,"~~");
+		} else { /* Expand the macro */
 		    struct TestSpecial* ts = getspecial(spe);
 		    assert(ts != NULL);
 		    if(actual)
@@ -3326,10 +3399,12 @@ expandmacros(const char* s, int actual)
 		}
 	    }
         } else /* insignicant char */
-	    vsappend(expansion,*p);
+	    vsappend(expansion,*p++);
     }
 done:
-    return vsextract(expansion);
+    contents = vsextract(expansion);
+    vsfree(expansion);
+    return contents;
 }
 
 #if 0
@@ -3436,10 +3511,10 @@ static struct Builtin builtin_new[] = {
     {"argv",1,1,SV_V,ttm_argv}, /* Get ith command line argument; 0<=i<argc */
     {"argc",0,0,SV_V,ttm_argc}, /* no. of command line arguments */
     {"classes",0,0,SV_V,ttm_classes}, /* Obtain character class names */
-    {"ctime",1,1,SV_V,ttm_ctime}, /* Convert arg1 (typically #<time>) to printable string */
+    {"ctime",1,1,SV_V,ttm_ctime}, /* convert ##<time> value to printable string */
     {"include",1,1,SV_V,ttm_include}, /* Include text of a file */
-    {"lf",0,ARB,SV_S,ttm_lf}, /* Lock functions */
     {"uf",0,ARB,SV_S,ttm_uf}, /* Unlock functions */
+    {"lf",0,ARB,SV_S,ttm_lf}, /* Lock functions */
     {"ttm",1,ARB,SV_SV,ttm_ttm}, /* Misc. combined actions */
     {"ge",4,4,SV_V,ttm_ge}, /* Compare numeric greater-than */
     {"le",4,4,SV_V,ttm_le}, /* Compare numeric less-than */
@@ -3466,7 +3541,6 @@ static struct Builtin builtin_new[] = {
     {"pn",2,2,SV_V,ttm_pn}, /* pass arg[1] chars and return all but first arg[1] characters of arg[2] */
     {"trim",1,2,SV_V,ttm_trim}, /* trim leading and trailing whitespace */
     {"switch",2,ARB,SV_V,ttm_switch}, /* multiway conditional */
-    {"clearpassive",0,0,SV_S,ttm_clearpassive}, /* clear current passive results */
     {"breakpoint",0,0,SV_S,ttm_breakpoint},
     {"catch",1,1,SV_SV,ttm_catch}, /* evaluate a TTM expression and return any error code */
     {"throw",1,1,SV_S,ttm_throw}, /* signal a ttm error */
@@ -3534,7 +3608,7 @@ defineBuiltinFunction1(TTM* ttm, struct Builtin* bin)
 	EXIT(ttm,TTM_ETTM);
     }
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 static TTMERR
@@ -3542,12 +3616,14 @@ defineBuiltinFunctions(TTM* ttm)
 {
     int err = TTM_NOERR;
     struct Builtin* bin;
-    for(bin=builtin_orig;bin->name != NULL;bin++)
+    for(bin=builtin_orig;bin->name != NULL;bin++) {
 	if((err=defineBuiltinFunction1(ttm,bin))) EXIT(ttm,err);
-    for(bin=builtin_new;bin->name != NULL;bin++)
+    }
+    for(bin=builtin_new;bin->name != NULL;bin++) {
 	if((err=defineBuiltinFunction1(ttm,bin))) EXIT(ttm,err);
+    }
 done:
-    return THROW(ttm,err);
+    return UPTHROW(ttm,err);
 }
 
 #endif /*BUILDINS_H*/

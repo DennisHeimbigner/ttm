@@ -1,3 +1,6 @@
+#ifndef HASH_H
+#define HASH_H
+
 /**************************************************/
 /**
 HashTable Management:
@@ -30,6 +33,7 @@ hashLocate(struct HashTable* table, const char* name, struct HashEntry** prevp)
     struct HashEntry* next;
     unsigned index;
     unsigned hash;
+    int match;
 
     hash = computehash(name);
     if(!(table != NULL && name != NULL))
@@ -37,15 +41,15 @@ hashLocate(struct HashTable* table, const char* name, struct HashEntry** prevp)
     index = (((unsigned)(name[0])) & HASHTABLEMASK);
     prev = &table->table[index];
     next = prev->next;
-    while(next != NULL) {
+    for(match=0;next != NULL;) {
 	if(next->hash == hash
 	   && strcmp((char*)name,(char*)next->name)==0)
-	    break;
+	    {match = 1; break;}
 	prev = next;
 	next = next->next;
     }
-    if(prevp) *prevp = prev;
-    return (next == NULL ? 0 : 1);
+    if(prevp) *prevp = prev; /* return ptr to entry or to where to insert the entry */
+    return (match? 1 : 0);
 }
 
 /* Remove an entry specified by argument 'entry'.
@@ -120,3 +124,4 @@ clearHashEntry(struct HashEntry* entry)
     memset(entry,0,sizeof(struct HashEntry));
 }
 
+#endif /*HASH_H*/
