@@ -623,7 +623,8 @@ scan(TTM* ttm)
 	    TTMCP8NXT(ttm);
 	} else if(isescape(cp8)) {
 	    TTMCP8NXT(ttm);
-	    vsindexappendn(ttm->vs.passive,cp8,ncp); /* pass the escaped char */
+	    vsappendn(ttm->vs.passive,cp8,ncp); /* pass the escaped char */
+	    vsindexskip(ttm->vs.passive,ncp);
 	    TTMCP8NXT(ttm); /* skip escaped char */
 	} else if(u8equal(cp8,ttm->meta.sharpc)) {/* Start of call? */
 	    const char* pk1 = peek(ttm->vs.active,1);
@@ -639,7 +640,8 @@ scan(TTM* ttm)
 		if(err) EXIT(ttm,err);
 		if(ttm->flags.exit) goto done;
 	    } else {/* not an call; just pass the # along passively */
-		vsindexappendn(ttm->vs.passive,cp8,ncp);
+		vsappendn(ttm->vs.passive,cp8,ncp);
+		vsindexskip(ttm->vs.passive,ncp);
 		TTMCP8NXT(ttm);
 	    }
 	} else if(u8equal(cp8,ttm->meta.lbrc)) { /* start of <...> escaping */
@@ -648,27 +650,33 @@ scan(TTM* ttm)
 	    while(depth > 0) {
 		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
 		if(isescape(cp8)) {
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep the escape char */
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm); /* Skip escape char */
 		    if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* unexpected eof */
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep the escaped char */
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm); /* Skip escaped char */
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
 		    depth++;
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm); /* Skip lbrc */
 		} else if(u8equal(cp8,ttm->meta.rbrc)) {
 		    if(--depth > 0) { /* pass the rbrc */
-			vsindexappendn(ttm->vs.passive,cp8,ncp); /* Keep rbrc */
+			vsappendn(ttm->vs.passive,cp8,ncp); /* Keep rbrc */
+			vsindexskip(ttm->vs.passive,ncp);
 		    }
 		    TTMCP8NXT(ttm); /* Skip rbrc */
 		} else { /*ordinary char */
 		    vsappendn(ttm->vs.passive,cp8,ncp); /* Keep lbrc */
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm); /* Skip lbrc */
 		}
 	    } /*<...> while*/
 	} else { /* non-signficant character */
 	    vsappendn(ttm->vs.passive,(char*)cp8,ncp);
+	    vsindexskip(ttm->vs.passive,ncp);
 	    TTMCP8NXT(ttm);
 	}
     } /*scan for*/
@@ -710,7 +718,7 @@ exec(TTM* ttm)
     TTMCP8SET(ttm);      
 
     saveindex = vsindex(ttm->vs.active);
-    savepassive = vsindex(ttm->vs.passive);
+    savepassive = vslength(ttm->vs.passive);
 
     /* Skip to the start of the function name */
     if(u8equal(peek(ttm->vs.active,1),ttm->meta.openc)) {
@@ -731,7 +739,7 @@ exec(TTM* ttm)
     if(frame == NULL)
 	EXIT(ttm,TTM_ETTM);
 
-    vsindexset(ttm->vs.passive,savepassive);
+    vssetlength(ttm->vs.passive,savepassive);
     if(ttm->flags.exit) goto done;
 
     if(ttm->debug.debug > 1) {
@@ -804,7 +812,8 @@ exec(TTM* ttm)
 	   frame->active => insert at ttm->vs.active index unchanged
 	*/
 	if(frame->active) {
-             (void)vsindexinsertn(ttm->vs.active, vscontents(ttm->vs.result), vslength(ttm->vs.result)); /* index unchanged */
+             vsinsertn(ttm->vs.active,vsindex(ttm->vs.active),vscontents(ttm->vs.result), vslength(ttm->vs.result)); /* index unchanged */
+	     vsindexset(ttm->vs.active,saveindex);
 	} else { /*frame->passive*/
 	    vsappendn(ttm->vs.passive,vscontents(ttm->vs.result),vslength(ttm->vs.result));
 	    vsindexset(ttm->vs.passive,vslength(ttm->vs.passive));
@@ -879,27 +888,34 @@ collectargs(TTM* ttm, int active, Frame** framep)
 	    for(;;) {
 		if(isnul(cp8)) EXIT(ttm,TTM_EEOS); /* Unexpected EOF */
 		if(isescape(cp8)) {
-		    vsindexappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
+		    vsappendn(ttm->vs.passive,(char*)cp8,ncp); /* append escape */
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm);
-		    vsindexappendn(ttm->vs.passive,cp8,ncp); /* append escaped char */
+		    vsappendn(ttm->vs.passive,cp8,ncp); /* append escaped char */
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm);
 		} else if(u8equal(cp8,ttm->meta.lbrc)) {
-		    vsindexappendn(ttm->vs.passive,cp8,ncp);
+		    vsappendn(ttm->vs.passive,cp8,ncp);
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm);
 		    depth++;
 		} else if(u8equal(cp8,ttm->meta.rbrc)) {
-		    if(--depth > 0)
-			vsindexappendn(ttm->vs.passive,cp8,ncp);
+		    if(--depth > 0) {
+			vsappendn(ttm->vs.passive,cp8,ncp);
+		        vsindexskip(ttm->vs.passive,ncp);
+		    }
 		    TTMCP8NXT(ttm);
 		    if(depth == 0) break; /* we are done */
 		} else {
-		    vsindexappendn(ttm->vs.passive,cp8,ncp);
+		    vsappendn(ttm->vs.passive,cp8,ncp);
+		    vsindexskip(ttm->vs.passive,ncp);
 		    TTMCP8NXT(ttm);
 		}
 	    }/*<...> for*/
 	} else {
 	    /* keep moving */
-	    vsindexappendn(ttm->vs.passive,cp8,ncp);
+	    vsappendn(ttm->vs.passive,cp8,ncp);
+	    vsindexskip(ttm->vs.passive,ncp);
 	    TTMCP8NXT(ttm);
 	}
     } /* collect argument for */
@@ -1235,9 +1251,16 @@ memmovex(char* dst, char* src, size_t len)
 #ifdef HAVE_MEMMOVE
     memmove((void*)dst,(void*)src,len*sizeof(char));
 #else
-    src += len;
-    dst += len;
-    while(len--) {*(--dst) = *(--src);}
+    char *d = dst;
+    const char *s = src;
+
+    if (d < s) {
+        while (len--) {*d++ = *s++;}
+    } else {
+        d += len; /* Point to one past the end of destination */
+        s += len; /* Point to one past the end of source */
+        while (len--) {*(--d) = *(--s);} /* Decrement pointers and copy */
+    }
 #endif
 }
 
@@ -1333,8 +1356,12 @@ uncomment(TTM* ttm, VString* line)
 	    /* Kill rest of line from p to end 	*/
 	    size_t pos = (p - vsgetp(line,0));
 	    vssetlength(line,pos);
+	    vsindexset(line,vslength(line));
 	    /* Add '\n' if it was the last char */
-	    if(lastchar == '\n') vsappend(line,'\n');
+	    if(lastchar == '\n') {
+	        vsappend(line,'\n');
+		vsindexskip(line,1);
+	    }
 	} else if(!isnul(p)) { /* pass codepoint */
 	    ncp = u8size(p);
 	    if(ncp <= 0) FATAL(ttm,TTM_EUTF8,NULL); /* illegal utf8 char */

@@ -183,8 +183,8 @@ ttm_subst(TTM* ttm, VString* text, const char* pattern, size_t segindex, size_t*
 	/* q points to next matching string */
 	pos = (size_t)(q - body); /* compute new pos of the matching string */
 	vsindexset(text,pos); /* set the rp to the new pos */
-	vsindexremoven(text,patlen); /* remove pattern */
-	vsindexinsertn(text,segmark,seglen); /* insert segmark; will update index */
+	vsremoven(text,vsindex(text),patlen); /* remove pattern */
+	vsinsertn(text,vsindex(text),segmark,seglen); /* insert segmark; will update index */
 	segcount++;
     }	
 done:

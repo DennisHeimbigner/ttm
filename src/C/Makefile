@@ -27,7 +27,7 @@ CFLAGS = ${CCWARN} ${CCDEBUG} ${CCMEM} ${CCDEF}
 all: clean ${TTM}.exe
 
 # Assemble ttm8.c from pieces
-INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h vutils.h vvsprintf.h 
+INCLUDES = builtins.h  const.h  debug.h  decls.h  forward.h  hash.h  io.h  macros.h  types.h utf8.h vutils.h vvsprintf.h
 
 ${TTM}.exe: ${TTM}.c ${INCLUDES}
 	${CC} ${CFLAGS} -o $@ $<

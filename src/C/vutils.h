@@ -8,7 +8,6 @@ typedef struct VList {
     size_t alloc;
     size_t length;
     void**  content; 
-    size_t index; /* 0 <= index < length */
     void   (*deepfree)(size_t nelems, void** elems);
     void   (*deepclone)(size_t nelems, void** src, void** dst);
 } VList;
@@ -37,6 +36,7 @@ static VList* vlnew(void);
 static VList* vlnewdeep(void (deepfree)(size_t nelems, void** elems), void deepclone(size_t nelems, void** src, void** dst));
 static void vlfreeall(VList* va);
 static void vlfree(VList* va);
+static void vlmanifest(VList* va);
 static void vlexpand(VList* va);
 static void vlsetalloc(VList* va, size_t minalloc);
 static void vlsetlength(VList* va, size_t newlen);
@@ -46,19 +46,13 @@ static void* vlremove(VList* va, size_t pos);
 static void* vlget(VList* va, size_t pos);
 static void** vlgetp(VList* va, size_t pos);
 static void** vlextract(VList* va);
-#if 0
-static void vlindexset(VList* va, size_t pos);
-static void vlindexskip(VList* va, size_t skip);
-static size_t vlindex(VList* va);
-static void vlindexremove(VList* va);
-static void vlindexinsert(VList* va, void* elem);
-#endif
 static VList* vldeepclone(VList* va);
 static VList* vlclone(VList* va);
-static void vutilsuppresswarnings(void);
 
 static VString* vsnew(void);
 static void vsfree(VString* va);
+static VString* vsclone(VString* va);
+static void vsmanifest(VString* va);
 static void vsexpand(VString* va);
 static void vssetalloc(VString* va, size_t minalloc);
 static void vssetlength(VString* va, size_t newlen);
@@ -70,15 +64,15 @@ static void vsremoven(VString* va, size_t pos, size_t n);
 static char* vsgetp(VString* va, size_t pos);
 static char vsget(VString* va, size_t pos);
 static char* vsextract(VString* va);
+static void vsnulterm(VString* va);
+
 static void vsindexset(VString* va, size_t pos);
 static char* vsindexskip(VString* va, size_t skip);
 static size_t vsindex(VString* va);
 static char* vsindexp(VString* va);
-static void vsindexinsertn(VString* va, const char* s, size_t n);
-static void vsindexremoven(VString* va, size_t n);
-static VString* vsclone(VString* va);
-static void vsnulterm(VString* va);
+
 static void vsmemmove(char* dst, char* src, size_t len);
+static void vutilsuppresswarnings(void);
 
 /**************************************************/
 /* "Inlined" */
@@ -197,6 +191,7 @@ vlexpand(VList* va)
 
 /**
 Set the allocated capacity of the VList's capacity.
+Allocated capacity will never decrease.
 @param va the array to expand
 @param minalloc make sure alloc is at least this amount
 @return void
@@ -220,7 +215,6 @@ vlsetlength(VList* va, size_t newlen)
     assert(va != NULL);
     vlmanifest(va); /* ensure va->content */
     vlsetalloc(va,newlen);
-    if(va->index > newlen) va->index = newlen;
     va->length = newlen;
 }
 
@@ -243,7 +237,6 @@ Insert an element at position pos.
 @param pos where to insert; if pos > |va->content| then expand va.
 @param elem to insert
 @return void
-Side effect: increase index by one if index is past pos
 */
 static void
 vlinsert(VList* va, size_t pos, void* elem)
@@ -255,7 +248,6 @@ vlinsert(VList* va, size_t pos, void* elem)
     for(i=va->length;i>pos;i--) va->content[i] = va->content[i-1];
   }
   va->content[pos] = elem;
-  if(va->index > pos) va->index++;
   va->length++;
   va->content[va->length] = NULL; /* ensure null terminated */
 }
@@ -265,7 +257,6 @@ Remove element at position pos.
 @param va
 @param pos where to remove
 @return removed elem
-Side effect: reduce index by one if index is past pos
 */
 static void*
 vlremove(VList* va, size_t pos)
@@ -277,7 +268,6 @@ vlremove(VList* va, size_t pos)
   if(pos >= len) return NULL;
   elem = va->content[pos];
   for(i=pos+1;i<len;i++) va->content[i-1] = va->content[i];
-  if(va->index > pos) va->index--;
   va->length--;
   va->content[va->length] = NULL; /* ensure null terminated */
   return elem;
@@ -317,81 +307,6 @@ vlextract(VList* va)
     va->alloc = 0;
     return x;
 }
-
-#if 0
-/** Index Management Functions */
-
-/**
-Set the index but index <= va->length.
-@param va
-@param pos set va->index to pos
-@return void
-*/
-static void
-vlindexset(VList* va, size_t pos)
-{
-    assert(va != NULL);
-    assert(va->index >= 0);
-    vlsetalloc(va,pos+1); /* force existence */
-    if(pos > va->length) pos = va->length; /* do not advance */
-    va->index = pos;
-}
-
-/**
-Move the index up by skip elems
-@param va
-@param skip incr va->index by skip
-@return void* of new index
-*/
-static void
-vlindexskip(VList* va, size_t skip)
-{
-    assert(va != NULL);
-    assert(va->index >= 0);
-    vlindexset(va,va->index + skip);
-}
-
-/**
-Return current index.
-@param va
-@return current index
-*/
-static size_t
-vlindex(VList* va)
-{
-    assert(va != NULL);
-    vlsetalloc(va,1);
-    return va->index;
-}
-
-/**
-Remove a element at the index.
-Index remains unchanged.
-@param va
-@return void
-*/
-static void
-vlindexremove(VList* va)
-{
-    if(va->index > va->length) va->index = va->length;
-    vlremove(va,va->index);
-}
-
-/**
-Insert an element at the index.
-Move index past insertion
-@param va
-@param elem to insert
-@return void
-*/
-static void
-vlindexinsert(VList* va, void* elem)
-{
-    if(va->index > va->length) va->index = va->length;
-    vlinsert(va,va->index,elem);
-    va->index++;
-}
-#endif /*0*/
 
 /**
 Deep clone a VList object.
@@ -447,40 +362,8 @@ vlclone(VList* va)
 #define vsalloc(vs)  ((vs)==NULL?0:((VList*)(vs))->alloc)
 #define vscat(vs,s)  vsappendn(vs,s,strlen(s))
 #define vsclear(vs)  vssetlength(vs,0)
-/* Appendn n chars at end of VString and move index past it */
-#define vsindexappendn(vs,s,slen) do{vsappendn(vs,s,slen);vsindexskip(vs,slen);}while(0)
 
 /**************************************************/
-
-
-
-/**************************************************/
-
-/* Hack to suppress compiler warnings about selected unused static functions */
-static void
-vutilsuppresswarnings(void)
-{
-    void* ignore;
-    ignore = (void*)vutilsuppresswarnings;
-    (void)ignore;
-    ignore = (void*)vlclone;
-    ignore = (void*)vldeepclone;
-#if 0
-    ignore = (void*)vlindexinsert;
-    ignore = (void*)vlindexremove;
-    ignore = (void*)vlindex;
-    ignore = (void*)vlindexskip; 
-#endif
-    ignore = (void*)vlextract;
-    ignore = (void*)vlgetp;
-    ignore = (void*)vlappend;
-    ignore = (void*)vlsetlength;
-    ignore = (void*)vlnewdeep;
-    ignore = (void*)vssetn;
-    ignore = (void*)vsextract;
-}
-
-#endif /*VUTILS_H*/
 
 /**
 Create a new VString object.
@@ -506,6 +389,28 @@ vsfree(VString* va)
     if(va == NULL) return;
     nullfree(va->content);
     free(va);
+}
+
+/**
+Clone a VString object.
+@param va the variable-length object to clone
+@return ptr to clone
+*/
+static VString*
+vsclone(VString* va)
+{
+    VString* clone = NULL;
+    clone = (VString*)calloc(1,sizeof(VString));
+    assert(clone != NULL);
+    *clone = *va; /* copy the fields */
+    /* Now fix up alloc'd fields */
+    if(va->length > 0) {
+    	assert(va->content != NULL);
+	clone->content = (char*)calloc(va->alloc,sizeof(char));
+        assert(clone->content != NULL);
+	memcpy(clone->content,va->content,va->length*sizeof(char));
+    }
+    return clone;
 }
 
 /**
@@ -578,7 +483,6 @@ vssetlength(VString* va, size_t newlen)
     assert(va != NULL);
     vsmanifest(va);
     vssetalloc(va,newlen); /* ensure va->content exists */
-    if(va->index > newlen) va->index = newlen;
     va->length = newlen;
     va->content[va->length] = '\0';
 }
@@ -617,7 +521,6 @@ Insert a string at position pos.
 @param s string to append
 @param slen no. of chars to append
 @return void
-Side effect: leave index as is.
 */
 static void
 vsinsertn(VString* va, size_t pos, const char* s, size_t slen)
@@ -665,9 +568,6 @@ Remove n characters at position pos.
 @param pos where to remove
 @param n no. of chars to remove
 @return void
-Side effect:
-(1) reduce index by n if index >  pos+n
-(2) set index to pos if index >  pos
 */
 static void
 vsremoven(VString* va, size_t pos, size_t n)
@@ -681,7 +581,6 @@ vsremoven(VString* va, size_t pos, size_t n)
     vsmemmove(&va->content[pos],&va->content[pos+n],nmove);
   va->length -= n;
   va->content[va->length] = '\0';
-  if(va->index > (pos+n)) {va->index -= n;} else {if(va->index > pos) {va->index = pos;}}
 }
 
 static char*
@@ -718,6 +617,14 @@ vsextract(VString* va)
     va->length = 0;
     va->alloc = 0;
     return x;
+}
+
+static void
+vsnulterm(VString* va)
+{
+    if(va->length == va->alloc)
+        vssetalloc(va,va->alloc+1);
+    va->content[va->length] = '\0';
 }
 
 /** Index Management Functions */
@@ -781,65 +688,6 @@ vsindexp(VString* va)
     return &va->content[va->index];
 }
 
-/**
-Remove n chars at the index.
-Index remains unchanged.
-@param va
-@param n chars to remove
-@return void
-*/
-static void
-vsindexremoven(VString* va, size_t n)
-{
-    if(va->index > va->length) va->index = va->length;
-    vsremoven(va,va->index,n);
-}
-
-/**
-Insert n chars of s at the index.
-@param va
-@param s src string
-@param n chars of s to insert
-@return void
-Note: index is left as is
-*/
-static void
-vsindexinsertn(VString* va, const char* s, size_t n)
-{
-    if(va->index > va->length) va->index = va->length;
-    vsinsertn(va,va->index,s,n);
-}
-
-/**
-Clone a VString object.
-@param va the variable-length object to clone
-@return ptr to clone
-*/
-static VString*
-vsclone(VString* va)
-{
-    VString* clone = NULL;
-    clone = (VString*)calloc(1,sizeof(VString));
-    assert(clone != NULL);
-    *clone = *va; /* copy the fields */
-    /* Now fix up alloc'd fields */
-    if(va->length > 0) {
-    	assert(va->content != NULL);
-	clone->content = (char*)calloc(va->alloc,sizeof(char));
-        assert(clone->content != NULL);
-	memcpy(clone->content,va->content,va->length*sizeof(char));
-    }
-    return clone;
-}
-
-static void
-vsnulterm(VString* va)
-{
-    if(va->length == va->alloc)
-        vssetalloc(va,va->alloc+1);
-    va->content[va->length] = '\0';
-}
-
 /**************************************************/
 /* Utility functions */
 
@@ -862,3 +710,52 @@ vsmemmove(char* dst, char* src, size_t len)
 #endif
 }
 
+/* Hack to suppress compiler warnings about selected unused static functions */
+static void
+vutilsuppresswarnings(void)
+{
+    void* ignore;
+    ignore = (void*)vutilsuppresswarnings;
+    (void)ignore;
+    ignore = (void*)vlclone;
+    ignore = (void*)vldeepclone;
+    ignore = (void*)vlnew;
+    ignore = (void*)vlnewdeep;
+    ignore = (void*)vlfreeall;
+    ignore = (void*)vlfree;
+    ignore = (void*)vlmanifest;
+    ignore = (void*)vlexpand;
+    ignore = (void*)vlsetalloc;
+    ignore = (void*)vlsetlength;
+    ignore = (void*)vlappend;
+    ignore = (void*)vlinsert;
+    ignore = (void*)vlremove;
+    ignore = (void*)vlget;
+    ignore = (void*)vlgetp;
+    ignore = (void*)vlextract;
+    ignore = (void*)vldeepclone;
+    ignore = (void*)vlclone;
+    ignore = (void*)vsnew;
+    ignore = (void*)vsfree;
+    ignore = (void*)vsclone;
+    ignore = (void*)vsmanifest;
+    ignore = (void*)vsexpand;
+    ignore = (void*)vssetalloc;
+    ignore = (void*)vssetlength;
+    ignore = (void*)vsappendn;
+    ignore = (void*)vsappend;
+    ignore = (void*)vsinsertn;
+    ignore = (void*)vssetn;
+    ignore = (void*)vsremoven;
+    ignore = (void*)vsgetp;
+    ignore = (void*)vsget;
+    ignore = (void*)vsextract;
+    ignore = (void*)vsnulterm;
+    ignore = (void*)vsindexset;
+    ignore = (void*)vsindexskip;
+    ignore = (void*)vsindex;
+    ignore = (void*)vsindexp;
+    ignore = (void*)vsmemmove;
+}
+
+#endif /*VUTILS_H*/
